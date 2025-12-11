@@ -1,0 +1,191 @@
+// Simplified MVP Schema - Phase 1, Task 5
+// Only includes tables needed for MVP functionality
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model - Clerk user sync
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String
+  username  String?
+  firstName String?
+  lastName  String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  creatorMemberships Creator_User[]
+  conversations      Conversation[]
+  messages           Message[]
+  messageFeedbacks   Message_Feedback[]
+}
+
+// Creator model - AI creator profile
+model Creator {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  // Relations
+  users      Creator_User[]
+  chatbots   Chatbot[]
+  sources    Source[]
+  files      File[]
+}
+
+// Creator_User join table - Multi-user creators (for MVP, supports one user per creator)
+model Creator_User {
+  id        String   @id @default(cuid())
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("OWNER") // 'OWNER' | 'ADMIN' | 'MEMBER'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([creatorId, userId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
+// Chatbot model - Live chatbot entity
+model Chatbot {
+  id        String   @id @default(cuid())
+  title     String
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  // Relations
+  conversations    Conversation[]
+  sources          Source[]
+  chunkPerformances Chunk_Performance[]
+}
+
+// Source model - Content sources (books, courses, etc.)
+model Source {
+  id         String   @id @default(cuid())
+  title      String
+  creatorId  String
+  creator    Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  chatbotId  String
+  chatbot    Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  files             File[]
+  chunkPerformances Chunk_Performance[]
+}
+
+// File model - Uploaded assets
+model File {
+  id        String   @id @default(cuid())
+  sourceId  String
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileSize  Int
+  status    String   @default("PENDING") // 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR'
+  createdAt DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([creatorId])
+}
+
+// Conversation model - Chat sessions
+model Conversation {
+  id           String   @id @default(cuid())
+  chatbotId    String
+  chatbot      Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String   @default("active") // 'active' | 'completed'
+  messageCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  messages Message[]
+
+  @@index([chatbotId, status])
+  @@index([userId])
+}
+
+// Message model - Individual messages in conversations
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       // 'user' | 'assistant'
+  content        String
+  context        Json?        // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
+  sourceIds      String[]     @default([]) // Extracted from context.chunks for easier querying
+  createdAt      DateTime     @default(now())
+
+  // Relations
+  messageFeedbacks Message_Feedback[]
+
+  @@index([conversationId])
+  @@index([sourceIds])
+  @@index([userId])
+}
+
+// Message_Feedback model - Thumbs up/down feedback
+model Message_Feedback {
+  id           String   @id @default(cuid())
+  messageId    String
+  message      Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedbackType String   // 'helpful' | 'not_helpful'
+  createdAt    DateTime @default(now())
+
+  @@index([messageId])
+  @@index([userId])
+}
+
+// Chunk_Performance model - Basic counters for chunk usage and feedback
+model Chunk_Performance {
+  id               String   @id @default(cuid())
+  chunkId          String
+  sourceId         String
+  source           Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chatbotId        String
+  chatbot          Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  // Counters
+  timesUsed        Int      @default(0)
+  helpfulCount     Int      @default(0)
+  notHelpfulCount  Int      @default(0)
+
+  // Computed satisfaction rate (updated on each feedback)
+  satisfactionRate Float    @default(0)
+
+  // Cached chunk text for dashboard display (populated on first use from Pinecone)
+  chunkText        String?
+  chunkMetadata     Json?    // { page, section, sourceTitle }
+
+  // Time period
+  month            Int
+  year             Int
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([chunkId, chatbotId, month, year])
+  @@index([chatbotId, month, year, satisfactionRate])
+  @@index([chatbotId, month, year, timesUsed])
+  @@index([sourceId])
+}
