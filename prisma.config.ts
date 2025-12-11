@@ -1,5 +1,6 @@
 // Prisma 7 configuration file
 // Manages database connection URLs and migration settings
+import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
