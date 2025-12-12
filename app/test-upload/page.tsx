@@ -68,7 +68,7 @@ export default function TestUploadPage() {
           <strong>Source ID:</strong> {sourceId}
         </p>
         <p className="text-sm text-gray-700 mt-2">
-          <strong>Note:</strong> Make sure you're signed in and the seed script has been run.
+          <strong>Note:</strong> Make sure you&apos;re signed in and the seed script has been run.
         </p>
       </div>
 

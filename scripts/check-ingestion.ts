@@ -115,7 +115,7 @@ async function checkIngestion() {
         if (stats.namespaces) {
           console.log(`   Namespaces: ${Object.keys(stats.namespaces).length}`);
           if (stats.namespaces[namespace]) {
-            console.log(`   "${namespace}": ${stats.namespaces[namespace].vectorCount} vectors`);
+            console.log(`   "${namespace}": ${stats.namespaces[namespace].recordCount} vectors`);
           } else {
             console.log(`   ⚠️  Namespace "${namespace}" not found in stats`);
           }

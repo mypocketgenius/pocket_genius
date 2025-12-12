@@ -100,7 +100,7 @@ export default function TestFilesPage() {
         <h2 className="font-semibold mb-2">How to find your File ID:</h2>
         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
           <li>Go to your Neon database dashboard</li>
-          <li>Run query: <code className="bg-gray-100 px-2 py-1 rounded">SELECT id, "fileName", status FROM "File" WHERE "sourceId" = 'source_art_of_war';</code></li>
+          <li>Run query: <code className="bg-gray-100 px-2 py-1 rounded">SELECT id, &quot;fileName&quot;, status FROM &quot;File&quot; WHERE &quot;sourceId&quot; = &apos;source_art_of_war&apos;;</code></li>
           <li>Copy the file ID and use it in the form above</li>
         </ol>
       </div>

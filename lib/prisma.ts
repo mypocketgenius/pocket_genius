@@ -7,9 +7,9 @@
 if (!process.env.DATABASE_URL) {
   try {
     // Use require for synchronous loading (works in both CommonJS and ESM via tsx)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line
     const dotenv = require('dotenv');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line
     const path = require('path');
     // Try .env.local first (Next.js convention), then .env
     dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });

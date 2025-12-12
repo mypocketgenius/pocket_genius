@@ -1,13 +1,15 @@
 // app/api/chat/route.ts
 // Phase 3, Task 1: Chat API route with RAG-powered responses
+// Phase 3, Task 5: Basic error handling for Pinecone, OpenAI, and database errors
 // Generates query embedding, queries Pinecone, stores messages, and streams responses
 
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
-import { queryRAG } from '@/lib/rag/query';
+import { queryRAG, type RetrievedChunk } from '@/lib/rag/query';
 import { checkRateLimit, getRemainingMessages, RATE_LIMIT } from '@/lib/rate-limit';
 
 // Initialize OpenAI client with type-safe API key
@@ -161,23 +163,84 @@ export async function POST(req: Request) {
       }
     }
 
-    // 6. Store user message
-    const userMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        userId: dbUserId || undefined,
-        role: 'user',
-        content: lastMessage.content,
-      },
-    });
+    // 6. Store user message (with error handling)
+    let userMessage;
+    try {
+      userMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          userId: dbUserId || undefined,
+          role: 'user',
+          content: lastMessage.content,
+        },
+      });
+    } catch (error) {
+      console.error('Database error storing user message:', error);
+      
+      // Handle database connection errors
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        // Database connection issues
+        if (error.code === 'P1001' || error.code === 'P1008') {
+          return NextResponse.json(
+            { error: 'Database connection error. Please try again.' },
+            { status: 503 }
+          );
+        }
+        
+        // Unique constraint violations (shouldn't happen, but handle gracefully)
+        if (error.code === 'P2002') {
+          console.error('Unique constraint violation:', error);
+          return NextResponse.json(
+            { error: 'An error occurred. Please try again.' },
+            { status: 500 }
+          );
+        }
+      }
+      
+      // Re-throw to be caught by outer catch
+      throw error;
+    }
 
-    // 7. Query RAG for relevant chunks
+    // 7. Query RAG for relevant chunks (with error handling)
     const namespace = `chatbot-${chatbotId}`;
-    const retrievedChunks = await queryRAG({
-      query: lastMessage.content,
-      namespace,
-      topK: 5,
-    });
+    let retrievedChunks: RetrievedChunk[] = [];
+    try {
+      retrievedChunks = await queryRAG({
+        query: lastMessage.content,
+        namespace,
+        topK: 5,
+      });
+    } catch (error) {
+      console.error('RAG query failed:', error);
+      
+      // Handle Pinecone connection errors
+      if (error instanceof Error) {
+        if (error.message.includes('Pinecone') || error.message.includes('connection')) {
+          return NextResponse.json(
+            { error: 'Unable to retrieve content. Please try again in a moment.' },
+            { status: 503 } // Service Unavailable
+          );
+        }
+        
+        // Handle embedding generation errors (OpenAI API issues)
+        if (error.message.includes('OpenAI') || error.message.includes('embedding')) {
+          return NextResponse.json(
+            { error: 'Service temporarily unavailable. Please try again shortly.' },
+            { status: 503 }
+          );
+        }
+      }
+      
+      // For other RAG errors, continue without context (fallback to general knowledge)
+      console.warn('RAG query failed, continuing without context:', error);
+      retrievedChunks = [];
+    }
+    
+    // Handle empty results gracefully
+    if (!retrievedChunks || retrievedChunks.length === 0) {
+      console.warn('No chunks retrieved from RAG query');
+      // Continue with empty chunks - OpenAI will use general knowledge
+    }
 
     // 8. Build context from retrieved chunks
     const context = retrievedChunks
@@ -204,22 +267,76 @@ export async function POST(req: Request) {
       relevanceScore: chunk.relevanceScore,
     }));
 
-    // 11. Generate streaming response with OpenAI
-    const systemPrompt = `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:
+    // 11. Generate streaming response with OpenAI (with error handling)
+    const systemPrompt = retrievedChunks.length > 0
+      ? `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:
 
 ${context}
 
-If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.`;
+If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.`
+      : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.`;
 
-    const stream = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ],
-      stream: true,
-      temperature: 0.7,
-    });
+    let stream;
+    try {
+      stream = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages,
+        ],
+        stream: true,
+        temperature: 0.7,
+      });
+    } catch (error) {
+      console.error('OpenAI API error:', error);
+      
+      // Handle OpenAI API errors specifically
+      if (error instanceof OpenAI.APIError) {
+        // Rate limit errors
+        if (error.status === 429) {
+          return NextResponse.json(
+            { error: 'OpenAI service is busy. Please try again in a moment.' },
+            { status: 503 }
+          );
+        }
+        
+        // Authentication/authorization errors
+        if (error.status === 401 || error.status === 403) {
+          console.error('OpenAI API key issue:', error.message);
+          return NextResponse.json(
+            { error: 'Service configuration error. Please contact support.' },
+            { status: 500 }
+          );
+        }
+        
+        // Quota exceeded
+        if (error.status === 402) {
+          return NextResponse.json(
+            { error: 'Service temporarily unavailable. Please try again later.' },
+            { status: 503 }
+          );
+        }
+        
+        // Other API errors
+        return NextResponse.json(
+          { error: 'Unable to generate response. Please try again.' },
+          { status: 500 }
+        );
+      }
+      
+      // Network or other errors
+      if (error instanceof Error) {
+        if (error.message.includes('timeout') || error.message.includes('network')) {
+          return NextResponse.json(
+            { error: 'Connection timeout. Please try again.' },
+            { status: 504 } // Gateway Timeout
+          );
+        }
+      }
+      
+      // Re-throw unknown errors to be caught by outer catch
+      throw error;
+    }
 
     // 12. Create a readable stream for the response
     const encoder = new TextEncoder();
@@ -237,61 +354,82 @@ If the context doesn't contain relevant information to answer the question, say 
           }
 
           // 13. Store assistant message with context after streaming completes
-          await prisma.message.create({
-            data: {
-              conversationId,
-              userId: dbUserId || undefined,
-              role: 'assistant',
-              content: fullResponse,
-              context: { chunks: chunksForContext },
-              sourceIds,
-            },
-          });
+          try {
+            await prisma.message.create({
+              data: {
+                conversationId,
+                userId: dbUserId || undefined,
+                role: 'assistant',
+                content: fullResponse,
+                context: { chunks: chunksForContext },
+                sourceIds,
+              },
+            });
 
-          // 14. Update conversation messageCount
-          await prisma.conversation.update({
-            where: { id: conversationId },
-            data: {
-              messageCount: { increment: 2 }, // User + assistant
-              updatedAt: new Date(),
-            },
-          });
+            // 14. Update conversation messageCount
+            await prisma.conversation.update({
+              where: { id: conversationId },
+              data: {
+                messageCount: { increment: 2 }, // User + assistant
+                updatedAt: new Date(),
+              },
+            });
 
-          // 15. Update chunk performance counters
-          const month = new Date().getMonth() + 1;
-          const year = new Date().getFullYear();
+            // 15. Update chunk performance counters (only if chunks were retrieved)
+            if (retrievedChunks.length > 0) {
+              const month = new Date().getMonth() + 1;
+              const year = new Date().getFullYear();
 
-          // Use Promise.all for parallel updates
-          await Promise.all(
-            retrievedChunks.map((chunk) =>
-              prisma.chunk_Performance.upsert({
-                where: {
-                  chunkId_chatbotId_month_year: {
-                    chunkId: chunk.chunkId,
-                    chatbotId,
-                    month,
-                    year,
-                  },
-                },
-                create: {
-                  chunkId: chunk.chunkId,
-                  sourceId: chunk.sourceId,
-                  chatbotId,
-                  timesUsed: 1,
-                  month,
-                  year,
-                },
-                update: {
-                  timesUsed: { increment: 1 },
-                },
-              })
-            )
-          );
+              // Use Promise.allSettled to handle individual chunk update failures gracefully
+              await Promise.allSettled(
+                retrievedChunks.map((chunk) =>
+                  prisma.chunk_Performance.upsert({
+                    where: {
+                      chunkId_chatbotId_month_year: {
+                        chunkId: chunk.chunkId,
+                        chatbotId,
+                        month,
+                        year,
+                      },
+                    },
+                    create: {
+                      chunkId: chunk.chunkId,
+                      sourceId: chunk.sourceId,
+                      chatbotId,
+                      timesUsed: 1,
+                      month,
+                      year,
+                    },
+                    update: {
+                      timesUsed: { increment: 1 },
+                    },
+                  })
+                )
+              );
+            }
+          } catch (dbError) {
+            // Log database errors but don't fail the response (user already got their answer)
+            console.error('Database error storing assistant message or updating counters:', dbError);
+            // Continue to close the stream successfully
+          }
 
           controller.close();
         } catch (error) {
           console.error('Error during streaming:', error);
-          controller.error(error);
+          
+          // Handle streaming errors gracefully
+          if (error instanceof OpenAI.APIError) {
+            // Send error message to client before closing
+            const errorMessage = 'An error occurred while generating the response.';
+            controller.enqueue(encoder.encode(`\n\n[Error: ${errorMessage}]`));
+          } else if (error instanceof Error) {
+            const errorMessage = process.env.NODE_ENV === 'development'
+              ? `Streaming error: ${error.message}`
+              : 'An error occurred while generating the response.';
+            controller.enqueue(encoder.encode(`\n\n[Error: ${errorMessage}]`));
+          }
+          
+          controller.close();
         }
       },
     });
@@ -314,12 +452,78 @@ If the context doesn't contain relevant information to answer the question, say 
   } catch (error) {
     console.error('Chat API error:', error);
 
-    // Return appropriate error response
+    // Handle Prisma database errors
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Database connection errors
+      if (error.code === 'P1001' || error.code === 'P1008') {
+        return NextResponse.json(
+          { error: 'Database connection error. Please try again.' },
+          { status: 503 }
+        );
+      }
+      
+      // Record not found errors
+      if (error.code === 'P2025') {
+        return NextResponse.json(
+          { error: 'Resource not found. Please refresh and try again.' },
+          { status: 404 }
+        );
+      }
+      
+      // Unique constraint violations
+      if (error.code === 'P2002') {
+        console.error('Unique constraint violation:', error);
+        return NextResponse.json(
+          { error: 'An error occurred. Please try again.' },
+          { status: 500 }
+        );
+      }
+      
+      // Generic Prisma error
+      return NextResponse.json(
+        { error: 'Database error. Please try again.' },
+        { status: 500 }
+      );
+    }
+    
+    // Handle Prisma client initialization errors
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      console.error('Prisma initialization error:', error);
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable. Please try again.' },
+        { status: 503 }
+      );
+    }
+
+    // Handle OpenAI API errors (if not caught earlier)
+    if (error instanceof OpenAI.APIError) {
+      if (error.status === 429) {
+        return NextResponse.json(
+          { error: 'Service is busy. Please try again in a moment.' },
+          { status: 503 }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: 'Unable to generate response. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    // Handle network/timeout errors
     if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('network') || error.message.includes('ECONNREFUSED')) {
+        return NextResponse.json(
+          { error: 'Connection timeout. Please check your internet connection and try again.' },
+          { status: 504 }
+        );
+      }
+      
+      // Return user-friendly error message
       const errorMessage =
         process.env.NODE_ENV === 'development'
           ? error.message
-          : 'An error occurred while processing your message';
+          : 'An error occurred while processing your message. Please try again.';
 
       return NextResponse.json(
         { error: errorMessage },
@@ -327,8 +531,9 @@ If the context doesn't contain relevant information to answer the question, say 
       );
     }
 
+    // Fallback for unknown errors
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { error: 'An unexpected error occurred. Please try again.' },
       { status: 500 }
     );
   }

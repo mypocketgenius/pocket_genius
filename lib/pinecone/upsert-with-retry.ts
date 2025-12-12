@@ -18,7 +18,6 @@ export interface PineconeVector {
     sourceTitle?: string;
     page?: number;
     section?: string;
-    [key: string]: unknown; // Allow additional metadata fields
   };
 }
 

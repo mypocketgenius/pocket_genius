@@ -1,9 +1,10 @@
 'use client';
 
-// Phase 3, Task 3: Chat UI component
+// Phase 3, Task 3 & Part 4: Chat UI component with conversation management
 // Displays message list, input field, and handles streaming responses
 
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 interface Message {
   id: string;
@@ -24,26 +25,116 @@ interface ChatProps {
  * - Input field for sending messages
  * - Streaming display for real-time response updates
  * - Conversation management (creates new conversation on first message)
+ * - Loads existing messages when conversationId is provided
+ * - Persists conversationId in localStorage
  * - Error handling and loading states
  */
 export default function Chat({ chatbotId }: ChatProps) {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasLoadedMessages = useRef(false);
+
+  // Get conversationId from URL params or localStorage on mount
+  useEffect(() => {
+    // Check URL params first (for sharing links)
+    const urlConversationId = searchParams?.get('conversationId');
+    if (urlConversationId) {
+      setConversationId(urlConversationId);
+      // Store in localStorage for persistence
+      localStorage.setItem(`conversationId_${chatbotId}`, urlConversationId);
+      return;
+    }
+
+    // Check localStorage for persisted conversationId
+    const storedConversationId = localStorage.getItem(`conversationId_${chatbotId}`);
+    if (storedConversationId) {
+      setConversationId(storedConversationId);
+    }
+  }, [chatbotId, searchParams]);
+
+  // Load existing messages when conversationId is available
+  useEffect(() => {
+    if (!conversationId || hasLoadedMessages.current) return;
+
+    const loadMessages = async () => {
+      setIsLoadingMessages(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}/messages`);
+
+        if (!response.ok) {
+          // If conversation not found, clear conversationId and start fresh
+          if (response.status === 404) {
+            setConversationId(null);
+            localStorage.removeItem(`conversationId_${chatbotId}`);
+            setIsLoadingMessages(false);
+            return;
+          }
+
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Provide user-friendly error messages
+          let errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+          
+          if (response.status === 503) {
+            errorMessage = 'Service temporarily unavailable. Please try again.';
+          } else if (response.status >= 500) {
+            errorMessage = 'Server error. Please refresh the page.';
+          }
+          
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+        }));
+
+        setMessages(loadedMessages);
+        hasLoadedMessages.current = true;
+      } catch (err) {
+        console.error('Error loading messages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load conversation');
+        // Clear invalid conversationId
+        setConversationId(null);
+        localStorage.removeItem(`conversationId_${chatbotId}`);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    loadMessages();
+  }, [conversationId, chatbotId]);
+
+  // Persist conversationId to localStorage when it changes
+  useEffect(() => {
+    if (conversationId) {
+      localStorage.setItem(`conversationId_${chatbotId}`, conversationId);
+    }
+  }, [conversationId, chatbotId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Focus input field on mount
+  // Focus input field on mount (after messages are loaded)
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!isLoadingMessages) {
+      inputRef.current?.focus();
+    }
+  }, [isLoadingMessages]);
 
   /**
    * Sends a message to the chat API and handles streaming response
@@ -100,7 +191,23 @@ export default function Chat({ chatbotId }: ChatProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        
+        // Provide user-friendly error messages based on status code
+        let errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment before sending another message.';
+        } else if (response.status === 503) {
+          errorMessage = errorData.error || 'Service temporarily unavailable. Please try again in a moment.';
+        } else if (response.status === 504) {
+          errorMessage = 'Request timed out. Please check your connection and try again.';
+        } else if (response.status === 404) {
+          errorMessage = errorData.error || 'Resource not found. Please refresh the page.';
+        } else if (response.status >= 500) {
+          errorMessage = errorData.error || 'Server error. Please try again later.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // Handle streaming response
@@ -113,33 +220,71 @@ export default function Chat({ chatbotId }: ChatProps) {
       let streamedContent = '';
 
       // Read stream chunks
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        streamedContent += chunk;
+          const chunk = decoder.decode(value, { stream: true });
+          streamedContent += chunk;
 
-        // Update assistant message with streamed content
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageId
-              ? { ...msg, content: streamedContent }
-              : msg
-          )
-        );
+          // Update assistant message with streamed content
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: streamedContent }
+                : msg
+            )
+          );
+        }
+      } catch (streamError) {
+        console.error('Error reading stream:', streamError);
+        // If we got some content before the error, keep it
+        if (streamedContent.trim().length > 0) {
+          // Update message with partial content and error note
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: streamedContent + '\n\n[Response was interrupted. Please try again if needed.]' }
+                : msg
+            )
+          );
+        } else {
+          // No content received, remove the message and show error
+          setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId));
+          throw new Error('Streaming error. Please try again.');
+        }
       }
 
       // Store conversation ID from response headers
       const newConversationId = response.headers.get('X-Conversation-Id');
-      if (newConversationId) {
+      if (newConversationId && newConversationId !== conversationId) {
         setConversationId(newConversationId);
+        // Persist to localStorage
+        localStorage.setItem(`conversationId_${chatbotId}`, newConversationId);
       }
     } catch (err) {
       console.error('Chat error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message');
       
-      // Remove the empty assistant message on error
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to send message';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        
+        // Handle network errors
+        if (err.message.includes('Failed to fetch') || err.message.includes('network')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        }
+        
+        // Handle timeout errors
+        if (err.message.includes('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        }
+      }
+      
+      setError(errorMessage);
+      
+      // Remove the empty assistant message on error (if it still exists)
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId));
     } finally {
       setIsLoading(false);
@@ -171,7 +316,12 @@ export default function Chat({ chatbotId }: ChatProps) {
 
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
+        {isLoadingMessages && (
+          <div className="text-center text-gray-500 mt-8">
+            <p className="text-sm">Loading conversation...</p>
+          </div>
+        )}
+        {!isLoadingMessages && messages.length === 0 && (
           <div className="text-center text-gray-500 mt-8">
             <p className="text-lg mb-2">Start a conversation</p>
             <p className="text-sm">Ask a question about The Art of War</p>
