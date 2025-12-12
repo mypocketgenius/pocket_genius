@@ -74,10 +74,14 @@ Build a **minimal viable product** that demonstrates core Pocket Genius capabili
 **Goal:** Get project running with database and auth
 
 **Tasks:**
-1. ✅ Next.js project setup with TypeScript
+1. ✅ Next.js project setup with TypeScript DONE
 2. ✅ Install core dependencies (Prisma, Clerk, OpenAI, Pinecone, Vercel Blob)
 3. ✅ Install `zod` for environment variable validation: `npm install zod`
 4. ✅ Set up Neon Postgres database
+   - **Note:** The `lib/prisma.ts` file reads `DATABASE_URL` directly from `process.env` instead of using `env.DATABASE_URL` from `lib/env.ts`. This is intentional and still accurate:
+     - **Why:** Prisma Client automatically reads `DATABASE_URL` from `process.env`, so we don't need to pass it explicitly. More importantly, this allows database operations (migrations, seeds, queries) to work independently even if other env vars (Clerk, OpenAI, etc.) aren't configured yet.
+     - **Trade-off:** Using `env.DATABASE_URL` would require ALL env vars to be validated at import time, which would prevent the app from starting if any service isn't configured. The current approach is production-ready and doesn't need to be changed.
+     - **Best practice:** Use `env` from `lib/env.ts` for all other services (OpenAI, Pinecone, Clerk, etc.) that need type-safe access. Keep `lib/prisma.ts` reading directly from `process.env` for flexibility.
 5. ✅ Create **simplified Prisma schema** (only MVP tables)
 6. ✅ Create Prisma Client singleton (`lib/prisma.ts`)
 7. ✅ **Create type-safe environment variables** (`lib/env.ts`)
@@ -85,6 +89,59 @@ Build a **minimal viable product** that demonstrates core Pocket Genius capabili
 9. ✅ Set up environment variables in `.env.local`
 10. ✅ Basic folder structure
 11. ✅ Create seed script with test user
+
+**Prisma 7 Adapter Configuration (Task 11 - Issue & Solution):**
+
+**Problem:** When running the seed script via `tsx`, Prisma Client threw error: "Using engine type 'client' requires either 'adapter' or 'accelerateUrl'". This is because Prisma 7 changed how database connections work - it no longer reads `DATABASE_URL` directly from the schema file and requires an adapter for all database connections.
+
+**Root Cause:**
+- Prisma 7 removed `url` field from `datasource` block in `schema.prisma`
+- Prisma Client now requires an adapter (e.g., `@prisma/adapter-pg`) or `accelerateUrl` for Accelerate
+- The `datasource.url` must be configured in `prisma.config.ts` instead
+
+**Solution Applied:**
+1. **Updated `prisma.config.ts`** - Added `datasource.url` configuration:
+   ```typescript
+   import 'dotenv/config';
+   import { defineConfig, env } from 'prisma/config';
+   
+   export default defineConfig({
+     schema: 'prisma/schema.prisma',
+     datasource: {
+       url: env('DATABASE_URL'), // Required in Prisma 7
+     },
+     // ... rest of config
+   });
+   ```
+
+2. **Installed adapter packages:**
+   ```bash
+   npm install @prisma/adapter-pg pg
+   ```
+
+3. **Updated `lib/prisma.ts`** - Configured PrismaClient with PostgreSQL adapter:
+   ```typescript
+   import { PrismaClient } from '@prisma/client';
+   import { PrismaPg } from '@prisma/adapter-pg';
+   
+   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+   export const prisma = new PrismaClient({ adapter });
+   ```
+
+4. **Enhanced `prisma/seed.ts`** - Added explicit dotenv loading before importing Prisma:
+   ```typescript
+   import dotenv from 'dotenv';
+   import path from 'path';
+   
+   // Load .env.local before importing Prisma
+   dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+   ```
+
+**Key Takeaways:**
+- Prisma 7 requires adapters for all database connections (no more direct `DATABASE_URL` reading)
+- `datasource.url` must be in `prisma.config.ts`, not `schema.prisma`
+- Always load environment variables before importing PrismaClient in standalone scripts
+- The adapter pattern provides better connection pooling and performance
 
 **Deliverables:**
 - ✅ Project runs locally
@@ -177,6 +234,19 @@ model Creator {
   // ... relations
 }
 
+model Creator_User {
+  id String @id @default(cuid())
+  creatorId String
+  userId String
+  role String @default("OWNER") // 'OWNER' | 'ADMIN' | 'MEMBER'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([creatorId, userId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
 model Chatbot { 
   id String @id @default(cuid())
   title String
@@ -197,12 +267,15 @@ model Source {
 model File { 
   id String @id @default(cuid())
   sourceId String
+  creatorId String
   fileName String
   fileUrl String
   fileSize Int
-  status String // 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR'
+  status String @default("PENDING") // 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR'
   createdAt DateTime @default(now())
-  // ... relations
+  
+  @@index([sourceId])
+  @@index([creatorId])
 }
 
 model Conversation { 
@@ -215,11 +288,13 @@ model Conversation {
   updatedAt DateTime @updatedAt
   
   @@index([chatbotId, status])
+  @@index([userId])
 }
 
 model Message { 
   id String @id @default(cuid())
   conversationId String
+  userId String?
   role String // 'user' | 'assistant'
   content String
   context Json? // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
@@ -228,15 +303,18 @@ model Message {
   
   @@index([conversationId])
   @@index([sourceIds])
+  @@index([userId])
 }
 
 model Message_Feedback {
   id String @id @default(cuid())
   messageId String
+  userId String?
   feedbackType String // 'helpful' | 'not_helpful'
   createdAt DateTime @default(now())
   
   @@index([messageId])
+  @@index([userId])
 }
 
 model Chunk_Performance {
@@ -329,16 +407,16 @@ main()
 ---
 
 ### Phase 2: RAG Pipeline (Week 2)
-**Goal:** Upload Art of War PDF and make it searchable
+**Goal:** Upload Art of War plain text file and make it searchable
 
 **Tasks:**
 1. ✅ File upload API route (POST /api/files/upload)
 2. ✅ **File validation** (size limit, type check)
    - Max file size: 50MB
-   - Allowed types: PDF only
+   - Allowed types: Plain text UTF-8 only (`text/plain`)
    - Return clear error messages
 3. ✅ Store file in Vercel Blob
-4. ✅ PDF text extraction (pdf-parse)
+4. ✅ Text extraction (read file as UTF-8 string - no parsing needed)
 5. ✅ Text chunking (simple strategy: preserve paragraphs)
 6. ✅ Generate embeddings (OpenAI text-embedding-3-small)
 7. ✅ **Upsert to Pinecone with retry logic** (3 retries with exponential backoff)
@@ -346,7 +424,7 @@ main()
 9. ✅ Basic error handling
 
 **Deliverables:**
-- ✅ Can upload PDF
+- ✅ Can upload plain text UTF-8 files
 - ✅ Content chunked and stored in Pinecone
 - ✅ File status tracked in database
 
@@ -354,7 +432,7 @@ main()
 ```typescript
 // app/api/files/upload/route.ts
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_TYPES = ['application/pdf'];
+const ALLOWED_TYPES = ['text/plain'];
 
 export async function POST(req: Request) {
   const formData = await req.formData();
@@ -370,12 +448,21 @@ export async function POST(req: Request) {
   
   if (!ALLOWED_TYPES.includes(file.type)) {
     return Response.json(
-      { error: 'Only PDF files supported' }, 
+      { error: 'Only plain text UTF-8 files supported' }, 
       { status: 400 }
     );
   }
   
   // ... rest of upload logic
+}
+```
+
+**Text Extraction (Simple):**
+```typescript
+// lib/extraction/text.ts
+export async function extractTextFromPlainText(file: File): Promise<string> {
+  const text = await file.text(); // Reads as UTF-8 by default
+  return text;
 }
 ```
 
@@ -446,7 +533,7 @@ function chunkText(text: string, maxChunkSize: number = 1000): Chunk[] {
    - Generate response with OpenAI GPT-4o
    - Stream response to client
    - **Update conversation.messageCount**
-2. ✅ **Rate limiting** (10 messages per minute per user)
+2. ✅ **Rate limiting** (10 messages per minute per authenticated user - anonymous users not rate limited for MVP)
 3. ✅ Chat UI component
    - Message list
    - Input field
@@ -737,6 +824,7 @@ export async function checkRateLimit(userId: string): Promise<boolean> {
 
 **Note on Rate Limiting:**
 - **For MVP:** This Prisma-based approach works fine
+- **Anonymous users:** Not rate limited for now (MVP only applies rate limiting to authenticated users)
 - **Post-MVP optimization:** Consider Redis/Upstash for better performance at scale:
   ```typescript
   // Future: Use Upstash Redis for rate limiting
