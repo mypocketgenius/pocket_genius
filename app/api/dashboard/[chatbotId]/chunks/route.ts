@@ -2,18 +2,18 @@
 // Phase 5, Task 2: API route for fetching chunk performance data
 // Returns chunk usage list with pagination and optional chunk text fetching from Pinecone
 
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getPineconeIndex } from '@/lib/pinecone/client';
 import { env } from '@/lib/env';
+import { verifyChatbotOwnership } from '@/lib/auth/chatbot-ownership';
 
 /**
  * GET /api/dashboard/[chatbotId]/chunks
  * 
  * Fetches chunk performance data for dashboard display:
- * 1. Authenticates user (required for dashboard)
- * 2. Verifies creator owns chatbot
+ * 1. Authenticates user (required for dashboard) - Phase 5, Task 3
+ * 2. Verifies creator owns chatbot - Phase 5, Task 3
  * 3. Fetches chunk performance records with pagination
  * 4. Optionally fetches chunk text from Pinecone if not cached
  * 
@@ -32,59 +32,11 @@ export async function GET(
   { params }: { params: Promise<{ chatbotId: string }> }
 ) {
   try {
-    // 1. Authenticate user (required for dashboard)
-    const { userId: clerkUserId } = await auth();
-    
-    if (!clerkUserId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Get database user ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     const { chatbotId } = await params;
 
-    // 2. Verify chatbot exists and user owns it (via Creator_User)
-    const chatbot = await prisma.chatbot.findUnique({
-      where: { id: chatbotId },
-      include: {
-        creator: {
-          include: {
-            users: {
-              where: { userId: user.id },
-            },
-          },
-        },
-      },
-    });
-
-    if (!chatbot) {
-      return NextResponse.json(
-        { error: 'Chatbot not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if user is a member of the creator
-    if (!chatbot.creator.users || chatbot.creator.users.length === 0) {
-      return NextResponse.json(
-        { error: 'Unauthorized: You do not have access to this chatbot' },
-        { status: 403 }
-      );
-    }
+    // Verify chatbot ownership (Phase 5, Task 3)
+    // This handles authentication and authorization checks
+    await verifyChatbotOwnership(chatbotId);
 
     // 3. Parse query parameters
     const { searchParams } = new URL(req.url);
@@ -176,7 +128,7 @@ export async function GET(
       const namespace = `chatbot-${chatbotId}`;
       const index = getPineconeIndex(env.PINECONE_INDEX);
       const useNamespaces = process.env.PINECONE_USE_NAMESPACES !== 'false';
-      const namespaceIndex = useNamespaces 
+      const namespaceIndex = useNamespaces
         ? index.namespace(namespace)
         : index;
 
@@ -254,14 +206,39 @@ export async function GET(
         total,
         totalPages,
       },
-    });
+      });
   } catch (error) {
     console.error('Dashboard chunks API error:', error);
     
+    // Handle authentication/authorization errors
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage === 'Authentication required' || errorMessage === 'User not found') {
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 401 }
+      );
+    }
+
+    if (errorMessage === 'Chatbot not found') {
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 404 }
+      );
+    }
+
+    if (errorMessage.includes('Unauthorized')) {
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 403 }
+      );
+    }
+    
+    // Generic server error
     return NextResponse.json(
       { 
         error: 'Failed to fetch chunk performance data',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: errorMessage
       },
       { status: 500 }
     );

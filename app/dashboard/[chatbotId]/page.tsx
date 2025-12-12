@@ -2,10 +2,9 @@
 // Phase 5, Task 1: Dashboard page for viewing chunk performance
 // Displays chunk usage statistics and allows creators to see which content is popular
 
-import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { prisma } from '@/lib/prisma';
 import DashboardContent from '@/components/dashboard-content';
+import { verifyChatbotOwnership } from '@/lib/auth/chatbot-ownership';
 
 interface DashboardPageProps {
   params: Promise<{
@@ -20,59 +19,45 @@ interface DashboardPageProps {
  * Example: /dashboard/chatbot_art_of_war
  * 
  * Features:
- * - Authentication check (required)
- * - Creator ownership verification
+ * - Authentication check (required) - Phase 5, Task 3
+ * - Creator ownership verification - Phase 5, Task 3
  * - Chunk usage list with pagination
  * - Sorting by timesUsed or satisfactionRate
  * - Chunk text display (fetched from Pinecone if missing)
  */
 export default async function DashboardPage({ params }: DashboardPageProps) {
-  // 1. Authenticate user (required for dashboard)
-  const { userId: clerkUserId } = await auth();
-  
-  if (!clerkUserId) {
-    redirect('/');
-  }
-
-  // Get database user ID
-  const user = await prisma.user.findUnique({
-    where: { clerkId: clerkUserId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    redirect('/');
-  }
-
   const { chatbotId } = await params;
 
-  // 2. Verify chatbot exists and user owns it (via Creator_User)
-  const chatbot = await prisma.chatbot.findUnique({
-    where: { id: chatbotId },
-    include: {
-      creator: {
-        include: {
-          users: {
-            where: { userId: user.id },
-          },
-        },
-      },
-    },
-  });
+  try {
+    // Verify chatbot ownership (Phase 5, Task 3)
+    // This handles authentication and authorization checks
+    const { chatbot } = await verifyChatbotOwnership(chatbotId);
 
-  if (!chatbot) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-          <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
-        </div>
+      <div className="min-h-screen bg-gray-50">
+        <DashboardContent chatbotId={chatbot.id} chatbotTitle={chatbot.title} />
       </div>
     );
-  }
+  } catch (error) {
+    // Handle authentication/authorization errors
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage === 'Authentication required' || errorMessage === 'User not found') {
+      redirect('/');
+    }
 
-  // Check if user is a member of the creator
-  if (!chatbot.creator.users || chatbot.creator.users.length === 0) {
+    if (errorMessage === 'Chatbot not found') {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
+            <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Unauthorized access
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -82,10 +67,4 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
       </div>
     );
   }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <DashboardContent chatbotId={chatbotId} chatbotTitle={chatbot.title} />
-    </div>
-  );
 }

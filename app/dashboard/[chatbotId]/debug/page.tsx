@@ -2,8 +2,9 @@
 // Diagnostic page to help debug feedback quantity mismatches
 // Compares Message_Feedback counts with Chunk_Performance aggregates
 
-import { auth, redirect } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { verifyChatbotOwnership } from '@/lib/auth/chatbot-ownership';
 
 interface DebugPageProps {
   params: Promise<{
@@ -16,173 +17,131 @@ interface DebugPageProps {
  * Helps identify why dashboard quantities don't match Message_Feedback table
  * 
  * Route: /dashboard/[chatbotId]/debug
+ * 
+ * Features:
+ * - Authentication check (required) - Phase 5, Task 3
+ * - Creator ownership verification - Phase 5, Task 3
+ * - Compares raw Message_Feedback counts with Chunk_Performance aggregates
+ * - Shows breakdown by month/year
  */
 export default async function DebugPage({ params }: DebugPageProps) {
-  // 1. Authenticate user (required for dashboard)
-  const { userId: clerkUserId } = await auth();
-  
-  if (!clerkUserId) {
-    redirect('/');
-  }
-
-  // Get database user ID
-  const user = await prisma.user.findUnique({
-    where: { clerkId: clerkUserId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    redirect('/');
-  }
-
   const { chatbotId } = await params;
 
-  // 2. Verify chatbot exists and user owns it
-  const chatbot = await prisma.chatbot.findUnique({
-    where: { id: chatbotId },
-    include: {
-      creator: {
-        include: {
-          users: {
-            where: { userId: user.id },
-          },
+  try {
+    // Verify chatbot ownership (Phase 5, Task 3)
+    // This handles authentication and authorization checks
+    const { chatbot } = await verifyChatbotOwnership(chatbotId);
+
+    // Get current month/year (same as dashboard filter)
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Count Message_Feedback records for this chatbot
+    // Get all messages for this chatbot's conversations
+    const conversations = await prisma.conversation.findMany({
+      where: { chatbotId },
+      select: { id: true },
+    });
+    const conversationIds = conversations.map((c) => c.id);
+
+    const messages = await prisma.message.findMany({
+      where: {
+        conversationId: { in: conversationIds },
+        role: 'assistant', // Only assistant messages can have feedback
+      },
+      select: { id: true },
+    });
+    const messageIds = messages.map((m) => m.id);
+
+    // Count feedback by type
+    const [totalFeedback, helpfulFeedback, notHelpfulFeedback] = await Promise.all([
+      prisma.message_Feedback.count({
+        where: { messageId: { in: messageIds } },
+      }),
+      prisma.message_Feedback.count({
+        where: {
+          messageId: { in: messageIds },
+          feedbackType: 'helpful',
         },
-      },
-    },
-  });
+      }),
+      prisma.message_Feedback.count({
+        where: {
+          messageId: { in: messageIds },
+          feedbackType: 'not_helpful',
+        },
+      }),
+    ]);
 
-  if (!chatbot) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-          <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!chatbot.creator.users || chatbot.creator.users.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have access to this chatbot's dashboard.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 3. Get current month/year (same as dashboard filter)
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-
-  // 4. Count Message_Feedback records for this chatbot
-  // Get all messages for this chatbot's conversations
-  const conversations = await prisma.conversation.findMany({
-    where: { chatbotId },
-    select: { id: true },
-  });
-  const conversationIds = conversations.map((c) => c.id);
-
-  const messages = await prisma.message.findMany({
-    where: {
-      conversationId: { in: conversationIds },
-      role: 'assistant', // Only assistant messages can have feedback
-    },
-    select: { id: true },
-  });
-  const messageIds = messages.map((m) => m.id);
-
-  // Count feedback by type
-  const [totalFeedback, helpfulFeedback, notHelpfulFeedback] = await Promise.all([
-    prisma.message_Feedback.count({
-      where: { messageId: { in: messageIds } },
-    }),
-    prisma.message_Feedback.count({
+    // Get Chunk_Performance aggregates for current month/year
+    const chunkPerformanceCurrentMonth = await prisma.chunk_Performance.aggregate({
       where: {
-        messageId: { in: messageIds },
-        feedbackType: 'helpful',
+        chatbotId,
+        month: currentMonth,
+        year: currentYear,
       },
-    }),
-    prisma.message_Feedback.count({
+      _sum: {
+        helpfulCount: true,
+        notHelpfulCount: true,
+        timesUsed: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    // Get Chunk_Performance aggregates for ALL months/years
+    const chunkPerformanceAllTime = await prisma.chunk_Performance.aggregate({
       where: {
-        messageId: { in: messageIds },
-        feedbackType: 'not_helpful',
+        chatbotId,
       },
-    }),
-  ]);
+      _sum: {
+        helpfulCount: true,
+        notHelpfulCount: true,
+        timesUsed: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-  // 5. Get Chunk_Performance aggregates for current month/year
-  const chunkPerformanceCurrentMonth = await prisma.chunk_Performance.aggregate({
-    where: {
-      chatbotId,
-      month: currentMonth,
-      year: currentYear,
-    },
-    _sum: {
-      helpfulCount: true,
-      notHelpfulCount: true,
-      timesUsed: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
+    // Get breakdown by month/year
+    const chunkPerformanceByMonth = await prisma.chunk_Performance.groupBy({
+      by: ['month', 'year'],
+      where: {
+        chatbotId,
+      },
+      _sum: {
+        helpfulCount: true,
+        notHelpfulCount: true,
+        timesUsed: true,
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: [
+        { year: 'desc' },
+        { month: 'desc' },
+      ],
+    });
 
-  // 6. Get Chunk_Performance aggregates for ALL months/years
-  const chunkPerformanceAllTime = await prisma.chunk_Performance.aggregate({
-    where: {
-      chatbotId,
-    },
-    _sum: {
-      helpfulCount: true,
-      notHelpfulCount: true,
-      timesUsed: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
+    // Count chunks filtered by timesUsed >= 5 (dashboard filter)
+    const chunksWithMinUsage = await prisma.chunk_Performance.count({
+      where: {
+        chatbotId,
+        month: currentMonth,
+        year: currentYear,
+        timesUsed: { gte: 5 },
+      },
+    });
 
-  // 7. Get breakdown by month/year
-  const chunkPerformanceByMonth = await prisma.chunk_Performance.groupBy({
-    by: ['month', 'year'],
-    where: {
-      chatbotId,
-    },
-    _sum: {
-      helpfulCount: true,
-      notHelpfulCount: true,
-      timesUsed: true,
-    },
-    _count: {
-      id: true,
-    },
-    orderBy: [
-      { year: 'desc' },
-      { month: 'desc' },
-    ],
-  });
-
-  // 8. Count chunks filtered by timesUsed >= 5 (dashboard filter)
-  const chunksWithMinUsage = await prisma.chunk_Performance.count({
-    where: {
-      chatbotId,
-      month: currentMonth,
-      year: currentYear,
-      timesUsed: { gte: 5 },
-    },
-  });
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Debug</h1>
-          <p className="text-gray-600">{chatbot.title}</p>
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Debug</h1>
+            <p className="text-gray-600">{chatbot.title}</p>
           <p className="text-sm text-gray-500 mt-2">
             Current filter: Month {currentMonth}/{currentYear}
           </p>
@@ -370,8 +329,37 @@ export default async function DebugPage({ params }: DebugPageProps) {
           >
             ← Back to Dashboard
           </a>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  } catch (error) {
+    // Handle authentication/authorization errors
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage === 'Authentication required' || errorMessage === 'User not found') {
+      redirect('/');
+    }
+
+    if (errorMessage === 'Chatbot not found') {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
+            <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Unauthorized access
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600">You do not have access to this chatbot's dashboard.</p>
+        </div>
+      </div>
+    );
+  }
 }
