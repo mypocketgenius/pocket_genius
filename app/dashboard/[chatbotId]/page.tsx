@@ -51,7 +51,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-            <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
+            <p className="text-gray-600">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
           </div>
         </div>
       );
@@ -62,7 +62,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have access to this chatbot's dashboard.</p>
+          <p className="text-gray-600">You do not have access to this chatbot&apos;s dashboard.</p>
         </div>
       </div>
     );

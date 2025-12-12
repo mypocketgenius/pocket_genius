@@ -302,7 +302,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
           <div className="space-y-3 text-sm text-yellow-800">
             <div>
               <strong className="font-semibold">1. Month/Year Filtering:</strong> Dashboard only shows chunks
-              from month {currentMonth}/{currentYear}. Feedback from other months won't appear.
+              from month {currentMonth}/{currentYear}. Feedback from other months won&apos;t appear.
             </div>
             <div>
               <strong className="font-semibold">2. One-to-Many Relationship:</strong> One message feedback can
@@ -312,7 +312,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
             <div>
               <strong className="font-semibold">3. Times Used Filter:</strong> Dashboard filters by{' '}
               <code className="bg-yellow-100 px-1 rounded">timesUsed &gt;= 5</code>. Chunks below this
-              threshold won't appear even if they have feedback.
+              threshold won&apos;t appear even if they have feedback.
             </div>
             <div>
               <strong className="font-semibold">4. Aggregation Level:</strong> Dashboard aggregates feedback
@@ -346,7 +346,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-            <p className="text-gray-600">The chatbot you're looking for doesn't exist.</p>
+            <p className="text-gray-600">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
           </div>
         </div>
       );
@@ -357,7 +357,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have access to this chatbot's dashboard.</p>
+          <p className="text-gray-600">You do not have access to this chatbot&apos;s dashboard.</p>
         </div>
       </div>
     );

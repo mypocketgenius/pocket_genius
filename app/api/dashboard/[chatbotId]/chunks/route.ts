@@ -124,6 +124,9 @@ export async function GET(
     ]);
 
     // 7. Fetch chunk text from Pinecone if requested and missing
+    // Phase 5, Task 5: Cache chunk text on first dashboard view
+    // This populates chunkText and chunkMetadata in Chunk_Performance table
+    // from Pinecone, so subsequent views can use cached data
     if (fetchText) {
       const namespace = `chatbot-${chatbotId}`;
       const index = getPineconeIndex(env.PINECONE_INDEX);
@@ -132,7 +135,7 @@ export async function GET(
         ? index.namespace(namespace)
         : index;
 
-      // Find chunks that need text fetching
+      // Find chunks that need text fetching (only those without cached chunkText)
       const chunksNeedingText = chunks.filter((chunk) => !chunk.chunkText);
 
       if (chunksNeedingText.length > 0) {
@@ -144,7 +147,7 @@ export async function GET(
           
           // Update chunks with text and metadata
           for (const chunk of chunksNeedingText) {
-            const vector = fetchResponse.vectors?.[chunk.chunkId];
+            const vector = fetchResponse.records?.[chunk.chunkId];
             
             if (vector?.metadata) {
               const metadata = vector.metadata;
@@ -153,7 +156,9 @@ export async function GET(
               const section = metadata.section as string | undefined;
               const sourceTitle = metadata.sourceTitle as string | undefined;
 
-              // Update database with cached text
+              // Phase 5, Task 5: Update database with cached text
+              // This ensures chunk text is available for future dashboard views
+              // without needing to fetch from Pinecone again
               await prisma.chunk_Performance.update({
                 where: { id: chunk.id },
                 data: {

@@ -2,9 +2,15 @@
 
 // components/dashboard-content.tsx
 // Phase 5, Task 2: Dashboard content component
+// Phase 5, Task 4: Updated to use shadcn/ui components
 // Displays chunk usage list with sorting, pagination, and chunk text display
 
 import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ChunkMetadata {
   page?: number;
@@ -57,9 +63,11 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
   const [sortBy, setSortBy] = useState<'timesUsed' | 'satisfactionRate'>('timesUsed');
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [hasInitialLoad, setHasInitialLoad] = useState(false); // Track if initial load completed
 
   /**
    * Fetches chunk performance data from the API
+   * Phase 5, Task 5: Cache chunk text on first dashboard view only
    */
   const fetchChunks = useCallback(async () => {
     setIsLoading(true);
@@ -72,7 +80,9 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
         sortBy,
         order,
         minTimesUsed: '5',
-        fetchText: 'true', // Always fetch text on first load
+        // Only fetch text from Pinecone on initial dashboard view
+        // After that, use cached chunkText from database
+        fetchText: (!hasInitialLoad).toString(),
       });
 
       const response = await fetch(`/api/dashboard/${chatbotId}/chunks?${params}`);
@@ -85,13 +95,24 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
       const data = await response.json();
       setChunks(data.chunks);
       setPagination(data.pagination);
+      
+      // Mark initial load as complete after first successful fetch
+      if (!hasInitialLoad) {
+        setHasInitialLoad(true);
+      }
     } catch (err) {
       console.error('Error fetching chunks:', err);
       setError(err instanceof Error ? err.message : 'Failed to load chunk data');
     } finally {
       setIsLoading(false);
     }
-  }, [page, sortBy, order, chatbotId]);
+  }, [page, sortBy, order, chatbotId, hasInitialLoad]);
+
+  // Reset initial load flag when chatbotId changes
+  // This ensures chunk text is fetched for each chatbot on first view
+  useEffect(() => {
+    setHasInitialLoad(false);
+  }, [chatbotId]);
 
   // Fetch chunks when page, sortBy, order, or chatbotId changes
   useEffect(() => {
@@ -135,60 +156,71 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-600">{chatbotTitle}</p>
+        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+        <p className="text-muted-foreground">{chatbotTitle}</p>
       </div>
 
       {/* Error message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Sort controls */}
       <div className="mb-6 flex flex-wrap gap-4 items-center">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">Sort by:</span>
-          <button
+          <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
+          <Button
             onClick={() => handleSortChange('timesUsed')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              sortBy === 'timesUsed'
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
+            variant={sortBy === 'timesUsed' ? 'default' : 'outline'}
+            size="sm"
           >
             Times Used {sortBy === 'timesUsed' && (order === 'desc' ? '↓' : '↑')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => handleSortChange('satisfactionRate')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              sortBy === 'satisfactionRate'
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
+            variant={sortBy === 'satisfactionRate' ? 'default' : 'outline'}
+            size="sm"
           >
             Satisfaction Rate {sortBy === 'satisfactionRate' && (order === 'desc' ? '↓' : '↑')}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Loading state */}
       {isLoading && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-600">Loading chunk data...</p>
+        <div className="space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                </div>
+                <Skeleton className="h-32 w-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* Chunks list */}
       {!isLoading && chunks.length === 0 && !error && (
-        <div className="text-center py-12">
-          <p className="text-gray-600">No chunk data available yet.</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Chunks will appear here after they've been used in conversations.
-          </p>
-        </div>
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-muted-foreground">No chunk data available yet.</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Chunks will appear here after they&apos;ve been used in conversations.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {!isLoading && chunks.length > 0 && (
@@ -196,118 +228,103 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
           {/* Chunks grid */}
           <div className="space-y-6">
             {chunks.map((chunk) => (
-              <div
-                key={chunk.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
-              >
-                {/* Header row */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {chunk.sourceTitle}
-                      </h3>
-                      {chunk.chunkMetadata?.page && (
-                        <span className="text-sm text-gray-500">
-                          Page {chunk.chunkMetadata.page}
-                        </span>
-                      )}
-                      {chunk.chunkMetadata?.section && (
-                        <span className="text-sm text-gray-500">
-                          • {chunk.chunkMetadata.section}
-                        </span>
-                      )}
+              <Card key={chunk.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <CardTitle className="text-lg">{chunk.sourceTitle}</CardTitle>
+                        {chunk.chunkMetadata?.page && (
+                          <Badge variant="outline">Page {chunk.chunkMetadata.page}</Badge>
+                        )}
+                        {chunk.chunkMetadata?.section && (
+                          <Badge variant="secondary">{chunk.chunkMetadata.section}</Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-xs">
+                        Chunk ID: {chunk.chunkId.slice(0, 50)}...
+                      </CardDescription>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Chunk ID: {chunk.chunkId.slice(0, 50)}...
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {chunk.timesUsed}
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">{chunk.timesUsed}</div>
+                      <div className="text-xs text-muted-foreground">times used</div>
                     </div>
-                    <div className="text-xs text-gray-500">times used</div>
                   </div>
-                </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Helpful</div>
+                      <div className="text-lg font-semibold text-green-600">
+                        {chunk.helpfulCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Not Helpful</div>
+                      <div className="text-lg font-semibold text-destructive">
+                        {chunk.notHelpfulCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Satisfaction</div>
+                      <div className="text-lg font-semibold text-primary">
+                        {formatSatisfactionRate(chunk.satisfactionRate)}
+                      </div>
+                    </div>
+                  </div>
 
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-gray-200">
-                  <div>
-                    <div className="text-sm text-gray-600">Helpful</div>
-                    <div className="text-lg font-semibold text-green-600">
-                      {chunk.helpfulCount}
+                  {/* Chunk text */}
+                  {chunk.chunkText ? (
+                    <div className="mt-4">
+                      <div className="text-sm font-medium mb-2">Chunk Text:</div>
+                      <div className="text-sm text-muted-foreground bg-muted rounded-md p-3 max-h-48 overflow-y-auto">
+                        {chunk.chunkText}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600">Not Helpful</div>
-                    <div className="text-lg font-semibold text-red-600">
-                      {chunk.notHelpfulCount}
+                  ) : (
+                    <div className="mt-4 text-sm text-muted-foreground italic">
+                      Chunk text unavailable
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600">Satisfaction</div>
-                    <div className="text-lg font-semibold text-blue-600">
-                      {formatSatisfactionRate(chunk.satisfactionRate)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Chunk text */}
-                {chunk.chunkText ? (
-                  <div className="mt-4">
-                    <div className="text-sm font-medium text-gray-700 mb-2">Chunk Text:</div>
-                    <div className="text-sm text-gray-600 bg-gray-50 rounded-md p-3 max-h-48 overflow-y-auto">
-                      {chunk.chunkText}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 text-sm text-gray-500 italic">
-                    Chunk text unavailable
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="mt-4 text-xs text-gray-500">
-                  Last updated: {formatDate(chunk.updatedAt)}
-                </div>
-              </div>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  <CardDescription className="text-xs">
+                    Last updated: {formatDate(chunk.updatedAt)}
+                  </CardDescription>
+                </CardFooter>
+              </Card>
             ))}
           </div>
 
           {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
             <div className="mt-8 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{' '}
                 {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
                 {pagination.total} chunks
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => setPage(page - 1)}
                   disabled={page === 1}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${
-                    page === 1
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
+                  variant="outline"
+                  size="sm"
                 >
                   Previous
-                </button>
-                <span className="px-4 py-2 text-sm text-gray-700">
+                </Button>
+                <span className="px-4 py-2 text-sm text-muted-foreground">
                   Page {pagination.page} of {pagination.totalPages}
                 </span>
-                <button
+                <Button
                   onClick={() => setPage(page + 1)}
                   disabled={page >= pagination.totalPages}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${
-                    page >= pagination.totalPages
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
+                  variant="outline"
+                  size="sm"
                 >
                   Next
-                </button>
+                </Button>
               </div>
             </div>
           )}
