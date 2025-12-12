@@ -16,6 +16,11 @@ const envSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().min(1),
   NEXT_PUBLIC_URL: z.string().url(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Sentry (optional - only needed for error monitoring)
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_ORG: z.string().optional(),
+  SENTRY_PROJECT: z.string().optional(),
+  SENTRY_RELEASE: z.string().optional(),
 });
 
 // Parse and validate environment variables

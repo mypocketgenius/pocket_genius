@@ -117,10 +117,23 @@ If you see an error about missing environment variables, check that:
 2. All placeholder values (`xxxxx`) have been replaced with actual credentials
 3. No quotes are needed around values (except for URLs)
 
+## Deployment
+
+For production deployment to Vercel, see **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete instructions.
+
+**Quick Summary:**
+1. Set up production database (Neon)
+2. Configure Sentry for error monitoring
+3. Deploy to Vercel with environment variables
+4. Monitor production logs and errors
+
+See `DEPLOYMENT.md` for detailed steps, troubleshooting, and security checklist.
+
 ## Next Steps
 
 - ✅ Task 9: Set up environment variables in `.env.local`
-- Task 2: Install core dependencies (Prisma, Clerk, OpenAI, Pinecone, Vercel Blob)
-- Task 3: Set up Neon Postgres database
-- Task 4: Create simplified Prisma schema
+- ✅ Task 2: Install core dependencies (Prisma, Clerk, OpenAI, Pinecone, Vercel Blob)
+- ✅ Task 3: Set up Neon Postgres database
+- ✅ Task 4: Create simplified Prisma schema
+- ✅ Phase 6 Task 5: Deploy to Vercel with monitoring
 
