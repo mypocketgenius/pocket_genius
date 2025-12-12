@@ -4,8 +4,7 @@
 // Phase 5, Task 2: Dashboard content component
 // Displays chunk usage list with sorting, pagination, and chunk text display
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 
 interface ChunkMetadata {
   page?: number;
@@ -51,7 +50,6 @@ interface DashboardContentProps {
  * - Sort controls
  */
 export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardContentProps) {
-  const router = useRouter();
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,17 +57,11 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
   const [sortBy, setSortBy] = useState<'timesUsed' | 'satisfactionRate'>('timesUsed');
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
-  const [fetchingText, setFetchingText] = useState(false);
-
-  // Fetch chunks when page, sortBy, or order changes
-  useEffect(() => {
-    fetchChunks();
-  }, [page, sortBy, order]);
 
   /**
    * Fetches chunk performance data from the API
    */
-  const fetchChunks = async () => {
+  const fetchChunks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -99,7 +91,12 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, sortBy, order, chatbotId]);
+
+  // Fetch chunks when page, sortBy, order, or chatbotId changes
+  useEffect(() => {
+    fetchChunks();
+  }, [fetchChunks]);
 
   /**
    * Handles sort change
@@ -222,7 +219,7 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      Chunk ID: {chunk.chunkId.slice(0, 20)}...
+                      Chunk ID: {chunk.chunkId.slice(0, 50)}...
                     </p>
                   </div>
                   <div className="text-right">

@@ -29,7 +29,7 @@ import { env } from '@/lib/env';
  */
 export async function GET(
   req: Request,
-  { params }: { params: { chatbotId: string } }
+  { params }: { params: Promise<{ chatbotId: string }> }
 ) {
   try {
     // 1. Authenticate user (required for dashboard)
@@ -55,7 +55,7 @@ export async function GET(
       );
     }
 
-    const { chatbotId } = params;
+    const { chatbotId } = await params;
 
     // 2. Verify chatbot exists and user owns it (via Creator_User)
     const chatbot = await prisma.chatbot.findUnique({
@@ -133,11 +133,23 @@ export async function GET(
     const skip = (page - 1) * pageSize;
 
     // 6. Fetch chunk performance records
+    // Show chunks that either:
+    // - Have been used >= minTimesUsed times, OR
+    // - Have feedback (helpfulCount > 0 OR notHelpfulCount > 0)
+    // This ensures chunks with feedback are always visible, even if they haven't been used much
     const where = {
-      chatbotId,
-      month,
-      year,
-      timesUsed: { gte: minTimesUsed },
+      AND: [
+        { chatbotId },
+        { month },
+        { year },
+        {
+          OR: [
+            { timesUsed: { gte: minTimesUsed } },
+            { helpfulCount: { gt: 0 } },
+            { notHelpfulCount: { gt: 0 } },
+          ],
+        },
+      ],
     };
 
     const [chunks, total] = await Promise.all([
