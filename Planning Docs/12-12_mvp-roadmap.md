@@ -656,6 +656,14 @@ export async function POST(req: Request) {
 - ✅ Feedback stored in Message_Feedback
 - ✅ Chunk_Performance counters update
 
+**Note on Duplicate Feedback Prevention:**
+- The current schema does not have a unique constraint on `[messageId, userId]` in the `Message_Feedback` table
+- This means users can submit multiple feedbacks for the same message, which could skew counters
+- For MVP, this is acceptable, but consider adding duplicate prevention in post-MVP:
+  - Option 1: Add unique constraint `@@unique([messageId, userId])` to schema (requires migration)
+  - Option 2: Check for existing feedback before creating (adds query overhead)
+  - Option 3: Handle in UI by disabling buttons after feedback is submitted
+
 **Simplified Feedback:**
 ```typescript
 // app/api/feedback/message/route.ts

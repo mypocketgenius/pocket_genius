@@ -13,6 +13,9 @@ interface Message {
   createdAt?: Date;
 }
 
+// Feedback state tracking
+type FeedbackType = 'helpful' | 'not_helpful' | null;
+
 interface ChatProps {
   chatbotId: string;
 }
@@ -37,9 +40,13 @@ export default function Chat({ chatbotId }: ChatProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [feedbackState, setFeedbackState] = useState<Record<string, FeedbackType>>({});
+  const [feedbackLoading, setFeedbackLoading] = useState<Record<string, 'helpful' | 'not_helpful' | null>>({});
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -135,6 +142,15 @@ export default function Chat({ chatbotId }: ChatProps) {
       inputRef.current?.focus();
     }
   }, [isLoadingMessages]);
+
+  // Cleanup toast timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Sends a message to the chat API and handles streaming response
@@ -263,6 +279,33 @@ export default function Chat({ chatbotId }: ChatProps) {
         // Persist to localStorage
         localStorage.setItem(`conversationId_${chatbotId}`, newConversationId);
       }
+
+      // Reload messages to get real database IDs (fixes feedback button issue)
+      // This ensures message IDs match database IDs for feedback submission
+      // Small delay to ensure database write has completed
+      if (newConversationId || conversationId) {
+        // Wait a brief moment for database write to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        try {
+          const messagesResponse = await fetch(
+            `/api/conversations/${newConversationId || conversationId}/messages`
+          );
+          if (messagesResponse.ok) {
+            const messagesData = await messagesResponse.json();
+            const loadedMessages: Message[] = messagesData.messages.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+            }));
+            setMessages(loadedMessages);
+          }
+        } catch (reloadError) {
+          // Log but don't fail - messages are already displayed
+          console.warn('Failed to reload messages with real IDs:', reloadError);
+        }
+      }
     } catch (err) {
       console.error('Chat error:', err);
       
@@ -302,6 +345,136 @@ export default function Chat({ chatbotId }: ChatProps) {
     }
   };
 
+  /**
+   * Handles feedback submission (thumbs up/down)
+   * Phase 4, Task 2: Thumbs up/down buttons in chat UI
+   * Phase 4, Task 4: Visual feedback (button state, toast)
+   */
+  const handleFeedback = async (messageId: string, feedbackType: 'helpful' | 'not_helpful') => {
+    // Prevent duplicate feedback
+    if (feedbackState[messageId] || feedbackLoading[messageId]) {
+      return;
+    }
+
+    // Set loading state for this specific button
+    setFeedbackLoading((prev) => ({
+      ...prev,
+      [messageId]: feedbackType,
+    }));
+
+    // Clear any existing toast timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    try {
+      const response = await fetch('/api/feedback/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId,
+          feedbackType,
+        }),
+      });
+
+      if (!response.ok) {
+        // Try to parse error response, but handle cases where response isn't JSON
+        let errorMessage = 'Failed to submit feedback';
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            // If not JSON, try to get text
+            const text = await response.text();
+            errorMessage = text || errorMessage;
+          }
+        } catch (parseError) {
+          // If parsing fails, use default error message
+          console.error('Error parsing error response:', parseError);
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Update feedback state
+      setFeedbackState((prev) => ({
+        ...prev,
+        [messageId]: feedbackType,
+      }));
+
+      // Show success toast
+      setToast({
+        message: feedbackType === 'helpful' ? 'Thanks for your feedback!' : 'Thanks for letting us know.',
+        type: 'success',
+      });
+
+      // Hide toast after 3 seconds
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 3000);
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      
+      // Show error toast
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to submit feedback. Please try again.',
+        type: 'error',
+      });
+
+      // Hide toast after 5 seconds
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 5000);
+    } finally {
+      // Clear loading state
+      setFeedbackLoading((prev) => ({
+        ...prev,
+        [messageId]: null,
+      }));
+    }
+  };
+
+  // Thumbs up icon SVG
+  const ThumbsUpIcon = ({ className }: { className?: string }) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className={className || 'w-5 h-5'}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.145 1.218.804 1.218m-5.921 1.533c.05.28.163.547.327.79a5.99 5.99 0 0 0 .978 2.025m-1.088 3.638c-.08.243-.112.498-.112.758 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-4.5a.75.75 0 0 0-.75-.75h-2.5l.33-1.595a.75.75 0 0 0-.166-.67L12.75 4.5m0 0v12m0 0h-2.5m2.5 0h2.5m0 0h3a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25h-3"
+      />
+    </svg>
+  );
+
+  // Thumbs down icon SVG (Heroicons outline)
+  const ThumbsDownIcon = ({ className }: { className?: string }) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className={className || 'w-5 h-5'}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.498 15.25H4.372c-1.026 0-1.945-.694-2.054-1.715a12.137 12.137 0 0 1-.068-1.821c0-1.358.275-2.666 1.057-3.859.524-.8 1.343-1.558 2.814-1.558 1.256 0 2.123.74 2.715 1.215.313.243.6.51.856.79.255-.28.543-.547.856-.79.592-.475 1.459-1.215 2.715-1.215 1.471 0 2.29.758 2.814 1.558.782 1.193 1.057 2.5 1.057 3.859 0 .618-.023 1.213-.068 1.821-.11 1.021-1.028 1.715-2.054 1.715h-3.126c-.618 0-1.103.476-1.103 1.09 0 .512.385.935.857.935.258 0 .515-.115.715-.315l2.847-2.847a1.125 1.125 0 0 0 1.591-1.591l-3.068-3.068a1.125 1.125 0 0 0-1.591 0l-3.068 3.068a1.125 1.125 0 0 0 1.591 1.591l2.847-2.847c.2-.2.457-.315.715-.315.472 0 .857.423.857.935 0 .614-.485 1.09-1.103 1.09Z"
+      />
+    </svg>
+  );
+
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto bg-white">
       {/* Header */}
@@ -313,6 +486,82 @@ export default function Chat({ chatbotId }: ChatProps) {
           </div>
         )}
       </div>
+
+      {/* Toast notification for feedback - Fixed position with animation */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg text-sm font-medium ${
+            toast.type === 'success'
+              ? 'bg-green-50 border-2 border-green-300 text-green-800'
+              : 'bg-red-50 border-2 border-red-300 text-red-800'
+          }`}
+          style={{
+            animation: 'slideIn 0.3s ease-out',
+          }}
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <svg
+                className="w-5 h-5 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            )}
+            <span>{toast.message}</span>
+            <button
+              onClick={() => {
+                setToast(null);
+                if (toastTimeoutRef.current) {
+                  clearTimeout(toastTimeoutRef.current);
+                  toastTimeoutRef.current = null;
+                }
+              }}
+              className={`ml-2 text-current opacity-70 hover:opacity-100 transition-opacity ${
+                toast.type === 'success' ? 'text-green-600' : 'text-red-600'
+              }`}
+              aria-label="Close notification"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -335,16 +584,124 @@ export default function Chat({ chatbotId }: ChatProps) {
               message.role === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-900'
-              }`}
-            >
-              <div className="whitespace-pre-wrap break-words">
-                {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
+            <div className={`max-w-[80%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+              <div
+                className={`rounded-lg px-4 py-2 ${
+                  message.role === 'user'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                }`}
+              >
+                <div className="whitespace-pre-wrap break-words">
+                  {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
+                </div>
               </div>
+              
+              {/* Feedback buttons for assistant messages */}
+              {message.role === 'assistant' && message.content && !isLoading && (
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => handleFeedback(message.id, 'helpful')}
+                    disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      feedbackState[message.id] === 'helpful'
+                        ? 'bg-green-100 text-green-700 border-2 border-green-300 shadow-sm'
+                        : feedbackLoading[message.id] === 'helpful'
+                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
+                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    title={
+                      feedbackState[message.id]
+                        ? 'Feedback already submitted'
+                        : feedbackLoading[message.id] === 'helpful'
+                        ? 'Submitting feedback...'
+                        : 'This was helpful'
+                    }
+                  >
+                    {feedbackLoading[message.id] === 'helpful' ? (
+                      <svg
+                        className="w-5 h-5 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    ) : (
+                      <ThumbsUpIcon
+                        className={
+                          feedbackState[message.id] === 'helpful' ? 'w-5 h-5 text-green-600' : 'w-5 h-5'
+                        }
+                      />
+                    )}
+                    <span>
+                      {feedbackLoading[message.id] === 'helpful' ? 'Submitting...' : 'Helpful'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleFeedback(message.id, 'not_helpful')}
+                    disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      feedbackState[message.id] === 'not_helpful'
+                        ? 'bg-red-100 text-red-700 border-2 border-red-300 shadow-sm'
+                        : feedbackLoading[message.id] === 'not_helpful'
+                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
+                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    title={
+                      feedbackState[message.id]
+                        ? 'Feedback already submitted'
+                        : feedbackLoading[message.id] === 'not_helpful'
+                        ? 'Submitting feedback...'
+                        : 'This was not helpful'
+                    }
+                  >
+                    {feedbackLoading[message.id] === 'not_helpful' ? (
+                      <svg
+                        className="w-5 h-5 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    ) : (
+                      <ThumbsDownIcon
+                        className={
+                          feedbackState[message.id] === 'not_helpful' ? 'w-5 h-5 text-red-600' : 'w-5 h-5'
+                        }
+                      />
+                    )}
+                    <span>
+                      {feedbackLoading[message.id] === 'not_helpful' ? 'Submitting...' : 'Not helpful'}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
