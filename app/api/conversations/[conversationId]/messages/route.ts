@@ -68,7 +68,7 @@ export async function GET(
       );
     }
 
-    // 4. Fetch messages ordered by creation time
+    // 4. Fetch messages ordered by creation time, including feedback
     const messages = await prisma.message.findMany({
       where: { conversationId },
       select: {
@@ -76,13 +76,35 @@ export async function GET(
         role: true,
         content: true,
         createdAt: true,
+        messageFeedbacks: {
+          select: {
+            feedbackType: true,
+            userId: true,
+          },
+          orderBy: {
+            createdAt: 'desc', // Get most recent feedback first
+          },
+          take: 1, // Only need the most recent feedback per message
+        },
       },
       orderBy: {
         createdAt: 'asc',
       },
     });
 
-    return NextResponse.json({ messages });
+    // Transform messages to include feedbackType (most recent feedback)
+    const messagesWithFeedback = messages.map((msg) => {
+      const feedback = msg.messageFeedbacks[0];
+      return {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt,
+        feedbackType: feedback?.feedbackType || null,
+      };
+    });
+
+    return NextResponse.json({ messages: messagesWithFeedback });
   } catch (error) {
     console.error('Get conversation messages error:', error);
 

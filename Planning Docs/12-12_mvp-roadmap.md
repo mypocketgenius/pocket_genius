@@ -1025,25 +1025,25 @@ describe('POST /api/feedback/message', () => {
 **Test before each deployment:**
 
 #### Core Chat Flow
-- [ ] Can send message and receive response
-- [ ] Response is relevant to question
-- [ ] Can have multi-turn conversation
-- [ ] Error messages are user-friendly
+- [ ] Can send message and receive response YES
+- [ ] Response is relevant to question YES
+- [ ] Can have multi-turn conversation YES
+- [ ] Error messages are user-friendly YES
 
 #### Feedback Collection
-- [ ] Thumbs up button works
-- [ ] Thumbs down button works
-- [ ] Feedback persists after refresh
+- [ ] Thumbs up button works YES
+- [ ] Thumbs down button works YES
+- [ ] Feedback persists after refresh YES (Fixed: API now includes feedback data, component loads feedback state on mount) 
 
 #### File Upload (Basic)
-- [ ] Can upload PDF
-- [ ] File status updates (Pending → Processing → Ready)
-- [ ] Error shown for invalid file types
+- [ ] Can upload TXT YES
+- [ ] File status updates (Pending → Processing → Ready) YEA
+- [ ] Error shown for invalid file types MD files work... cant even upload weird file types
 
 #### Dashboard (Basic)
-- [ ] Dashboard loads without errors
-- [ ] Chunk usage list displays
-- [ ] Can see chunk text and usage counts
+- [ ] Dashboard loads without errors YES
+- [ ] Chunk usage list displays YES
+- [ ] Can see chunk text and usage counts YES
 
 #### Error Handling
 - [ ] Network errors show user-friendly message

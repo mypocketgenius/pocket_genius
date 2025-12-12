@@ -108,6 +108,15 @@ export default function Chat({ chatbotId }: ChatProps) {
           createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
         }));
 
+        // Load feedback state from API response
+        const loadedFeedbackState: Record<string, FeedbackType> = {};
+        data.messages.forEach((msg: any) => {
+          if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful')) {
+            loadedFeedbackState[msg.id] = msg.feedbackType;
+          }
+        });
+        setFeedbackState(loadedFeedbackState);
+
         setMessages(loadedMessages);
         hasLoadedMessages.current = true;
       } catch (err) {
@@ -299,6 +308,16 @@ export default function Chat({ chatbotId }: ChatProps) {
               content: msg.content,
               createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
             }));
+            
+            // Load feedback state from API response
+            const loadedFeedbackState: Record<string, FeedbackType> = {};
+            messagesData.messages.forEach((msg: any) => {
+              if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful')) {
+                loadedFeedbackState[msg.id] = msg.feedbackType;
+              }
+            });
+            setFeedbackState(loadedFeedbackState);
+            
             setMessages(loadedMessages);
           }
         } catch (reloadError) {
