@@ -1,16 +1,14 @@
 # Pocket Genius
 
-MVP Roadmap: Core Features Implementation
+A RAG-powered chatbot platform that allows creators to upload content and chat with it using AI.
 
-## Phase 1: Foundation (Week 1)
+## Features
 
-### Task 1: Next.js Project Setup with TypeScript ✅
-
-- Next.js 15 with App Router
-- TypeScript configuration
-- Tailwind CSS setup
-- ESLint configuration
-- Basic folder structure
+- **Chat Interface**: Ask questions and get RAG-powered answers from uploaded content
+- **File Upload**: Upload plain text files for ingestion into the RAG system
+- **Feedback Collection**: Thumbs up/down feedback on AI responses
+- **Creator Dashboard**: View chunk usage statistics and performance metrics
+- **Authentication**: Clerk-based authentication for creators and users
 
 ## Getting Started
 
@@ -129,11 +127,73 @@ For production deployment to Vercel, see **[DEPLOYMENT.md](./DEPLOYMENT.md)** fo
 
 See `DEPLOYMENT.md` for detailed steps, troubleshooting, and security checklist.
 
-## Next Steps
+## API Documentation
 
-- ✅ Task 9: Set up environment variables in `.env.local`
-- ✅ Task 2: Install core dependencies (Prisma, Clerk, OpenAI, Pinecone, Vercel Blob)
-- ✅ Task 3: Set up Neon Postgres database
-- ✅ Task 4: Create simplified Prisma schema
-- ✅ Phase 6 Task 5: Deploy to Vercel with monitoring
+Complete API reference available in **[API.md](./API.md)**.
+
+**Quick Summary:**
+- Chat API: `POST /api/chat` - Send messages and receive streaming responses
+- File Upload: `POST /api/files/upload` - Upload plain text files
+- Feedback: `POST /api/feedback/message` - Submit thumbs up/down feedback
+- Dashboard: `GET /api/dashboard/[chatbotId]/chunks` - Get chunk performance data
+- Conversations: `GET /api/conversations/[conversationId]/messages` - Fetch conversation messages
+
+See `API.md` for complete endpoint documentation, request/response formats, error codes, and examples.
+
+## Monitoring
+
+For monitoring production deployments, see **[MONITORING.md](./MONITORING.md)** for complete guide.
+
+**Quick Summary:**
+- View logs in Vercel Dashboard
+- Track error rates and API response times
+- Set up alerts for critical issues
+- Use Sentry for detailed error tracking
+
+See `MONITORING.md` for detailed monitoring setup, best practices, and troubleshooting.
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### Database Migrations
+
+```bash
+# Create a new migration
+npx prisma migrate dev --name migration_name
+
+# Apply migrations in production
+npx prisma migrate deploy
+
+# Generate Prisma Client after schema changes
+npx prisma generate
+```
+
+### Environment Variables
+
+See **[ENV_VARIABLES.md](./ENV_VARIABLES.md)** for complete environment variable documentation.
+
+## Project Status
+
+**MVP Phase 6 Complete** ✅
+
+- ✅ Foundation setup (database, auth, environment variables)
+- ✅ RAG pipeline (file upload, chunking, embeddings, Pinecone)
+- ✅ Chat interface with streaming responses
+- ✅ Basic feedback collection (thumbs up/down)
+- ✅ Simple dashboard with chunk performance metrics
+- ✅ Testing and deployment setup
+- ✅ Monitoring and error tracking
+- ✅ Documentation complete
 

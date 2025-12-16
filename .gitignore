@@ -28,6 +28,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.production
 # Exception: allow .env.local.example to be committed (template file)
 !.env.local.example
 

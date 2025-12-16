@@ -56,13 +56,15 @@ BLOB_READ_WRITE_TOKEN=vercel_blob_xxxxx
 ### Error Monitoring (Sentry)
 ```bash
 SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
+NEXT_PUBLIC_SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
 SENTRY_ORG=your-org-slug
 SENTRY_PROJECT=pocket-genius
 SENTRY_AUTH_TOKEN=your-auth-token-here
 SENTRY_RELEASE=1.0.0
 ```
 - **Source**: Sentry Dashboard → Settings
-- **SENTRY_DSN**: Required for error tracking
+- **SENTRY_DSN**: Required for server-side error tracking
+- **NEXT_PUBLIC_SENTRY_DSN**: Required for client-side error tracking (same value as SENTRY_DSN)
 - **SENTRY_ORG/PROJECT**: Required for source maps upload
 - **SENTRY_AUTH_TOKEN**: Required for source maps (create in Sentry → Settings → API)
 - **SENTRY_RELEASE**: Optional, auto-set by Vercel if using Sentry integration
