@@ -664,7 +664,7 @@ export default function Chat({ chatbotId }: ChatProps) {
               message.role === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div className={`max-w-[80%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+            <div className={`max-w-[100%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
               <div
                 className={`rounded-lg px-4 py-2 ${
                   message.role === 'user'
@@ -682,14 +682,13 @@ export default function Chat({ chatbotId }: ChatProps) {
                 <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1">
                   {/* Phase 3.4: Copy button - First */}
                   {/* Phase 3.4: Copy button - First button, opens feedback modal immediately after copy */}
-                  {/* Mobile responsive: icon-only on small screens, icon+text on larger screens */}
                   <button
                     onClick={() => handleCopy(message.id, message.content)}
                     className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
                     title="Copy message"
                   >
-                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Copy</span>
+                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                    <span>Copy</span>
                   </button>
                   <button
                     onClick={() => handleFeedback(message.id, 'helpful')}
@@ -733,11 +732,11 @@ export default function Chat({ chatbotId }: ChatProps) {
                     ) : (
                       <ThumbsUp
                         className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
-                          feedbackState[message.id] === 'helpful' ? 'text-green-600' : ''
+                          feedbackState[message.id] === 'helpful' ? 'text-green-600' : 'text-gray-600'
                         }`}
                       />
                     )}
-                    <span className="hidden sm:inline">
+                    <span>
                       {feedbackLoading[message.id] === 'helpful' ? 'Submitting...' : 'Helpful'}
                     </span>
                   </button>
@@ -783,11 +782,11 @@ export default function Chat({ chatbotId }: ChatProps) {
                     ) : (
                       <ThumbsDown
                         className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
-                          feedbackState[message.id] === 'not_helpful' ? 'text-red-600' : ''
+                          feedbackState[message.id] === 'not_helpful' ? 'text-red-600' : 'text-gray-600'
                         }`}
                       />
                     )}
-                    <span className="hidden sm:inline">
+                    <span>
                       {feedbackLoading[message.id] === 'not_helpful' ? 'Submitting...' : 'Not helpful'}
                     </span>
                   </button>
@@ -809,8 +808,8 @@ export default function Chat({ chatbotId }: ChatProps) {
                         : 'I need more information'
                     }
                   >
-                    <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : ''}`} />
-                    <span className="hidden sm:inline">Need more</span>
+                    <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : 'text-gray-600'}`} />
+                    <span>Need more</span>
                   </button>
                 </div>
               )}
