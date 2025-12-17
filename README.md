@@ -6,7 +6,10 @@ A RAG-powered chatbot platform that allows creators to upload content and chat w
 
 - **Chat Interface**: Ask questions and get RAG-powered answers from uploaded content
 - **File Upload**: Upload plain text files for ingestion into the RAG system
-- **Feedback Collection**: Thumbs up/down feedback on AI responses
+- **Feedback Collection**: 
+  - Thumbs up/down feedback on AI responses
+  - "Need more" feedback with format preferences
+  - Copy button with usage tracking (reference, use now, share, adapt)
 - **Creator Dashboard**: View chunk usage statistics and performance metrics
 - **Authentication**: Clerk-based authentication for creators and users
 

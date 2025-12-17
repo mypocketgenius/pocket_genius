@@ -18,7 +18,7 @@ export default function RootLayout({
         cssLayerName: "clerk", // Required for Tailwind CSS compatibility
       }}
     >
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body>{children}</body>
       </html>
     </ClerkProvider>

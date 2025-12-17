@@ -2,9 +2,13 @@
 
 // Phase 3, Task 3 & Part 4: Chat UI component with conversation management
 // Displays message list, input field, and handles streaming responses
+// Phase 3.3: Added "Need More" feedback modal
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { FeedbackModal } from './feedback-modal';
+import { CopyFeedbackModal } from './copy-feedback-modal';
+import { Lightbulb, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -14,7 +18,7 @@ interface Message {
 }
 
 // Feedback state tracking
-type FeedbackType = 'helpful' | 'not_helpful' | null;
+type FeedbackType = 'helpful' | 'not_helpful' | 'need_more' | null;
 
 interface ChatProps {
   chatbotId: string;
@@ -43,6 +47,10 @@ export default function Chat({ chatbotId }: ChatProps) {
   const [feedbackState, setFeedbackState] = useState<Record<string, FeedbackType>>({});
   const [feedbackLoading, setFeedbackLoading] = useState<Record<string, 'helpful' | 'not_helpful' | null>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState('');
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
@@ -111,7 +119,7 @@ export default function Chat({ chatbotId }: ChatProps) {
         // Load feedback state from API response
         const loadedFeedbackState: Record<string, FeedbackType> = {};
         data.messages.forEach((msg: any) => {
-          if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful')) {
+          if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful' || msg.feedbackType === 'need_more')) {
             loadedFeedbackState[msg.id] = msg.feedbackType;
           }
         });
@@ -312,7 +320,7 @@ export default function Chat({ chatbotId }: ChatProps) {
             // Load feedback state from API response
             const loadedFeedbackState: Record<string, FeedbackType> = {};
             messagesData.messages.forEach((msg: any) => {
-              if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful')) {
+              if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful' || msg.feedbackType === 'need_more')) {
                 loadedFeedbackState[msg.id] = msg.feedbackType;
               }
             });
@@ -361,6 +369,93 @@ export default function Chat({ chatbotId }: ChatProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  /**
+   * Handles copy button click
+   * 
+   * Phase 3.4: Copy Button with Feedback
+   * 
+   * Copies message content to clipboard and opens copy feedback modal immediately.
+   * Uses iOS Safari/Chrome fallback for clipboard API compatibility.
+   * 
+   * Process:
+   * 1. Copy content to clipboard (with iOS fallback)
+   * 2. Track copy event in database (non-blocking, creates record with copyUsage=null)
+   * 3. Open copy feedback modal immediately (no intermediate toast)
+   * 
+   * Clipboard API Support:
+   * - Modern browsers: Uses navigator.clipboard.writeText()
+   * - iOS Safari/Chrome: Falls back to document.execCommand('copy') via temporary textarea
+   * - Error handling: Shows error toast if copy fails
+   * 
+   * @param messageId - ID of message being copied
+   * @param content - Text content to copy to clipboard
+   */
+  const handleCopy = async (messageId: string, content: string) => {
+    try {
+      // Try modern clipboard API first (works in most modern browsers)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        // Fallback for iOS Safari/Chrome and older browsers
+        // iOS Safari doesn't support navigator.clipboard in all contexts
+        // Create a temporary textarea element positioned off-screen
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-999999px';
+        textarea.style.top = '-999999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        
+        try {
+          // Use execCommand as fallback (supported in iOS Safari)
+          const successful = document.execCommand('copy');
+          if (!successful) {
+            throw new Error('execCommand copy failed');
+          }
+        } finally {
+          // Always clean up temporary element
+          document.body.removeChild(textarea);
+        }
+      }
+
+      // Track copy event (non-blocking, creates initial copy feedback record)
+      // This creates a Message_Feedback record with feedbackType='copy' and copyUsage=null
+      // The record will be updated when user submits usage via modal
+      fetch('/api/feedback/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId,
+          feedbackType: 'copy',
+        }),
+      }).catch((err) => {
+        console.error('Error tracking copy event:', err);
+        // Don't show error to user - copy still succeeded
+        // Tracking failure shouldn't interrupt user flow
+      });
+
+      // Show copy feedback modal directly (no intermediate toast)
+      // Modal title shows "✓ Copied!" to indicate success
+      setCopiedMessageId(messageId);
+      setCopyModalOpen(true);
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      // Show error toast if copy fails
+      setToast({
+        message: 'Failed to copy. Please try again.',
+        type: 'error',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 3000);
     }
   };
 
@@ -458,41 +553,6 @@ export default function Chat({ chatbotId }: ChatProps) {
     }
   };
 
-  // Thumbs up icon SVG
-  const ThumbsUpIcon = ({ className }: { className?: string }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className={className || 'w-5 h-5'}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.145 1.218.804 1.218m-5.921 1.533c.05.28.163.547.327.79a5.99 5.99 0 0 0 .978 2.025m-1.088 3.638c-.08.243-.112.498-.112.758 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-4.5a.75.75 0 0 0-.75-.75h-2.5l.33-1.595a.75.75 0 0 0-.166-.67L12.75 4.5m0 0v12m0 0h-2.5m2.5 0h2.5m0 0h3a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25h-3"
-      />
-    </svg>
-  );
-
-  // Thumbs down icon SVG (Heroicons outline)
-  const ThumbsDownIcon = ({ className }: { className?: string }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className={className || 'w-5 h-5'}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M7.498 15.25H4.372c-1.026 0-1.945-.694-2.054-1.715a12.137 12.137 0 0 1-.068-1.821c0-1.358.275-2.666 1.057-3.859.524-.8 1.343-1.558 2.814-1.558 1.256 0 2.123.74 2.715 1.215.313.243.6.51.856.79.255-.28.543-.547.856-.79.592-.475 1.459-1.215 2.715-1.215 1.471 0 2.29.758 2.814 1.558.782 1.193 1.057 2.5 1.057 3.859 0 .618-.023 1.213-.068 1.821-.11 1.021-1.028 1.715-2.054 1.715h-3.126c-.618 0-1.103.476-1.103 1.09 0 .512.385.935.857.935.258 0 .515-.115.715-.315l2.847-2.847a1.125 1.125 0 0 0 1.591-1.591l-3.068-3.068a1.125 1.125 0 0 0-1.591 0l-3.068 3.068a1.125 1.125 0 0 0 1.591 1.591l2.847-2.847c.2-.2.457-.315.715-.315.472 0 .857.423.857.935 0 .614-.485 1.09-1.103 1.09Z"
-      />
-    </svg>
-  );
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto bg-white">
@@ -582,6 +642,7 @@ export default function Chat({ chatbotId }: ChatProps) {
         </div>
       )}
 
+
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoadingMessages && (
@@ -618,11 +679,22 @@ export default function Chat({ chatbotId }: ChatProps) {
               
               {/* Feedback buttons for assistant messages */}
               {message.role === 'assistant' && message.content && !isLoading && (
-                <div className="flex gap-2 mt-1">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1">
+                  {/* Phase 3.4: Copy button - First */}
+                  {/* Phase 3.4: Copy button - First button, opens feedback modal immediately after copy */}
+                  {/* Mobile responsive: icon-only on small screens, icon+text on larger screens */}
+                  <button
+                    onClick={() => handleCopy(message.id, message.content)}
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                    title="Copy message"
+                  >
+                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Copy</span>
+                  </button>
                   <button
                     onClick={() => handleFeedback(message.id, 'helpful')}
                     disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
                       feedbackState[message.id] === 'helpful'
                         ? 'bg-green-100 text-green-700 border-2 border-green-300 shadow-sm'
                         : feedbackLoading[message.id] === 'helpful'
@@ -639,7 +711,7 @@ export default function Chat({ chatbotId }: ChatProps) {
                   >
                     {feedbackLoading[message.id] === 'helpful' ? (
                       <svg
-                        className="w-5 h-5 animate-spin"
+                        className="w-3.5 h-3.5 sm:w-5 sm:h-5 animate-spin flex-shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -659,20 +731,20 @@ export default function Chat({ chatbotId }: ChatProps) {
                         ></path>
                       </svg>
                     ) : (
-                      <ThumbsUpIcon
-                        className={
-                          feedbackState[message.id] === 'helpful' ? 'w-5 h-5 text-green-600' : 'w-5 h-5'
-                        }
+                      <ThumbsUp
+                        className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
+                          feedbackState[message.id] === 'helpful' ? 'text-green-600' : ''
+                        }`}
                       />
                     )}
-                    <span>
+                    <span className="hidden sm:inline">
                       {feedbackLoading[message.id] === 'helpful' ? 'Submitting...' : 'Helpful'}
                     </span>
                   </button>
                   <button
                     onClick={() => handleFeedback(message.id, 'not_helpful')}
                     disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
                       feedbackState[message.id] === 'not_helpful'
                         ? 'bg-red-100 text-red-700 border-2 border-red-300 shadow-sm'
                         : feedbackLoading[message.id] === 'not_helpful'
@@ -689,7 +761,7 @@ export default function Chat({ chatbotId }: ChatProps) {
                   >
                     {feedbackLoading[message.id] === 'not_helpful' ? (
                       <svg
-                        className="w-5 h-5 animate-spin"
+                        className="w-3.5 h-3.5 sm:w-5 sm:h-5 animate-spin flex-shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -709,15 +781,36 @@ export default function Chat({ chatbotId }: ChatProps) {
                         ></path>
                       </svg>
                     ) : (
-                      <ThumbsDownIcon
-                        className={
-                          feedbackState[message.id] === 'not_helpful' ? 'w-5 h-5 text-red-600' : 'w-5 h-5'
-                        }
+                      <ThumbsDown
+                        className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
+                          feedbackState[message.id] === 'not_helpful' ? 'text-red-600' : ''
+                        }`}
                       />
                     )}
-                    <span>
+                    <span className="hidden sm:inline">
                       {feedbackLoading[message.id] === 'not_helpful' ? 'Submitting...' : 'Not helpful'}
                     </span>
+                  </button>
+                  {/* Phase 3.3: "Need More" feedback button */}
+                  <button
+                    onClick={() => {
+                      setSelectedMessageId(message.id);
+                      setFeedbackModalOpen(true);
+                    }}
+                    disabled={feedbackState[message.id] === 'need_more'}
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                      feedbackState[message.id] === 'need_more'
+                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 shadow-sm'
+                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    title={
+                      feedbackState[message.id] === 'need_more'
+                        ? 'Feedback already submitted'
+                        : 'I need more information'
+                    }
+                  >
+                    <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : ''}`} />
+                    <span className="hidden sm:inline">Need more</span>
                   </button>
                 </div>
               )}
@@ -763,6 +856,7 @@ export default function Chat({ chatbotId }: ChatProps) {
               target.style.height = 'auto';
               target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
             }}
+            suppressHydrationWarning
           />
           <button
             onClick={sendMessage}
@@ -776,6 +870,60 @@ export default function Chat({ chatbotId }: ChatProps) {
           {isLoading ? 'Sending...' : 'Press Enter to send, Shift+Enter for new line'}
         </p>
       </div>
+
+      {/* Phase 3.3: "Need More" feedback modal */}
+      <FeedbackModal
+        open={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          setSelectedMessageId('');
+        }}
+        messageId={selectedMessageId}
+        onSuccess={() => {
+          // Update feedback state to show button as clicked
+          if (selectedMessageId) {
+            setFeedbackState((prev) => ({
+              ...prev,
+              [selectedMessageId]: 'need_more',
+            }));
+          }
+        }}
+      />
+
+      {/* Phase 3.4: Copy feedback modal */}
+      {/* Opens immediately after copy button is clicked (no intermediate toast) */}
+      {/* Uses same toast notification system as helpful/not_helpful feedback for consistency */}
+      <CopyFeedbackModal
+        open={copyModalOpen}
+        onClose={() => {
+          setCopyModalOpen(false);
+          setCopiedMessageId('');
+        }}
+        messageId={copiedMessageId}
+        onSuccess={() => {
+          // Optional: Track that feedback was submitted
+          // The API already handles this, so we don't need to update local state
+        }}
+        onShowToast={(message, type) => {
+          // Phase 3.4: Show toast notification (same system as helpful/not_helpful feedback)
+          // Clear any existing toast timeout to prevent conflicts
+          if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+          }
+
+          // Show toast with appropriate styling
+          setToast({
+            message,
+            type,
+          });
+
+          // Hide toast after appropriate time (3s for success, 5s for error)
+          toastTimeoutRef.current = setTimeout(() => {
+            setToast(null);
+            toastTimeoutRef.current = null;
+          }, type === 'success' ? 3000 : 5000);
+        }}
+      />
     </div>
   );
 }

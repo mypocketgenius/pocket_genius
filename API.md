@@ -142,15 +142,45 @@ console.log(data.fileId); // Use this to check processing status
 
 #### `POST /api/feedback/message`
 
-Submit thumbs up/down feedback on an assistant message.
+Submit feedback on an assistant message. Supports multiple feedback types: helpful/not_helpful, need_more, and copy feedback.
 
 **Authentication**: Optional (anonymous users allowed)
 
 **Request Body**:
+
+**For helpful/not_helpful feedback:**
 ```json
 {
   "messageId": "message-123",
   "feedbackType": "helpful" | "not_helpful"
+}
+```
+
+**For "need more" feedback:**
+```json
+{
+  "messageId": "message-123",
+  "feedbackType": "need_more",
+  "needsMore": ["scripts", "examples", "steps", "case_studies"],
+  "specificSituation": "Optional context about user's situation"
+}
+```
+
+**For copy feedback (initial copy event):**
+```json
+{
+  "messageId": "message-123",
+  "feedbackType": "copy"
+}
+```
+
+**For copy feedback (with usage):**
+```json
+{
+  "messageId": "message-123",
+  "feedbackType": "copy",
+  "copyUsage": "reference" | "use_now" | "share_team" | "adapt",
+  "copyContext": "Required if copyUsage is 'adapt', optional otherwise"
 }
 ```
 
@@ -163,17 +193,22 @@ Submit thumbs up/down feedback on an assistant message.
 
 **Status Codes**:
 - `200`: Feedback submitted successfully
-- `400`: Invalid request (missing messageId, invalid feedbackType, or feedback on non-assistant message)
+- `400`: Invalid request (missing messageId, invalid feedbackType, invalid copyUsage, missing copyContext for 'adapt', or feedback on non-assistant message)
 - `404`: Message not found
-- `409`: Feedback already submitted (if duplicate prevention enabled)
+- `409`: Feedback already submitted (duplicate prevention - one record per message/user/type)
 - `500`: Server error
 
 **Behavior**:
-- Updates `Chunk_Performance` counters for all chunks used in the message
-- Computes `satisfactionRate` automatically
+- **Duplicate Prevention**: Only one feedback record per message/user/feedbackType combination. Subsequent submissions return success without creating duplicates.
+- **Copy Feedback**: Initial copy creates record with `copyUsage=null`. Submitting usage updates the existing record.
+- **Chunk Performance**: Updates `Chunk_Performance` counters:
+  - `helpfulCount` / `notHelpfulCount` for helpful/not_helpful feedback
+  - `needsScriptsCount`, `needsExamplesCount`, etc. for need_more feedback
+  - `copyToUseNowCount` when `copyUsage === 'use_now'`
+- Computes `satisfactionRate` automatically for helpful/not_helpful feedback
 - Only assistant messages can receive feedback
 
-**Example**:
+**Example - Helpful Feedback:**
 ```javascript
 const response = await fetch('/api/feedback/message', {
   method: 'POST',
@@ -181,6 +216,22 @@ const response = await fetch('/api/feedback/message', {
   body: JSON.stringify({
     messageId: 'message-123',
     feedbackType: 'helpful'
+  })
+});
+
+const data = await response.json();
+console.log(data.success); // true
+```
+
+**Example - Copy Feedback with Usage:**
+```javascript
+const response = await fetch('/api/feedback/message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    messageId: 'message-123',
+    feedbackType: 'copy',
+    copyUsage: 'use_now'
   })
 });
 

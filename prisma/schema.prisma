@@ -33,20 +33,20 @@ model Creator {
   createdAt DateTime @default(now())
 
   // Relations
-  users      Creator_User[]
-  chatbots   Chatbot[]
-  sources    Source[]
-  files      File[]
+  users    Creator_User[]
+  chatbots Chatbot[]
+  sources  Source[]
+  files    File[]
 }
 
 // Creator_User join table - Multi-user creators (for MVP, supports one user per creator)
 model Creator_User {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   creatorId String
-  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator   Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String   @default("OWNER") // 'OWNER' | 'ADMIN' | 'MEMBER'
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String  @default("OWNER") // 'OWNER' | 'ADMIN' | 'MEMBER'
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,20 +65,20 @@ model Chatbot {
   createdAt DateTime @default(now())
 
   // Relations
-  conversations    Conversation[]
-  sources          Source[]
+  conversations     Conversation[]
+  sources           Source[]
   chunkPerformances Chunk_Performance[]
 }
 
 // Source model - Content sources (books, courses, etc.)
 model Source {
-  id         String   @id @default(cuid())
-  title      String
-  creatorId  String
-  creator    Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  chatbotId  String
-  chatbot    Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  title     String
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  chatbotId String
+  chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   // Relations
   files             File[]
@@ -128,9 +128,9 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String?
   user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           String       // 'user' | 'assistant'
+  role           String // 'user' | 'assistant'
   content        String
-  context        Json?        // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
+  context        Json? // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
   sourceIds      String[]     @default([]) // Extracted from context.chunks for easier querying
   createdAt      DateTime     @default(now())
 
@@ -142,15 +142,23 @@ model Message {
   @@index([userId])
 }
 
-// Message_Feedback model - Thumbs up/down feedback
+// Message_Feedback model - Thumbs up/down feedback, "need more" feedback, and copy feedback
+// Phase 3.3: Added needsMore array and specificSituation for "need more" feedback
+// Phase 3.4: Added copyUsage and copyContext for copy feedback tracking
 model Message_Feedback {
-  id           String   @id @default(cuid())
-  messageId    String
-  message      Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  feedbackType String   // 'helpful' | 'not_helpful'
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  messageId         String
+  message           Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedbackType      String // 'helpful' | 'not_helpful' | 'need_more' | 'copy'
+  // Phase 3.3: "Need More" feedback fields
+  needsMore         String[] @default([]) // ['scripts', 'examples', 'steps', 'case_studies'] - format preferences user needs
+  specificSituation String? // Free text describing user's specific situation (optional)
+  // Phase 3.4: Copy feedback fields
+  copyUsage         String? // 'reference' | 'use_now' | 'share_team' | 'adapt' - how user will use copied content
+  copyContext       String? // Free text context (required if copyUsage is 'adapt')
+  createdAt         DateTime @default(now())
 
   @@index([messageId])
   @@index([userId])
@@ -158,31 +166,37 @@ model Message_Feedback {
 
 // Chunk_Performance model - Basic counters for chunk usage and feedback
 model Chunk_Performance {
-  id               String   @id @default(cuid())
-  chunkId          String
-  sourceId         String
-  source           Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  chatbotId        String
-  chatbot          Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  chunkId   String
+  sourceId  String
+  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chatbotId String
+  chatbot   Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
 
   // Counters
-  timesUsed        Int      @default(0)
-  helpfulCount     Int      @default(0)
-  notHelpfulCount  Int      @default(0)
+  timesUsed       Int @default(0)
+  helpfulCount    Int @default(0)
+  notHelpfulCount Int @default(0)
+
+  // Phase 3.3: "Need more" feedback counters - track what format users need more of
+  needsScriptsCount   Int @default(0) // Count of users needing scripts/exact words
+  needsExamplesCount  Int @default(0) // Count of users needing more examples
+  needsStepsCount     Int @default(0) // Count of users needing step-by-step instructions
+  needsCaseStudyCount Int @default(0) // Count of users needing case studies/real scenarios
 
   // Computed satisfaction rate (updated on each feedback)
-  satisfactionRate Float    @default(0)
+  satisfactionRate Float @default(0)
 
   // Cached chunk text for dashboard display (populated on first use from Pinecone)
-  chunkText        String?
-  chunkMetadata     Json?    // { page, section, sourceTitle }
+  chunkText     String?
+  chunkMetadata Json? // { page, section, sourceTitle }
 
   // Time period
-  month            Int
-  year             Int
+  month Int
+  year  Int
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([chunkId, chatbotId, month, year])
   @@index([chatbotId, month, year, satisfactionRate])

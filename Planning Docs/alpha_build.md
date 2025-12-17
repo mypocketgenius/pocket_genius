@@ -72,7 +72,7 @@ lib/
     └── sentiment.ts                    # NEW in Phase 4.1
 
 prisma/
-└── schema.prisma                       # UPDATED with Source_Performance
+└── schema.prisma                       # UPDATED: Message_Feedback (copyUsage, copyContext), Chunk_Performance (copyToUseNowCount), Source_Performance
 ```
 
 ---
@@ -81,9 +81,9 @@ prisma/
 
 ### **MUST DO FIRST - BLOCKING**
 
-#### Phase 0.1: Fix Feedback API Performance
+#### Phase 0.1: Fix Feedback API Performance ✅ COMPLETE
 
-**Status:** 🔴 **CRITICAL - Do this immediately before any other features**
+**Status:** ✅ **COMPLETE**
 
 **Priority:** CRITICAL - Do immediately
 
@@ -202,11 +202,13 @@ prisma/
 - ✅ All tests passing
 
 **Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+- [x] Unit tests pass ✅
+- [x] Integration tests pass ✅
+- [x] Manual testing checklist complete ✅
 
 **⚠️ IMPORTANT:** Complete Phase 0.1 before moving to any other features below.
+
+**✅ COMPLETED:** Phase 0.1 is complete. Feedback API now uses batched operations and responds in <500ms. All tests passing. Ready to proceed to Phase 3.
 
 ---
 
@@ -214,7 +216,7 @@ prisma/
 
 ### **CRITICAL FOR ALPHA**
 
-#### Phase 3.3: "Need More" Modal ✅ ALPHA
+#### Phase 3.3: "Need More" Modal ✅ COMPLETE
 
 **Objective:** Add detailed feedback modal when user needs more information
 
@@ -368,17 +370,22 @@ prisma/
 - ✅ Free text for user situation
 - ✅ Feedback stored with needsMore array
 - ✅ Chunk_Performance counters updated
+- ✅ Thank you message with 4-second display
+- ✅ Button state tracking (blue when clicked)
+- ✅ Authorization fix for anonymous conversations
 
 **Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+- [x] Unit tests pass ✅
+- [x] Integration tests pass ✅
+- [x] Manual testing checklist complete ✅
+
+**Status:** ✅ **COMPLETE** - All deliverables implemented and tested
 
 ---
 
-#### Phase 3.4: Copy Button with Feedback ✅ ALPHA
+#### Phase 3.4: Copy Button with Feedback ✅ COMPLETE
 
-**Objective:** Add copy button that triggers optional feedback modal
+**Objective:** Add copy button that triggers feedback modal immediately after copy
 
 **Why needed for Alpha:** Key behavioral signal for content usefulness
 
@@ -386,170 +393,58 @@ prisma/
 - ✅ Message_Feedback table supports `copyUsage` and `copyContext` fields
 - ✅ Chunk_Performance table supports `copyToUseNowCount` counter
 
-**Tasks:**
+**Implementation Summary:**
 
-1. **Add copy button to messages:**
+1. **Copy Button:**
+   - Added as first button (before helpful) on all AI messages
+   - Uses iOS clipboard fallback (execCommand) for Safari/Chrome compatibility
+   - Mobile responsive (icon-only on small screens, icon+text on larger)
+   - Immediately opens feedback modal after copy (no toast prompt)
 
-   Update `components/chat.tsx`:
-   ```typescript
-   import { Copy } from 'lucide-react';
-   import { CopyFeedbackModal } from './copy-feedback-modal';
-   import { useToast } from './ui/use-toast';
-   
-   const [copyModalOpen, setCopyModalOpen] = useState(false);
-   const [copiedMessageId, setCopiedMessageId] = useState('');
-   const { toast } = useToast();
-   
-   async function handleCopy(messageId: string, content: string) {
-     await navigator.clipboard.writeText(content);
-     
-     // Show toast
-     toast({
-       title: '✓ Copied',
-       description: 'Quick question?',
-       action: (
-         <Button
-           size="sm"
-           onClick={() => {
-             setCopiedMessageId(messageId);
-             setCopyModalOpen(true);
-           }}
-         >
-           Yes
-         </Button>
-       ),
-     });
-     
-     // Track copy event
-     await fetch('/api/feedback/message', {
-       method: 'POST',
-       body: JSON.stringify({
-         messageId,
-         feedbackType: 'copy',
-       }),
-     });
-   }
-   
-   // Add copy button next to feedback buttons
-   <Button
-     size="sm"
-     variant="ghost"
-     onClick={() => handleCopy(message.id, message.content)}
-   >
-     <Copy className="w-4 h-4" />
-   </Button>
-   ```
+2. **Copy Feedback Modal:**
+   - Opens immediately when copy button is clicked
+   - Title: "✓ Copied! What will you use this for?"
+   - Radio-style buttons for usage selection:
+     - Reference / save for later
+     - Use in my work right now
+     - Share with my team
+     - Adapt for my specific situation
+   - Conditional textarea for "adapt" option
+   - No skip button (removed)
+   - Shows success toast notification on submit (same as helpful/not_helpful)
 
-2. **Create copy feedback modal:**
+3. **API Implementation:**
+   - Prevents duplicate copy feedback records (one per message/user)
+   - Updates existing copy feedback record when usage is submitted
+   - Tracks copy events with `copyUsage` and `copyContext` fields
+   - Updates `Chunk_Performance.copyToUseNowCount` when `copyUsage === 'use_now'`
+   - Prevents duplicate feedback for all types (helpful, not_helpful, need_more, copy)
 
-   **`components/copy-feedback-modal.tsx`:**
-   ```typescript
-   'use client';
-   
-   import { useState } from 'react';
-   import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-   import { Button } from './ui/button';
-   import { Textarea } from './ui/textarea';
-   import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-   
-   export function CopyFeedbackModal({
-     open,
-     onClose,
-     messageId,
-   }: {
-     open: boolean;
-     onClose: () => void;
-     messageId: string;
-   }) {
-     const [usage, setUsage] = useState('');
-     const [context, setContext] = useState('');
-     
-     async function handleSubmit() {
-       await fetch('/api/feedback/message', {
-         method: 'POST',
-         body: JSON.stringify({
-           messageId,
-           feedbackType: 'copy',
-           copyUsage: usage,
-           copyContext: context,
-         }),
-       });
-       
-       onClose();
-     }
-     
-     return (
-       <Dialog open={open} onOpenChange={onClose}>
-         <DialogContent>
-           <DialogHeader>
-             <DialogTitle>What will you use this for?</DialogTitle>
-           </DialogHeader>
-           
-           <div className="space-y-4">
-             <RadioGroup value={usage} onValueChange={setUsage}>
-               <div className="flex items-center space-x-2">
-                 <RadioGroupItem value="reference" id="reference" />
-                 <label htmlFor="reference">Reference / save for later</label>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <RadioGroupItem value="use_now" id="use_now" />
-                 <label htmlFor="use_now">Use in my work right now</label>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <RadioGroupItem value="share_team" id="share_team" />
-                 <label htmlFor="share_team">Share with my team</label>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <RadioGroupItem value="adapt" id="adapt" />
-                 <label htmlFor="adapt">Adapt for my specific situation</label>
-               </div>
-             </RadioGroup>
-             
-             {usage === 'adapt' && (
-               <div>
-                 <label className="text-sm font-medium">
-                   What's your specific situation?
-                 </label>
-                 <Textarea
-                   value={context}
-                   onChange={(e) => setContext(e.target.value)}
-                   placeholder="I'm trying to..."
-                   rows={3}
-                 />
-               </div>
-             )}
-             
-             <div className="flex gap-2">
-               <Button variant="outline" onClick={onClose} className="flex-1">
-                 Skip
-               </Button>
-               <Button onClick={handleSubmit} disabled={!usage} className="flex-1">
-                 Submit
-               </Button>
-             </div>
-           </div>
-         </DialogContent>
-       </Dialog>
-     );
-   }
-   ```
+**Key Features:**
+- ✅ Copy button on AI messages (first button, responsive design)
+- ✅ Modal opens immediately after copy (no intermediate toast)
+- ✅ iOS clipboard fallback support
+- ✅ Mobile responsive (icons adapt to screen size)
+- ✅ Copy usage tracking (reference, use_now, share_team, adapt)
+- ✅ Context collection for "adapt" usage
+- ✅ Chunk_Performance.copyToUseNowCount counter updates
+- ✅ Duplicate prevention (one record per message/user/type)
+- ✅ Toast notification on success (consistent with other feedback)
+- ✅ Database schema updated with copyUsage and copyContext fields
 
-3. **Update feedback API to handle copy usage:**
-
-   Update `app/api/feedback/message/route.ts` to:
-   - Accept `copyUsage` and `copyContext`
-   - Update `Chunk_Performance.copyToUseNowCount` when `copyUsage === 'use_now'`
-
-**Deliverables:**
-- ✅ Copy button on AI messages
-- ✅ Toast with optional feedback
-- ✅ Copy usage tracking (use_now, adapt, etc.)
-- ✅ Chunk_Performance.copyToUseNowCount updated
+**Files Created/Modified:**
+- `components/copy-feedback-modal.tsx` - Copy feedback modal component
+- `components/chat.tsx` - Added copy button and modal integration
+- `app/api/feedback/message/route.ts` - Copy feedback handling and duplicate prevention
+- `prisma/schema.prisma` - Added copyUsage, copyContext, copyToUseNowCount fields
+- `tailwind.config.ts` - Added xs breakpoint for responsive design
 
 **Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+- [x] Unit tests pass ✅
+- [x] Integration tests pass ✅
+- [x] Manual testing checklist complete ✅
+
+**Status:** ✅ **COMPLETE** - All deliverables implemented and tested
 
 ---
 
@@ -2041,11 +1936,11 @@ If critical issues arise in production:
 ## Summary: Alpha Build Checklist
 
 ### Critical Fixes (Do First)
-- [ ] Phase 0.1: Fix Feedback API Performance ← **DO THIS NOW**
+- [x] Phase 0.1: Fix Feedback API Performance ✅ **COMPLETE**
 
 ### Advanced Feedback Features
-- [ ] Phase 3.3: "Need More" Modal
-- [ ] Phase 3.4: Copy Button with Feedback
+- [x] Phase 3.3: "Need More" Modal ✅ **COMPLETE**
+- [x] Phase 3.4: Copy Button with Feedback ✅ **COMPLETE**
 - [ ] Phase 3.5: End-of-Conversation Survey (triggered on copy, not inactivity)
 - [ ] Phase 3.7: UI/UX Improvements (subset)
 - [ ] Phase 3.8: Multiple Chatbots Support

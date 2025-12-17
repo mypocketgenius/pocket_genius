@@ -155,11 +155,28 @@ export async function POST(req: Request) {
       }
 
       // Verify conversation belongs to user (if authenticated)
-      if (dbUserId && conversation.userId !== dbUserId) {
+      // Allow access if:
+      // 1. Conversation has no userId (anonymous) - anyone can access
+      // 2. Conversation userId matches current user
+      // 3. Current user is anonymous - can access anonymous conversations
+      if (conversation.userId && dbUserId && conversation.userId !== dbUserId) {
         return NextResponse.json(
           { error: 'Unauthorized access to conversation' },
           { status: 403 }
         );
+      }
+
+      // If conversation is anonymous and user is now authenticated, upgrade conversation ownership
+      if (!conversation.userId && dbUserId) {
+        try {
+          await prisma.conversation.update({
+            where: { id: conversationId },
+            data: { userId: dbUserId },
+          });
+        } catch (error) {
+          // Log but don't fail - conversation can still be used
+          console.warn('Failed to upgrade conversation ownership:', error);
+        }
       }
     }
 

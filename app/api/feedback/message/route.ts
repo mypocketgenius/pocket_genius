@@ -1,5 +1,7 @@
 // app/api/feedback/message/route.ts
 // Phase 4, Task 1: Feedback API route for thumbs up/down feedback
+// Phase 3.3: Added "need_more" feedback support
+// Phase 3.4: Added copy feedback support with usage tracking
 // Stores feedback and updates Chunk_Performance counters with satisfactionRate computation
 
 import { auth } from '@clerk/nextjs/server';
@@ -9,19 +11,57 @@ import { prisma } from '@/lib/prisma';
 /**
  * POST /api/feedback/message
  * 
- * Handles message feedback (thumbs up/down):
- * 1. Authenticates user (optional for MVP - allow anonymous users)
- * 2. Validates request body (messageId, feedbackType)
- * 3. Stores feedback in Message_Feedback table
- * 4. Retrieves message with context and conversation
- * 5. Updates Chunk_Performance counters for each chunk
- * 6. Computes and updates satisfactionRate
+ * Handles message feedback for multiple feedback types:
+ * - helpful/not_helpful: Thumbs up/down feedback
+ * - need_more: User needs more information (with format preferences)
+ * - copy: Copy button usage tracking (with optional usage context)
  * 
- * Request body:
- * - messageId: Required message ID
- * - feedbackType: 'helpful' | 'not_helpful'
+ * Process:
+ * 1. Authenticates user (optional - allows anonymous users)
+ * 2. Validates request body (messageId, feedbackType, and type-specific fields)
+ * 3. Prevents duplicate feedback (one record per message/user/feedbackType)
+ * 4. Stores feedback in Message_Feedback table
+ * 5. Retrieves message with context and conversation
+ * 6. Updates Chunk_Performance counters for each chunk (batched operations)
+ * 7. Computes and updates satisfactionRate for helpful/not_helpful feedback
+ * 
+ * Request body examples:
+ * 
+ * Helpful/Not Helpful:
+ * {
+ *   "messageId": "message-123",
+ *   "feedbackType": "helpful" | "not_helpful"
+ * }
+ * 
+ * Need More:
+ * {
+ *   "messageId": "message-123",
+ *   "feedbackType": "need_more",
+ *   "needsMore": ["scripts", "examples", "steps", "case_studies"],
+ *   "specificSituation": "Optional context"
+ * }
+ * 
+ * Copy (initial):
+ * {
+ *   "messageId": "message-123",
+ *   "feedbackType": "copy"
+ * }
+ * 
+ * Copy (with usage):
+ * {
+ *   "messageId": "message-123",
+ *   "feedbackType": "copy",
+ *   "copyUsage": "reference" | "use_now" | "share_team" | "adapt",
+ *   "copyContext": "Required if copyUsage is 'adapt'"
+ * }
  * 
  * Response: { success: true }
+ * 
+ * Duplicate Prevention:
+ * - Only one feedback record per message/user/feedbackType combination
+ * - Copy feedback: Initial copy creates record with copyUsage=null, 
+ *   submitting usage updates the existing record
+ * - Other types: Returns success without creating duplicate if already exists
  */
 export async function POST(req: Request) {
   try {
@@ -40,7 +80,14 @@ export async function POST(req: Request) {
 
     // 2. Parse and validate request body
     const body = await req.json();
-    const { messageId, feedbackType } = body;
+    const {
+      messageId,
+      feedbackType,
+      needsMore,
+      specificSituation,
+      copyUsage,
+      copyContext,
+    } = body;
 
     if (!messageId) {
       return NextResponse.json(
@@ -49,11 +96,58 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!feedbackType || !['helpful', 'not_helpful'].includes(feedbackType)) {
+    if (
+      !feedbackType ||
+      !['helpful', 'not_helpful', 'need_more', 'copy'].includes(feedbackType)
+    ) {
       return NextResponse.json(
-        { error: "feedbackType must be 'helpful' or 'not_helpful'" },
+        {
+          error:
+            "feedbackType must be 'helpful', 'not_helpful', 'need_more', or 'copy'",
+        },
         { status: 400 }
       );
+    }
+
+    // Phase 3.4: Validate copyUsage for copy feedback type
+    if (feedbackType === 'copy') {
+      // Valid usage types match the options in CopyFeedbackModal component
+      const validCopyUsage = ['reference', 'use_now', 'share_team', 'adapt'];
+      if (!copyUsage || !validCopyUsage.includes(copyUsage)) {
+        return NextResponse.json(
+          {
+            error: `copyUsage must be one of: ${validCopyUsage.join(', ')}`,
+          },
+          { status: 400 }
+        );
+      }
+      // copyContext is optional for most usage types, but required for 'adapt'
+      // This ensures we capture user's specific situation when they want to adapt content
+      if (copyUsage === 'adapt' && !copyContext) {
+        return NextResponse.json(
+          { error: 'copyContext is required when copyUsage is "adapt"' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Phase 3.3: Validate needsMore for need_more feedback type
+    if (feedbackType === 'need_more') {
+      if (!needsMore || !Array.isArray(needsMore) || needsMore.length === 0) {
+        return NextResponse.json(
+          { error: 'needsMore array is required for need_more feedback' },
+          { status: 400 }
+        );
+      }
+      // Validate needsMore values
+      const validNeedsMore = ['scripts', 'examples', 'steps', 'case_studies'];
+      const invalidValues = needsMore.filter(v => !validNeedsMore.includes(v));
+      if (invalidValues.length > 0) {
+        return NextResponse.json(
+          { error: `Invalid needsMore values: ${invalidValues.join(', ')}` },
+          { status: 400 }
+        );
+      }
     }
 
     // 3. Verify message exists
@@ -78,16 +172,121 @@ export async function POST(req: Request) {
     }
 
     // 4. Store feedback in Message_Feedback table
-    await prisma.message_Feedback.create({
-      data: {
-        messageId,
-        userId: dbUserId || undefined,
-        feedbackType,
-      },
-    });
+    // Phase 3.4: Prevent duplicate feedback records - one record per message/user/feedbackType
+    // This ensures data integrity and prevents duplicate counter increments
+    
+    // For copy feedback, handle differently based on whether usage is provided
+    // Copy feedback has two stages:
+    // 1. Initial copy (copyUsage=null) - created when user clicks copy button
+    // 2. Usage submission (copyUsage set) - updates existing record with usage data
+    if (feedbackType === 'copy') {
+      // Find all existing copy feedback records for this message and user
+      const allCopyFeedback = await prisma.message_Feedback.findMany({
+        where: {
+          messageId,
+          feedbackType: 'copy',
+          userId: dbUserId || undefined,
+        },
+        orderBy: {
+          createdAt: 'desc', // Get the most recent one first
+        },
+      });
 
-    // 5. If message has no context (no chunks), return early
-    if (!message.context) {
+      if (copyUsage) {
+        // Stage 2: User is submitting usage data via modal
+        // Find the initial copy record (without usage) to update
+        const existingFeedback = allCopyFeedback.find((fb) => {
+          const fbAny = fb as any;
+          return !fbAny.copyUsage || fbAny.copyUsage === null;
+        });
+
+        if (existingFeedback) {
+          // Update existing record with usage data (prevents duplicates)
+          await prisma.message_Feedback.update({
+            where: { id: existingFeedback.id },
+            data: {
+              copyUsage,
+              copyContext: copyContext || null,
+            },
+          });
+        } else {
+          // Edge case: No initial copy record found (shouldn't happen normally)
+          // Create new record with usage data
+          await prisma.message_Feedback.create({
+            data: {
+              messageId,
+              userId: dbUserId || undefined,
+              feedbackType,
+              copyUsage,
+              copyContext: copyContext || null,
+            },
+          });
+        }
+      } else {
+        // Stage 1: User clicked copy button (initial copy event)
+        // Only create record if no copy feedback exists yet (prevents duplicates from multiple clicks)
+        if (allCopyFeedback.length === 0) {
+          await prisma.message_Feedback.create({
+            data: {
+              messageId,
+              userId: dbUserId || undefined,
+              feedbackType,
+              copyUsage: null, // Will be updated when user submits usage
+              copyContext: null,
+            },
+          });
+        }
+        // If copy feedback already exists, don't create duplicate
+        // This handles rapid copy button clicks gracefully
+      }
+    } else {
+      // For other feedback types (helpful, not_helpful, need_more), check for duplicates
+      // These types don't have a two-stage flow like copy feedback
+      const existingFeedback = await prisma.message_Feedback.findFirst({
+        where: {
+          messageId,
+          feedbackType,
+          userId: dbUserId || undefined,
+        },
+      });
+
+      if (existingFeedback) {
+        // Feedback already exists - return success without creating duplicate
+        // This prevents duplicate counter increments and maintains data integrity
+        return NextResponse.json({ 
+          success: true,
+          message: 'Feedback already submitted for this message' 
+        });
+      }
+
+      // Create new feedback record (no duplicate found)
+      // Phase 3.3: Store needsMore array and specificSituation for "need_more" feedback
+      await prisma.message_Feedback.create({
+        data: {
+          messageId,
+          userId: dbUserId || undefined,
+          feedbackType,
+          needsMore: feedbackType === 'need_more' ? needsMore : [],
+          specificSituation:
+            feedbackType === 'need_more' ? specificSituation || null : null,
+          copyUsage: null,
+          copyContext: null,
+        },
+      });
+    }
+
+    // 5. If feedback type is 'copy' and copyUsage is 'use_now', we need to update chunk performance
+    // For 'need_more', we also update chunk performance counters
+    // For 'copy' with other usage types, we don't need to update chunk performance
+    
+    // If message has no context (no chunks), return early for feedback types that need chunks
+    if (
+      !message.context &&
+      (feedbackType === 'helpful' ||
+        feedbackType === 'not_helpful' ||
+        feedbackType === 'need_more' ||
+        (feedbackType === 'copy' && copyUsage === 'use_now'))
+    ) {
       return NextResponse.json({ success: true });
     }
 
@@ -95,7 +294,16 @@ export async function POST(req: Request) {
     const context = message.context as { chunks?: Array<{ chunkId: string; sourceId: string }> };
     const chunks = context.chunks || [];
 
-    if (chunks.length === 0) {
+    // For 'need_more' feedback, we need chunks to update counters
+    // For 'helpful'/'not_helpful', we also need chunks
+    // For 'copy' with 'use_now', we need chunks to update copyToUseNowCount
+    if (
+      chunks.length === 0 &&
+      (feedbackType === 'helpful' ||
+        feedbackType === 'not_helpful' ||
+        feedbackType === 'need_more' ||
+        (feedbackType === 'copy' && copyUsage === 'use_now'))
+    ) {
       return NextResponse.json({ success: true });
     }
 
@@ -153,6 +361,27 @@ export async function POST(req: Request) {
               timesUsed: 0,
               helpfulCount: feedbackType === 'helpful' ? 1 : 0,
               notHelpfulCount: feedbackType === 'not_helpful' ? 1 : 0,
+              needsScriptsCount:
+                feedbackType === 'need_more' && needsMore?.includes('scripts')
+                  ? 1
+                  : 0,
+              needsExamplesCount:
+                feedbackType === 'need_more' && needsMore?.includes('examples')
+                  ? 1
+                  : 0,
+              needsStepsCount:
+                feedbackType === 'need_more' && needsMore?.includes('steps')
+                  ? 1
+                  : 0,
+              needsCaseStudyCount:
+                feedbackType === 'need_more' &&
+                needsMore?.includes('case_studies')
+                  ? 1
+                  : 0,
+              // Phase 3.4: Track copy-to-use-now count (high-value content signal)
+              // Only increments when copyUsage === 'use_now', not for reference/share/adapt
+              copyToUseNowCount:
+                feedbackType === 'copy' && copyUsage === 'use_now' ? 1 : 0,
               satisfactionRate: feedbackType === 'helpful' ? 1.0 : 0.0,
             })),
             skipDuplicates: true, // Handle race conditions
@@ -186,6 +415,38 @@ export async function POST(req: Request) {
               const satisfactionRate =
                 totalFeedback > 0 ? newHelpfulCount / totalFeedback : 0;
 
+              // Prepare update data
+              const updateData: any = {
+                satisfactionRate,
+              };
+
+              // Handle different feedback types
+              if (feedbackType === 'helpful') {
+                updateData.helpfulCount = { increment: 1 };
+              } else if (feedbackType === 'not_helpful') {
+                updateData.notHelpfulCount = { increment: 1 };
+              } else if (feedbackType === 'need_more' && needsMore) {
+                // Phase 3.3: Increment appropriate counters based on needsMore array
+                // Each selected option increments its corresponding counter
+                if (needsMore.includes('scripts')) {
+                  updateData.needsScriptsCount = { increment: 1 };
+                }
+                if (needsMore.includes('examples')) {
+                  updateData.needsExamplesCount = { increment: 1 };
+                }
+                if (needsMore.includes('steps')) {
+                  updateData.needsStepsCount = { increment: 1 };
+                }
+                if (needsMore.includes('case_studies')) {
+                  updateData.needsCaseStudyCount = { increment: 1 };
+                }
+              } else if (feedbackType === 'copy' && copyUsage === 'use_now') {
+                // Phase 3.4: Increment copyToUseNowCount when user copies to use immediately
+                // This metric tracks high-value content that users want to use right away
+                // Only increments for 'use_now' usage type, not for reference/share/adapt
+                updateData.copyToUseNowCount = { increment: 1 };
+              }
+
               return prisma.chunk_Performance.update({
                 where: {
                   chunkId_chatbotId_month_year: {
@@ -195,14 +456,7 @@ export async function POST(req: Request) {
                     year,
                   },
                 },
-                data: {
-                  [feedbackType === 'helpful'
-                    ? 'helpfulCount'
-                    : 'notHelpfulCount']: {
-                    increment: 1,
-                  },
-                  satisfactionRate,
-                },
+                data: updateData,
               });
             })
           );
