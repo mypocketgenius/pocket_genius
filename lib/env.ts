@@ -25,7 +25,9 @@ function getEnv() {
     return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingVars = error.errors
+      // TypeScript now properly narrows the type to ZodError
+      const zodError = error as z.ZodError;
+      const missingVars = zodError.issues
         .map((err) => `${err.path.join('.')}: ${err.message}`)
         .join('\n');
       throw new Error(
