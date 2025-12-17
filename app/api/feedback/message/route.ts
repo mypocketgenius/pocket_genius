@@ -102,105 +102,124 @@ export async function POST(req: Request) {
     // 7. Get chatbotId from conversation
     const chatbotId = message.conversation.chatbotId;
 
-    // 8. Update chunk performance counters for each chunk
-    // Phase 4, Task 3: Update Chunk_Performance counters
+    // 8. Update chunk performance counters for each chunk (BATCHED OPERATIONS)
+    // Phase 0.1: Optimized to use batched queries instead of sequential loops
     // - helpfulCount +1 for thumbs up
     // - notHelpfulCount +1 for thumbs down
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
 
-    for (const chunk of chunks) {
-      try {
-        // Validate chunk has required fields
-        if (!chunk.chunkId || !chunk.sourceId) {
-          console.warn(
-            `Skipping chunk performance update: missing chunkId or sourceId`,
-            { chunkId: chunk.chunkId, sourceId: chunk.sourceId }
+    // Filter out invalid chunks
+    const validChunks = chunks.filter(
+      (chunk) => chunk.chunkId && chunk.sourceId
+    );
+
+    if (validChunks.length === 0) {
+      return NextResponse.json({ success: true });
+    }
+
+    try {
+      // 1. Get all existing chunk performance records in one query
+      const existingRecords = await prisma.chunk_Performance.findMany({
+        where: {
+          chatbotId,
+          month,
+          year,
+          chunkId: { in: validChunks.map((c) => c.chunkId) },
+        },
+      });
+
+      // 2. Prepare batch creates and updates
+      const existingChunkIds = new Set(
+        existingRecords.map((r) => r.chunkId)
+      );
+      const recordsToCreate = validChunks.filter(
+        (chunk) => !existingChunkIds.has(chunk.chunkId)
+      );
+      const recordsToUpdate = validChunks.filter((chunk) =>
+        existingChunkIds.has(chunk.chunkId)
+      );
+
+      // 3. Batch create new records
+      if (recordsToCreate.length > 0) {
+        try {
+          await prisma.chunk_Performance.createMany({
+            data: recordsToCreate.map((chunk) => ({
+              chunkId: chunk.chunkId,
+              sourceId: chunk.sourceId,
+              chatbotId,
+              month,
+              year,
+              timesUsed: 0,
+              helpfulCount: feedbackType === 'helpful' ? 1 : 0,
+              notHelpfulCount: feedbackType === 'not_helpful' ? 1 : 0,
+              satisfactionRate: feedbackType === 'helpful' ? 1.0 : 0.0,
+            })),
+            skipDuplicates: true, // Handle race conditions
+          });
+        } catch (createError) {
+          // Log errors but continue - some records may fail due to foreign key constraints
+          console.error(
+            `Failed to batch create chunk performance records:`,
+            createError
           );
-          continue;
         }
-
-        // Try to find existing record first
-        let current = await prisma.chunk_Performance.findUnique({
-          where: {
-            chunkId_chatbotId_month_year: {
-              chunkId: chunk.chunkId,
-              chatbotId,
-              month,
-              year,
-            },
-          },
-        });
-
-        // If record doesn't exist, try to create it
-        // Note: This requires sourceId to exist in Source table (foreign key constraint)
-        if (!current) {
-          try {
-            current = await prisma.chunk_Performance.create({
-              data: {
-                chunkId: chunk.chunkId,
-                sourceId: chunk.sourceId,
-                chatbotId,
-                timesUsed: 0, // Chunk may have been used but record creation failed
-                helpfulCount: feedbackType === 'helpful' ? 1 : 0,
-                notHelpfulCount: feedbackType === 'not_helpful' ? 1 : 0,
-                satisfactionRate: feedbackType === 'helpful' ? 1.0 : 0.0,
-                month,
-                year,
-              },
-            });
-          } catch (createError) {
-            // If creation fails (e.g., foreign key constraint), log and skip
-            console.error(
-              `Failed to create chunk performance record for chunk ${chunk.chunkId}:`,
-              createError
-            );
-            // Continue to next chunk - don't fail entire feedback submission
-            continue;
-          }
-        }
-
-        // Calculate new counts after increment
-        const newHelpfulCount =
-          feedbackType === 'helpful'
-            ? current.helpfulCount + 1
-            : current.helpfulCount;
-        const newNotHelpfulCount =
-          feedbackType === 'not_helpful'
-            ? current.notHelpfulCount + 1
-            : current.notHelpfulCount;
-
-        // Compute satisfaction rate
-        const totalFeedback = newHelpfulCount + newNotHelpfulCount;
-        const satisfactionRate =
-          totalFeedback > 0 ? newHelpfulCount / totalFeedback : 0;
-
-        // Update chunk performance with incremented counter and computed satisfactionRate
-        await prisma.chunk_Performance.update({
-          where: {
-            chunkId_chatbotId_month_year: {
-              chunkId: chunk.chunkId,
-              chatbotId,
-              month,
-              year,
-            },
-          },
-          data: {
-            [feedbackType === 'helpful' ? 'helpfulCount' : 'notHelpfulCount']: {
-              increment: 1,
-            },
-            satisfactionRate,
-          },
-        });
-      } catch (chunkError) {
-        // Log error but continue processing other chunks
-        // This prevents one failed chunk update from blocking feedback submission
-        console.error(
-          `Error updating chunk performance for chunk ${chunk.chunkId}:`,
-          chunkError
-        );
-        // Continue to next chunk - feedback submission should still succeed
       }
+
+      // 4. Batch update existing records (use transaction for atomicity)
+      if (recordsToUpdate.length > 0) {
+        try {
+          await prisma.$transaction(
+            recordsToUpdate.map((chunk) => {
+              const current = existingRecords.find(
+                (r) => r.chunkId === chunk.chunkId
+              )!;
+              const newHelpfulCount =
+                feedbackType === 'helpful'
+                  ? current.helpfulCount + 1
+                  : current.helpfulCount;
+              const newNotHelpfulCount =
+                feedbackType === 'not_helpful'
+                  ? current.notHelpfulCount + 1
+                  : current.notHelpfulCount;
+              const totalFeedback = newHelpfulCount + newNotHelpfulCount;
+              const satisfactionRate =
+                totalFeedback > 0 ? newHelpfulCount / totalFeedback : 0;
+
+              return prisma.chunk_Performance.update({
+                where: {
+                  chunkId_chatbotId_month_year: {
+                    chunkId: chunk.chunkId,
+                    chatbotId,
+                    month,
+                    year,
+                  },
+                },
+                data: {
+                  [feedbackType === 'helpful'
+                    ? 'helpfulCount'
+                    : 'notHelpfulCount']: {
+                    increment: 1,
+                  },
+                  satisfactionRate,
+                },
+              });
+            })
+          );
+        } catch (updateError) {
+          // Log errors but don't fail entire request
+          console.error(
+            `Failed to batch update chunk performance records:`,
+            updateError
+          );
+        }
+      }
+    } catch (batchError) {
+      // Log error but don't fail feedback submission
+      console.error(
+        `Error in batched chunk performance update:`,
+        batchError
+      );
     }
 
     return NextResponse.json({ success: true });
