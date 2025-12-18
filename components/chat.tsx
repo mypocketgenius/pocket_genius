@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FeedbackModal } from './feedback-modal';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { Lightbulb, ThumbsUp, ThumbsDown, Copy } from 'lucide-react';
+import { Lightbulb, ThumbsUp, ThumbsDown, Copy, Bookmark, ArrowUp } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -657,165 +657,94 @@ export default function Chat({ chatbotId }: ChatProps) {
           </div>
         )}
 
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
-            <div className={`max-w-[100%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
-              <div
-                className={`rounded-lg px-4 py-2 ${
-                  message.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
-                <div className="whitespace-pre-wrap break-words">
-                  {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
+        {messages.map((message, index) => {
+          // Find the most recent assistant message
+          const mostRecentAssistantMessage = [...messages]
+            .reverse()
+            .find((msg) => msg.role === 'assistant' && msg.content);
+          const isMostRecentAssistant = mostRecentAssistantMessage?.id === message.id;
+
+          return (
+            <div
+              key={message.id}
+              className={`flex ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <div className={`max-w-[100%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+                <div
+                  className={`rounded-lg px-4 py-2 ${
+                    message.role === 'user'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap break-words">
+                    {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
+                  </div>
                 </div>
+                
+                {/* Feedback buttons for assistant messages */}
+                {message.role === 'assistant' && message.content && !isLoading && (
+                  <div className="space-y-3 mt-1">
+                    {/* First row: Copy, Save, Expand on this */}
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {/* Phase 3.4: Copy button */}
+                      <button
+                        onClick={() => handleCopy(message.id, message.content)}
+                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                        title="Copy message"
+                      >
+                        <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                        <span>Copy</span>
+                      </button>
+                      {/* Save button */}
+                      <button
+                        onClick={() => {
+                          // TODO: Implement save functionality
+                        }}
+                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                        title="Save message"
+                      >
+                        <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                        <span>Save</span>
+                      </button>
+                      {/* Expand on this button */}
+                      <button
+                        onClick={() => {
+                          setSelectedMessageId(message.id);
+                          setFeedbackModalOpen(true);
+                        }}
+                        disabled={feedbackState[message.id] === 'need_more'}
+                        className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                          feedbackState[message.id] === 'need_more'
+                            ? 'bg-blue-100 text-blue-700 border border-blue-400 shadow-sm'
+                            : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
+                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                        title={
+                          feedbackState[message.id] === 'need_more'
+                            ? 'Feedback already submitted'
+                            : 'Expand on this topic'
+                        }
+                      >
+                        <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : 'text-gray-600'}`} />
+                        <span>Expand on this</span>
+                      </button>
+                    </div>
+                    
+                    {/* Second row: Sample text - only for most recent assistant message */}
+                    {isMostRecentAssistant && (
+                      <div className="flex items-center justify-between gap-4">
+                        {/* Sample text */}
+                        <span className="text-sm text-gray-600">Placeholder for a list of sources used in this message</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              
-              {/* Feedback buttons for assistant messages */}
-              {message.role === 'assistant' && message.content && !isLoading && (
-                <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1">
-                  {/* Phase 3.4: Copy button - First */}
-                  {/* Phase 3.4: Copy button - First button, opens feedback modal immediately after copy */}
-                  <button
-                    onClick={() => handleCopy(message.id, message.content)}
-                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
-                    title="Copy message"
-                  >
-                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
-                    <span>Copy</span>
-                  </button>
-                  <button
-                    onClick={() => handleFeedback(message.id, 'helpful')}
-                    disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
-                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                      feedbackState[message.id] === 'helpful'
-                        ? 'bg-green-100 text-green-700 border-2 border-green-300 shadow-sm'
-                        : feedbackLoading[message.id] === 'helpful'
-                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
-                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
-                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                    title={
-                      feedbackState[message.id]
-                        ? 'Feedback already submitted'
-                        : feedbackLoading[message.id] === 'helpful'
-                        ? 'Submitting feedback...'
-                        : 'This was helpful'
-                    }
-                  >
-                    {feedbackLoading[message.id] === 'helpful' ? (
-                      <svg
-                        className="w-3.5 h-3.5 sm:w-5 sm:h-5 animate-spin flex-shrink-0"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                    ) : (
-                      <ThumbsUp
-                        className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
-                          feedbackState[message.id] === 'helpful' ? 'text-green-600' : 'text-gray-600'
-                        }`}
-                      />
-                    )}
-                    <span>
-                      {feedbackLoading[message.id] === 'helpful' ? 'Submitting...' : 'Helpful'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => handleFeedback(message.id, 'not_helpful')}
-                    disabled={!!feedbackState[message.id] || !!feedbackLoading[message.id]}
-                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                      feedbackState[message.id] === 'not_helpful'
-                        ? 'bg-red-100 text-red-700 border-2 border-red-300 shadow-sm'
-                        : feedbackLoading[message.id] === 'not_helpful'
-                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
-                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
-                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                    title={
-                      feedbackState[message.id]
-                        ? 'Feedback already submitted'
-                        : feedbackLoading[message.id] === 'not_helpful'
-                        ? 'Submitting feedback...'
-                        : 'This was not helpful'
-                    }
-                  >
-                    {feedbackLoading[message.id] === 'not_helpful' ? (
-                      <svg
-                        className="w-3.5 h-3.5 sm:w-5 sm:h-5 animate-spin flex-shrink-0"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                    ) : (
-                      <ThumbsDown
-                        className={`w-3.5 h-3.5 sm:w-5 sm:h-5 flex-shrink-0 ${
-                          feedbackState[message.id] === 'not_helpful' ? 'text-red-600' : 'text-gray-600'
-                        }`}
-                      />
-                    )}
-                    <span>
-                      {feedbackLoading[message.id] === 'not_helpful' ? 'Submitting...' : 'Not helpful'}
-                    </span>
-                  </button>
-                  {/* Phase 3.3: "Need More" feedback button */}
-                  <button
-                    onClick={() => {
-                      setSelectedMessageId(message.id);
-                      setFeedbackModalOpen(true);
-                    }}
-                    disabled={feedbackState[message.id] === 'need_more'}
-                    className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                      feedbackState[message.id] === 'need_more'
-                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-300 shadow-sm'
-                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
-                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                    title={
-                      feedbackState[message.id] === 'need_more'
-                        ? 'Feedback already submitted'
-                        : 'I need more information'
-                    }
-                  >
-                    <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : 'text-gray-600'}`} />
-                    <span>Need more</span>
-                  </button>
-                </div>
-              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Loading indicator */}
         {isLoading && messages[messages.length - 1]?.role === 'assistant' && 
@@ -835,19 +764,135 @@ export default function Chat({ chatbotId }: ChatProps) {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 p-4">
+      <div className="border-t border-gray-200 px-3 py-2 bg-gray-200">
+        {/* Quick action pills */}
+        <div className="mb-2 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          <div className="flex flex-col gap-1.5 w-max">
+            {/* First row */}
+            <div className="flex gap-1.5">
+              {/* Helpful button - only for most recent assistant message */}
+              {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content && !isLoading && (() => {
+                const mostRecentMessage = messages[messages.length - 1];
+                return (
+                  <button
+                    onClick={() => handleFeedback(mostRecentMessage.id, 'helpful')}
+                    disabled={!!feedbackState[mostRecentMessage.id] || !!feedbackLoading[mostRecentMessage.id]}
+                    className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
+                      feedbackState[mostRecentMessage.id] === 'helpful'
+                        ? 'bg-green-200 text-green-800 border border-green-400'
+                        : feedbackLoading[mostRecentMessage.id] === 'helpful'
+                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
+                        : 'bg-green-50/60 text-green-600 border border-green-200 hover:bg-green-100 hover:border-green-300'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    title={
+                      feedbackState[mostRecentMessage.id]
+                        ? 'Feedback already submitted'
+                        : feedbackLoading[mostRecentMessage.id] === 'helpful'
+                        ? 'Submitting feedback...'
+                        : 'This was helpful'
+                    }
+                  >
+                    {feedbackLoading[mostRecentMessage.id] === 'helpful' ? (
+                      <span className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Submitting...
+                      </span>
+                    ) : (
+                      <span>Helpful</span>
+                    )}
+                  </button>
+                );
+              })()}
+              <button
+                onClick={() => {
+                  // TODO: Implement functionality
+                }}
+                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
+              >
+                Give me an example
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implement functionality
+                }}
+                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
+              >
+                How would I actually use this?
+              </button>
+            </div>
+            
+            {/* Second row */}
+            <div className="flex gap-1.5">
+              {/* Not helpful button - only for most recent assistant message */}
+              {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content && !isLoading && (() => {
+                const mostRecentMessage = messages[messages.length - 1];
+                return (
+                  <button
+                    onClick={() => handleFeedback(mostRecentMessage.id, 'not_helpful')}
+                    disabled={!!feedbackState[mostRecentMessage.id] || !!feedbackLoading[mostRecentMessage.id]}
+                    className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
+                      feedbackState[mostRecentMessage.id] === 'not_helpful'
+                        ? 'bg-red-200 text-red-800 border border-red-400'
+                        : feedbackLoading[mostRecentMessage.id] === 'not_helpful'
+                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
+                        : 'bg-red-50/60 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    title={
+                      feedbackState[mostRecentMessage.id]
+                        ? 'Feedback already submitted'
+                        : feedbackLoading[mostRecentMessage.id] === 'not_helpful'
+                        ? 'Submitting feedback...'
+                        : 'This was not helpful'
+                    }
+                  >
+                    {feedbackLoading[mostRecentMessage.id] === 'not_helpful' ? (
+                      <span className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Submitting...
+                      </span>
+                    ) : (
+                      <span>Not helpful</span>
+                    )}
+                  </button>
+                );
+              })()}
+              <button
+                onClick={() => {
+                  // TODO: Implement functionality
+                }}
+                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
+              >
+                Who has done this
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implement functionality
+                }}
+                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
+              >
+                Say more about this
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+            placeholder="Type a reply..."
             disabled={isLoading}
             rows={1}
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="flex-1 resize-none border border-gray-300 rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             style={{
-              minHeight: '44px',
+              minHeight: '52px',
               maxHeight: '120px',
             }}
             onInput={(e) => {
@@ -860,14 +905,12 @@ export default function Chat({ chatbotId }: ChatProps) {
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[52px]"
+            title="Send message"
           >
-            Send
+            <ArrowUp className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          {isLoading ? 'Sending...' : 'Press Enter to send, Shift+Enter for new line'}
-        </p>
       </div>
 
       {/* Phase 3.3: "Need More" feedback modal */}
