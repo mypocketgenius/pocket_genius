@@ -23,8 +23,8 @@ export default async function ChatPage({ params }: ChatPageProps) {
   const { chatbotId } = await params;
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading chat...</div>}>
+    <div className="h-dvh bg-gray-50 overflow-hidden">
+      <Suspense fallback={<div className="flex items-center justify-center h-dvh">Loading chat...</div>}>
         <Chat chatbotId={chatbotId} />
       </Suspense>
     </div>

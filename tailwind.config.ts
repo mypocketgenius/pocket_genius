@@ -12,6 +12,14 @@ const config: Config = {
       screens: {
         xs: "475px",
       },
+      height: {
+        'dvh': '100dvh', // Dynamic viewport height for mobile browsers
+        'screen-dvh': '100dvh', // Alias for consistency
+      },
+      minHeight: {
+        'dvh': '100dvh',
+        'screen-dvh': '100dvh',
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

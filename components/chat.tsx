@@ -555,7 +555,7 @@ export default function Chat({ chatbotId }: ChatProps) {
 
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto bg-white">
+    <div className="flex flex-col h-dvh max-w-4xl mx-auto bg-white">
       {/* Header */}
       <div className="border-b border-gray-200 p-4">
         <h1 className="text-xl font-semibold">Chat</h1>

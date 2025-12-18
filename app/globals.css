@@ -68,6 +68,25 @@
   }
 }
 
+/* Mobile viewport height fix for iOS Chrome/Safari */
+/* Dynamic viewport height (100dvh) adapts to browser UI changes */
+/* Uses proper CSS cascade: modern browsers use 100dvh, older iOS uses -webkit-fill-available */
+@layer utilities {
+  .h-dvh {
+    /* Fallback for older iOS Safari/Chrome */
+    height: -webkit-fill-available;
+    /* Modern browsers with dvh support (iOS 15.4+, Chrome 108+) */
+    height: 100dvh;
+  }
+  
+  .min-h-dvh {
+    /* Fallback for older iOS Safari/Chrome */
+    min-height: -webkit-fill-available;
+    /* Modern browsers with dvh support */
+    min-height: 100dvh;
+  }
+}
+
 /* Toast animation for Phase 4, Task 4: Visual feedback */
 @keyframes slideIn {
   from {
