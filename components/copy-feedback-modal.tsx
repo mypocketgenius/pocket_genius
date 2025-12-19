@@ -16,11 +16,14 @@ interface CopyFeedbackModalProps {
 /**
  * Copy feedback modal component
  * 
- * Phase 3.4: Copy Button with Feedback
+ * Phase 5: Copy Button with Feedback (kept per plan decision)
  * 
  * Allows users to specify how they'll use copied content. Opens immediately
  * after copy button is clicked (no intermediate toast). Collects usage type
  * and optional context for "adapt" usage.
+ * 
+ * Note: Uses /api/feedback/message route which has been updated to use Events table
+ * instead of Message_Feedback table (Phase 5 migration).
  * 
  * Features:
  * - Radio-style button selection for usage type
@@ -64,8 +67,11 @@ export function CopyFeedbackModal({
    * Handles form submission
    * 
    * Sends copy feedback to the API with usage type and optional context.
-   * The API will update the existing copy feedback record (created when copy
-   * button was clicked) with the usage data. This prevents duplicate records.
+   * The API will update the existing copy event (created when copy button
+   * was clicked) with the usage data in Events table. This prevents duplicate records.
+   * 
+   * Note: Uses /api/feedback/message route which stores data in Events table
+   * (eventType: 'copy' with copyUsage and copyContext in metadata).
    * 
    * On success:
    * - Resets form state

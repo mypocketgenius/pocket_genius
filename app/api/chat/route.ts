@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
 import { queryRAG, type RetrievedChunk } from '@/lib/rag/query';
 import { checkRateLimit, getRemainingMessages, RATE_LIMIT } from '@/lib/rate-limit';
+import { logPillUsage } from '@/lib/pills/log-usage';
 
 // Initialize OpenAI client with type-safe API key
 const openai = new OpenAI({
@@ -36,6 +37,13 @@ const openai = new OpenAI({
  * - messages: Array of message objects (for conversation history)
  * - conversationId: Optional conversation ID (creates new if not provided)
  * - chatbotId: Required chatbot ID
+ * - pillMetadata: Optional pill usage metadata (Phase 4, Task 8)
+ *   - feedbackPillId: Optional feedback pill ID
+ *   - expansionPillId: Optional expansion pill ID
+ *   - suggestedPillId: Optional suggested question pill ID
+ *   - prefillText: Optional prefill text (required if pills used)
+ *   - sentText: Optional sent text (required if pills used)
+ *   - wasModified: Optional boolean indicating if user modified prefilled text
  * 
  * Response: Streaming text response
  */
@@ -56,7 +64,13 @@ export async function POST(req: Request) {
 
     // 2. Parse request body
     const body = await req.json();
-    const { messages, conversationId: providedConversationId, chatbotId } = body;
+    const { 
+      messages, 
+      conversationId: providedConversationId, 
+      chatbotId,
+      // Phase 4, Task 8: Pill metadata for server-side logging
+      pillMetadata,
+    } = body;
 
     // Validate required fields
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -274,17 +288,41 @@ export async function POST(req: Request) {
     // 9. Extract unique sourceIds for easier querying
     const sourceIds = [...new Set(retrievedChunks.map((c) => c.sourceId))];
 
-    // 10. Prepare chunks for storage in message context
+    // 10. Fetch source titles for attribution
+    const sourceTitlesMap = new Map<string, string>();
+    if (sourceIds.length > 0) {
+      try {
+        const sources = await prisma.source.findMany({
+          where: {
+            id: { in: sourceIds },
+            chatbotId,
+          },
+          select: {
+            id: true,
+            title: true,
+          },
+        });
+        sources.forEach((source) => {
+          sourceTitlesMap.set(source.id, source.title);
+        });
+      } catch (error) {
+        console.error('Error fetching source titles:', error);
+        // Continue without source titles - attribution won't show but won't break
+      }
+    }
+
+    // 11. Prepare chunks for storage in message context (include sourceTitle for attribution)
     const chunksForContext = retrievedChunks.map((chunk) => ({
       chunkId: chunk.chunkId,
       sourceId: chunk.sourceId,
+      sourceTitle: sourceTitlesMap.get(chunk.sourceId) || null, // Include sourceTitle for attribution
       text: chunk.text,
       page: chunk.page,
       section: chunk.section,
       relevanceScore: chunk.relevanceScore,
     }));
 
-    // 11. Generate streaming response with OpenAI (with error handling)
+    // 12. Generate streaming response with OpenAI (with error handling)
     const systemPrompt = retrievedChunks.length > 0
       ? `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:
 
@@ -355,7 +393,7 @@ If the context doesn't contain relevant information to answer the question, say 
       throw error;
     }
 
-    // 12. Create a readable stream for the response
+    // 13. Create a readable stream for the response
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -370,7 +408,7 @@ If the context doesn't contain relevant information to answer the question, say 
             }
           }
 
-          // 13. Store assistant message with context after streaming completes
+          // 14. Store assistant message with context after streaming completes
           try {
             await prisma.message.create({
               data: {
@@ -383,7 +421,7 @@ If the context doesn't contain relevant information to answer the question, say 
               },
             });
 
-            // 14. Update conversation messageCount
+            // 15. Update conversation messageCount
             await prisma.conversation.update({
               where: { id: conversationId },
               data: {
@@ -392,7 +430,7 @@ If the context doesn't contain relevant information to answer the question, say 
               },
             });
 
-            // 15. Update chunk performance counters (only if chunks were retrieved)
+            // 16. Update chunk performance counters (only if chunks were retrieved)
             if (retrievedChunks.length > 0) {
               const month = new Date().getMonth() + 1;
               const year = new Date().getFullYear();
@@ -423,6 +461,66 @@ If the context doesn't contain relevant information to answer the question, say 
                   })
                 )
               );
+            }
+
+            // Phase 4, Task 8: Log pill usage server-side (after RAG query completes, chunkIds available)
+            if (pillMetadata && (pillMetadata.feedbackPillId || pillMetadata.expansionPillId || pillMetadata.suggestedPillId)) {
+              try {
+                // Extract chunkIds from retrieved chunks
+                const chunkIds = retrievedChunks.map((chunk) => chunk.chunkId);
+
+                // Log feedback pill usage (if used)
+                if (pillMetadata.feedbackPillId && pillMetadata.prefillText && pillMetadata.sentText) {
+                  await logPillUsage({
+                    pillId: pillMetadata.feedbackPillId,
+                    sessionId: conversationId,
+                    chatbotId,
+                    sourceChunkIds: chunkIds,
+                    prefillText: pillMetadata.prefillText,
+                    sentText: pillMetadata.sentText,
+                    wasModified: pillMetadata.wasModified || false,
+                    pairedWithPillId: pillMetadata.expansionPillId || null,
+                    userId: dbUserId,
+                  });
+                }
+
+                // Log expansion pill usage (if used and not paired with feedback pill)
+                if (pillMetadata.expansionPillId && !pillMetadata.feedbackPillId && pillMetadata.prefillText && pillMetadata.sentText) {
+                  await logPillUsage({
+                    pillId: pillMetadata.expansionPillId,
+                    sessionId: conversationId,
+                    chatbotId,
+                    sourceChunkIds: chunkIds,
+                    prefillText: pillMetadata.prefillText,
+                    sentText: pillMetadata.sentText,
+                    wasModified: pillMetadata.wasModified || false,
+                    pairedWithPillId: null,
+                    userId: dbUserId,
+                  });
+                }
+
+                // Log suggested question pill usage (if used and not paired with feedback/expansion)
+                if (pillMetadata.suggestedPillId && !pillMetadata.feedbackPillId && !pillMetadata.expansionPillId && pillMetadata.prefillText && pillMetadata.sentText) {
+                  await logPillUsage({
+                    pillId: pillMetadata.suggestedPillId,
+                    sessionId: conversationId,
+                    chatbotId,
+                    sourceChunkIds: chunkIds,
+                    prefillText: pillMetadata.prefillText,
+                    sentText: pillMetadata.sentText,
+                    wasModified: pillMetadata.wasModified || false,
+                    pairedWithPillId: null,
+                    userId: dbUserId,
+                  });
+                }
+                
+                // Log suggested pill when paired with feedback pill (suggested pill is secondary)
+                // Note: When suggested pill is paired with feedback, we log the feedback pill as primary
+                // and the suggested pill is tracked via the sentText content
+              } catch (pillError) {
+                // Log pill usage errors but don't fail the response (user already got their answer)
+                console.error('Error logging pill usage:', pillError);
+              }
             }
           } catch (dbError) {
             // Log database errors but don't fail the response (user already got their answer)

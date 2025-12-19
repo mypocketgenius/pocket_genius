@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  * Logs pill usage when message is sent:
  * - Creates Pill_Usage record to track pill usage
  * - Links to paired pill if combined (feedback + expansion)
- * - Also creates Message_Feedback record if feedback pill used (for backward compatibility)
+ * - Feedback is tracked via Pill_Usage records (Message_Feedback table was removed in Phase 2)
  * 
  * @example
  * ```typescript
@@ -42,7 +42,7 @@ import { prisma } from '@/lib/prisma';
  * @param {string} req.body.sentText - Text that was actually sent (required)
  * @param {boolean} [req.body.wasModified=false] - Whether user modified prefilled text
  * @param {string} [req.body.pairedWithPillId] - ID of paired pill if combined (feedback + expansion)
- * @param {string} [req.body.messageId] - Message ID (required if feedback pill)
+ * @param {string} [req.body.messageId] - Message ID (optional, for reference)
  * 
  * @returns {Promise<NextResponse>} JSON response with success status and pillUsageId
  * @throws {400} If required fields are missing
@@ -127,29 +127,9 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6. If feedback pill used and messageId provided, create Message_Feedback record
-    if (pill.pillType === 'feedback' && messageId) {
-      const feedbackType = pill.label.toLowerCase().includes('not') ? 'not_helpful' : 'helpful';
-      
-      // Check if feedback already exists (prevent duplicates)
-      const existingFeedback = await prisma.message_Feedback.findFirst({
-        where: {
-          messageId,
-          userId: dbUserId,
-          feedbackType,
-        },
-      });
-
-      if (!existingFeedback) {
-        await prisma.message_Feedback.create({
-          data: {
-            messageId,
-            userId: dbUserId,
-            feedbackType,
-          },
-        });
-      }
-    }
+    // 6. Feedback is tracked via Pill_Usage records
+    // Message_Feedback table was removed in Phase 2 migration
+    // If needed, feedback can be queried from Pill_Usage table filtered by pillType='feedback'
 
     return NextResponse.json({
       success: true,

@@ -83,7 +83,7 @@ export function SourceAttribution({
   }
 
   return (
-    <div className="mt-2 text-xs text-gray-500">
+    <div className="mt-2 pt-2 text-xs text-gray-600">
       <span className="font-medium">Sources:</span>{' '}
       <span>{sourceNames.join(', ')}</span>
     </div>

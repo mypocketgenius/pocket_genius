@@ -1,24 +1,26 @@
 'use client';
 
-// Phase 3, Task 3 & Part 4: Chat UI component with conversation management
+// Phase 4: Chat UI component with pill-based feedback system
 // Displays message list, input field, and handles streaming responses
-// Phase 3.3: Added "Need More" feedback modal
+// Phase 4: Replaced modals with pill-based UX system
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { FeedbackModal } from './feedback-modal';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { Lightbulb, ThumbsUp, ThumbsDown, Copy, Bookmark, ArrowUp, ArrowLeft } from 'lucide-react';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft } from 'lucide-react';
+import { Pill as PillType, Pill } from './pills/pill';
+import { PillRow } from './pills/pill-row';
+import { StarRating } from './star-rating';
+import { SourceAttribution } from './source-attribution';
+import { Prisma } from '@prisma/client';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt?: Date;
+  context?: Prisma.JsonValue; // Message context for source attribution
 }
-
-// Feedback state tracking
-type FeedbackType = 'helpful' | 'not_helpful' | 'need_more' | null;
 
 interface ChatProps {
   chatbotId: string;
@@ -46,17 +48,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [feedbackState, setFeedbackState] = useState<Record<string, FeedbackType>>({});
-  const [feedbackLoading, setFeedbackLoading] = useState<Record<string, 'helpful' | 'not_helpful' | null>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState('');
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState('');
+  
+  // Phase 4: Pill system state
+  const [pills, setPills] = useState<PillType[]>([]);
+  const [selectedFeedbackPill, setSelectedFeedbackPill] = useState<string | null>(null);
+  const [selectedExpansionPill, setSelectedExpansionPill] = useState<string | null>(null);
+  const [selectedSuggestedPill, setSelectedSuggestedPill] = useState<string | null>(null);
+  const [wasModified, setWasModified] = useState(false);
+  const [bookmarkedMessages, setBookmarkedMessages] = useState<Set<string>>(new Set());
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialInputValueRef = useRef<string>(''); // Track initial prefill value
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -116,18 +124,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           role: msg.role,
           content: msg.content,
           createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+          context: msg.context || undefined, // Phase 4: Include context for source attribution
         }));
 
-        // Load feedback state from API response
-        const loadedFeedbackState: Record<string, FeedbackType> = {};
-        data.messages.forEach((msg: any) => {
-          if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful' || msg.feedbackType === 'need_more')) {
-            loadedFeedbackState[msg.id] = msg.feedbackType;
-          }
-        });
-        setFeedbackState(loadedFeedbackState);
-
         setMessages(loadedMessages);
+        
+        // Phase 4: Load bookmarked messages
+        try {
+          const bookmarksResponse = await fetch(`/api/bookmarks?chatbotId=${chatbotId}`);
+          if (bookmarksResponse.ok) {
+            const bookmarks = await bookmarksResponse.json();
+            const bookmarkedIds = new Set<string>(bookmarks.map((b: any) => b.messageId as string));
+            setBookmarkedMessages(bookmarkedIds);
+          }
+        } catch (error) {
+          console.error('Error loading bookmarks:', error);
+        }
         hasLoadedMessages.current = true;
       } catch (err) {
         console.error('Error loading messages:', err);
@@ -171,6 +183,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
   }, []);
 
+  // Phase 4: Load pills on mount
+  useEffect(() => {
+    const loadPills = async () => {
+      try {
+        const response = await fetch(`/api/pills?chatbotId=${chatbotId}`);
+        if (response.ok) {
+          const loadedPills = await response.json();
+          setPills(loadedPills);
+        }
+      } catch (error) {
+        console.error('Error loading pills:', error);
+      }
+    };
+    loadPills();
+  }, [chatbotId]);
+
   /**
    * Sends a message to the chat API and handles streaming response
    */
@@ -211,6 +239,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         },
       ];
 
+      // Phase 4, Task 8: Prepare pill metadata for server-side logging
+      const pillMetadata = (selectedFeedbackPill || selectedExpansionPill || selectedSuggestedPill) ? {
+        feedbackPillId: selectedFeedbackPill || null,
+        expansionPillId: selectedExpansionPill || null,
+        suggestedPillId: selectedSuggestedPill || null,
+        prefillText: initialInputValueRef.current,
+        sentText: userMessage.content,
+        wasModified,
+      } : null;
+
       // Call chat API
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -221,6 +259,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           messages: messagesForAPI,
           chatbotId,
           ...(conversationId && { conversationId }),
+          ...(pillMetadata && { pillMetadata }),
         }),
       });
 
@@ -299,6 +338,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         localStorage.setItem(`conversationId_${chatbotId}`, newConversationId);
       }
 
+      // Phase 4, Task 8: Pill usage is now logged server-side in /api/chat route
+      // Clear pill selection after message sent
+      if (selectedFeedbackPill || selectedExpansionPill || selectedSuggestedPill) {
+        setSelectedFeedbackPill(null);
+        setSelectedExpansionPill(null);
+        setSelectedSuggestedPill(null);
+        setWasModified(false);
+        initialInputValueRef.current = '';
+      }
+
       // Reload messages to get real database IDs (fixes feedback button issue)
       // This ensures message IDs match database IDs for feedback submission
       // Small delay to ensure database write has completed
@@ -317,16 +366,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               role: msg.role,
               content: msg.content,
               createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+              context: msg.context || undefined, // Phase 4: Include context for source attribution
             }));
-            
-            // Load feedback state from API response
-            const loadedFeedbackState: Record<string, FeedbackType> = {};
-            messagesData.messages.forEach((msg: any) => {
-              if (msg.feedbackType && (msg.feedbackType === 'helpful' || msg.feedbackType === 'not_helpful' || msg.feedbackType === 'need_more')) {
-                loadedFeedbackState[msg.id] = msg.feedbackType;
-              }
-            });
-            setFeedbackState(loadedFeedbackState);
             
             setMessages(loadedMessages);
           }
@@ -364,6 +405,69 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
+  // Phase 4: Handle Save button click
+  const handleSave = async (messageId: string) => {
+    // Check if already bookmarked
+    if (bookmarkedMessages.has(messageId)) {
+      // TODO: Implement unsave functionality if needed
+      return;
+    }
+
+    try {
+      // Get chunkIds from message context
+      const message = messages.find(m => m.id === messageId);
+      const chunkIds: string[] = [];
+      if (message?.context && typeof message.context === 'object') {
+        const context = message.context as Record<string, unknown>;
+        const chunks = context.chunks as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(chunks)) {
+          chunks.forEach((chunk) => {
+            const chunkId = chunk.chunkId as string | undefined;
+            if (chunkId) {
+              chunkIds.push(chunkId);
+            }
+          });
+        }
+      }
+
+      const response = await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId,
+          chunkIds,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save bookmark');
+      }
+
+      // Update bookmarked messages state
+      setBookmarkedMessages(prev => new Set(prev).add(messageId));
+
+      // Show success toast
+      setToast({
+        message: 'Saved to Bookmarks',
+        type: 'success',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 3000);
+    } catch (error) {
+      console.error('Error saving bookmark:', error);
+      setToast({
+        message: 'Failed to save bookmark. Please try again.',
+        type: 'error',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 5000);
+    }
+  };
+
   /**
    * Handles Enter key press (sends message) and Shift+Enter (new line)
    */
@@ -374,18 +478,87 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
+  // Phase 4: Handle pill click - immediately fill input (no checkmark/selection state)
+  const handlePillClick = (pill: PillType) => {
+    // Get current feedback and expansion pills for combining
+    const currentFeedbackPill = pills.find(p => p.id === selectedFeedbackPill);
+    const currentExpansionPill = pills.find(p => p.id === selectedExpansionPill);
+    
+    let newInput = '';
+    
+    if (pill.pillType === 'feedback') {
+      // Feedback pills: replace any existing feedback pill, keep expansion pill if exists
+      setSelectedFeedbackPill(pill.id);
+      newInput = pill.prefillText;
+      if (currentExpansionPill) {
+        newInput += ' ' + currentExpansionPill.prefillText;
+      }
+      
+      // Show thank you toast for feedback pills
+      setToast({
+        message: 'Thanks for your feedback!',
+        type: 'success',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 2000);
+    } else if (pill.pillType === 'expansion') {
+      // Expansion pills: replace any existing expansion pill, keep feedback pill if exists
+      setSelectedExpansionPill(pill.id);
+      if (currentFeedbackPill) {
+        newInput = currentFeedbackPill.prefillText + ' ' + pill.prefillText;
+      } else {
+        newInput = pill.prefillText;
+      }
+    } else if (pill.pillType === 'suggested') {
+      // Suggested questions: can combine with feedback pill
+      setSelectedSuggestedPill(pill.id);
+      if (currentFeedbackPill) {
+        newInput = currentFeedbackPill.prefillText + ' ' + pill.prefillText;
+      } else {
+        newInput = pill.prefillText;
+      }
+    }
+    
+    // Immediately fill input (no checkmark/selection visual state)
+    setInput(newInput);
+    initialInputValueRef.current = newInput;
+    setWasModified(false);
+    inputRef.current?.focus();
+    // Move cursor to end
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.setSelectionRange(newInput.length, newInput.length);
+      }
+    }, 0);
+  };
+
+  // Phase 4: Track input modifications
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setInput(newValue);
+    
+    // Check if user modified prefilled text
+    if (initialInputValueRef.current && newValue !== initialInputValueRef.current) {
+      setWasModified(true);
+    }
+  };
+
   /**
    * Handles copy button click
    * 
-   * Phase 3.4: Copy Button with Feedback
+   * Phase 5: Copy Button with Feedback (kept per plan decision)
    * 
    * Copies message content to clipboard and opens copy feedback modal immediately.
    * Uses iOS Safari/Chrome fallback for clipboard API compatibility.
    * 
    * Process:
    * 1. Copy content to clipboard (with iOS fallback)
-   * 2. Track copy event in database (non-blocking, creates record with copyUsage=null)
+   * 2. Track copy event in Events table (non-blocking, creates event with copyUsage=null)
    * 3. Open copy feedback modal immediately (no intermediate toast)
+   * 
+   * Note: Copy events are stored in Events table (eventType: 'copy'), not Message_Feedback.
    * 
    * Clipboard API Support:
    * - Modern browsers: Uses navigator.clipboard.writeText()
@@ -425,26 +598,41 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }
       }
 
-      // Track copy event (non-blocking, creates initial copy feedback record)
-      // This creates a Message_Feedback record with feedbackType='copy' and copyUsage=null
-      // The record will be updated when user submits usage via modal
-      fetch('/api/feedback/message', {
+      // Phase 4: Log copy event to Events table
+      const message = messages.find(m => m.id === messageId);
+      const chunkIds: string[] = [];
+      if (message?.context && typeof message.context === 'object') {
+        const context = message.context as Record<string, unknown>;
+        const chunks = context.chunks as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(chunks)) {
+          chunks.forEach((chunk) => {
+            const chunkId = chunk.chunkId as string | undefined;
+            if (chunkId) {
+              chunkIds.push(chunkId);
+            }
+          });
+        }
+      }
+
+      // Log copy event (non-blocking)
+      fetch('/api/events', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messageId,
-          feedbackType: 'copy',
+          eventType: 'copy',
+          sessionId: conversationId || undefined,
+          chunkIds,
+          metadata: { messageId },
         }),
       }).catch((err) => {
         console.error('Error tracking copy event:', err);
         // Don't show error to user - copy still succeeded
-        // Tracking failure shouldn't interrupt user flow
       });
 
+      // Phase 4: Keep copy modal for now (per plan decision)
       // Show copy feedback modal directly (no intermediate toast)
-      // Modal title shows "✓ Copied!" to indicate success
       setCopiedMessageId(messageId);
       setCopyModalOpen(true);
     } catch (error) {
@@ -461,115 +649,30 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
-  /**
-   * Handles feedback submission (thumbs up/down)
-   * Phase 4, Task 2: Thumbs up/down buttons in chat UI
-   * Phase 4, Task 4: Visual feedback (button state, toast)
-   */
-  const handleFeedback = async (messageId: string, feedbackType: 'helpful' | 'not_helpful') => {
-    // Prevent duplicate feedback
-    if (feedbackState[messageId] || feedbackLoading[messageId]) {
-      return;
-    }
-
-    // Set loading state for this specific button
-    setFeedbackLoading((prev) => ({
-      ...prev,
-      [messageId]: feedbackType,
-    }));
-
-    // Clear any existing toast timeout
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-
-    try {
-      const response = await fetch('/api/feedback/message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messageId,
-          feedbackType,
-        }),
-      });
-
-      if (!response.ok) {
-        // Try to parse error response, but handle cases where response isn't JSON
-        let errorMessage = 'Failed to submit feedback';
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } else {
-            // If not JSON, try to get text
-            const text = await response.text();
-            errorMessage = text || errorMessage;
-          }
-        } catch (parseError) {
-          // If parsing fails, use default error message
-          console.error('Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Update feedback state
-      setFeedbackState((prev) => ({
-        ...prev,
-        [messageId]: feedbackType,
-      }));
-
-      // Show success toast
-      setToast({
-        message: feedbackType === 'helpful' ? 'Thanks for your feedback!' : 'Thanks for letting us know.',
-        type: 'success',
-      });
-
-      // Hide toast after 3 seconds
-      toastTimeoutRef.current = setTimeout(() => {
-        setToast(null);
-        toastTimeoutRef.current = null;
-      }, 3000);
-    } catch (err) {
-      console.error('Error submitting feedback:', err);
-      
-      // Show error toast
-      setToast({
-        message: err instanceof Error ? err.message : 'Failed to submit feedback. Please try again.',
-        type: 'error',
-      });
-
-      // Hide toast after 5 seconds
-      toastTimeoutRef.current = setTimeout(() => {
-        setToast(null);
-        toastTimeoutRef.current = null;
-      }, 5000);
-    } finally {
-      // Clear loading state
-      setFeedbackLoading((prev) => ({
-        ...prev,
-        [messageId]: null,
-      }));
-    }
-  };
-
-
   return (
     <div className="flex flex-col h-dvh max-w-4xl mx-auto bg-white">
       {/* Header */}
       <div className="border-b border-gray-200 p-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            aria-label="Go back"
-            title="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </button>
+            <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
+          </div>
+          {/* Phase 4: Star rating in header */}
+          {conversationId && (
+            <StarRating
+              chatbotId={chatbotId}
+              sessionId={conversationId}
+              messageCount={messages.filter(m => m.role === 'user').length}
+            />
+          )}
         </div>
         {error && (
           <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
@@ -694,14 +797,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                   <div className="whitespace-pre-wrap break-words">
                     {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
                   </div>
+                  
+                  {/* Phase 4: Source attribution - inside message bubble at the end */}
+                  {message.role === 'assistant' && message.context && (
+                    <SourceAttribution
+                      chunkIds={[]} // Will be extracted from context by component
+                      chatbotId={chatbotId}
+                      messageContext={message.context}
+                    />
+                  )}
                 </div>
                 
-                {/* Feedback buttons for assistant messages */}
+                {/* Phase 4: Message actions for assistant messages */}
                 {message.role === 'assistant' && message.content && !isLoading && (
                   <div className="space-y-3 mt-1">
-                    {/* First row: Copy, Save, Expand on this */}
+                    {/* First row: Copy, Save buttons */}
                     <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      {/* Phase 3.4: Copy button */}
+                      {/* Copy button */}
                       <button
                         onClick={() => handleCopy(message.id, message.content)}
                         className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
@@ -710,47 +822,25 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                         <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
                         <span>Copy</span>
                       </button>
-                      {/* Save button */}
+                      {/* Phase 4: Save button with bookmark functionality */}
                       <button
-                        onClick={() => {
-                          // TODO: Implement save functionality
-                        }}
-                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
-                        title="Save message"
+                        onClick={() => handleSave(message.id)}
+                        disabled={bookmarkedMessages.has(message.id)}
+                        className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                          bookmarkedMessages.has(message.id)
+                            ? 'bg-blue-100 text-blue-700 border border-blue-400'
+                            : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                        } active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed`}
+                        title={bookmarkedMessages.has(message.id) ? 'Already saved' : 'Save message'}
                       >
-                        <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                        {bookmarkedMessages.has(message.id) ? (
+                          <BookmarkCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
+                        ) : (
+                          <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                        )}
                         <span>Save</span>
                       </button>
-                      {/* Expand on this button */}
-                      <button
-                        onClick={() => {
-                          setSelectedMessageId(message.id);
-                          setFeedbackModalOpen(true);
-                        }}
-                        disabled={feedbackState[message.id] === 'need_more'}
-                        className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                          feedbackState[message.id] === 'need_more'
-                            ? 'bg-blue-100 text-blue-700 border border-blue-400 shadow-sm'
-                            : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95'
-                        } disabled:opacity-60 disabled:cursor-not-allowed`}
-                        title={
-                          feedbackState[message.id] === 'need_more'
-                            ? 'Feedback already submitted'
-                            : 'Expand on this topic'
-                        }
-                      >
-                        <Lightbulb className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${feedbackState[message.id] === 'need_more' ? 'text-blue-600' : 'text-gray-600'}`} />
-                        <span>Expand on this</span>
-                      </button>
                     </div>
-                    
-                    {/* Second row: Sample text - only for most recent assistant message */}
-                    {isMostRecentAssistant && (
-                      <div className="flex items-center justify-between gap-4">
-                        {/* Sample text */}
-                        <span className="text-sm text-gray-600">Placeholder for a list of sources used in this message</span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -775,129 +865,75 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* Phase 4: Input area with dynamic pills */}
       <div className="border-t border-gray-200 px-3 py-2 bg-gray-200">
-        {/* Quick action pills */}
-        <div className="mb-2 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          <div className="flex flex-col gap-1.5 w-max">
-            {/* First row */}
-            <div className="flex gap-1.5">
-              {/* Helpful button - only for most recent assistant message */}
-              {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content && !isLoading && (() => {
-                const mostRecentMessage = messages[messages.length - 1];
-                return (
-                  <button
-                    onClick={() => handleFeedback(mostRecentMessage.id, 'helpful')}
-                    disabled={!!feedbackState[mostRecentMessage.id] || !!feedbackLoading[mostRecentMessage.id]}
-                    className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
-                      feedbackState[mostRecentMessage.id] === 'helpful'
-                        ? 'bg-green-200 text-green-800 border border-green-400'
-                        : feedbackLoading[mostRecentMessage.id] === 'helpful'
-                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
-                        : 'bg-green-50/60 text-green-600 border border-green-200 hover:bg-green-100 hover:border-green-300'
-                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                    title={
-                      feedbackState[mostRecentMessage.id]
-                        ? 'Feedback already submitted'
-                        : feedbackLoading[mostRecentMessage.id] === 'helpful'
-                        ? 'Submitting feedback...'
-                        : 'This was helpful'
-                    }
-                  >
-                    {feedbackLoading[mostRecentMessage.id] === 'helpful' ? (
-                      <span className="flex items-center gap-1.5">
-                        <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Submitting...
-                      </span>
-                    ) : (
-                      <span>Helpful</span>
-                    )}
-                  </button>
-                );
-              })()}
-              <button
-                onClick={() => {
-                  // TODO: Implement functionality
-                }}
-                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
-              >
-                Give me an example
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement functionality
-                }}
-                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
-              >
-                How would I use this?
-              </button>
-            </div>
-            
-            {/* Second row */}
-            <div className="flex gap-1.5">
-              {/* Not helpful button - only for most recent assistant message */}
-              {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content && !isLoading && (() => {
-                const mostRecentMessage = messages[messages.length - 1];
-                return (
-                  <button
-                    onClick={() => handleFeedback(mostRecentMessage.id, 'not_helpful')}
-                    disabled={!!feedbackState[mostRecentMessage.id] || !!feedbackLoading[mostRecentMessage.id]}
-                    className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
-                      feedbackState[mostRecentMessage.id] === 'not_helpful'
-                        ? 'bg-red-200 text-red-800 border border-red-400'
-                        : feedbackLoading[mostRecentMessage.id] === 'not_helpful'
-                        ? 'bg-gray-50 text-gray-400 border border-gray-200 cursor-wait'
-                        : 'bg-red-50/60 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300'
-                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                    title={
-                      feedbackState[mostRecentMessage.id]
-                        ? 'Feedback already submitted'
-                        : feedbackLoading[mostRecentMessage.id] === 'not_helpful'
-                        ? 'Submitting feedback...'
-                        : 'This was not helpful'
-                    }
-                  >
-                    {feedbackLoading[mostRecentMessage.id] === 'not_helpful' ? (
-                      <span className="flex items-center gap-1.5">
-                        <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Submitting...
-                      </span>
-                    ) : (
-                      <span>Not helpful</span>
-                    )}
-                  </button>
-                );
-              })()}
-              <button
-                onClick={() => {
-                  // TODO: Implement functionality
-                }}
-                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
-              >
-                Who has done this
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement functionality
-                }}
-                className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
-              >
-                Say more about this
-              </button>
+        {/* Dynamic pill rows */}
+        {pills.length > 0 && (
+          <div className="mb-2 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+            <div className="flex flex-col gap-1.5 w-max">
+              {/* Phase 4: Organize pills into two rows */}
+              {/* Before messages: Only show suggested questions */}
+              {/* After messages: Show feedback + expansion + suggested */}
+              
+              {messages.length === 0 ? (
+                // Before messages: Only suggested questions
+                <PillRow
+                  pills={pills.filter(p => p.pillType === 'suggested')}
+                  selectedFeedbackPill={null}
+                  selectedExpansionPill={null}
+                  onPillClick={handlePillClick}
+                  disabled={isLoading}
+                />
+              ) : (
+                // After messages: Two rows
+                <>
+                  {/* Row 1: Helpful pill + first half of expansion pills + suggested questions */}
+                  {(() => {
+                    const expansionPills = pills.filter(p => p.pillType === 'expansion');
+                    const firstHalfExpansion = expansionPills.slice(0, Math.ceil(expansionPills.length / 2));
+                    return (
+                      <PillRow
+                        pills={[
+                          ...pills.filter(p => p.pillType === 'feedback' && p.label.toLowerCase().includes('helpful') && !p.label.toLowerCase().includes('not')),
+                          ...firstHalfExpansion,
+                          ...pills.filter(p => p.pillType === 'suggested'),
+                        ]}
+                        selectedFeedbackPill={null}
+                        selectedExpansionPill={null}
+                        onPillClick={handlePillClick}
+                        disabled={isLoading}
+                      />
+                    );
+                  })()}
+                  
+                  {/* Row 2: Not helpful pill + second half of expansion pills + suggested questions */}
+                  {(() => {
+                    const expansionPills = pills.filter(p => p.pillType === 'expansion');
+                    const secondHalfExpansion = expansionPills.slice(Math.ceil(expansionPills.length / 2));
+                    return (
+                      <PillRow
+                        pills={[
+                          ...pills.filter(p => p.pillType === 'feedback' && (p.label.toLowerCase().includes('not') || p.label.toLowerCase().includes('not helpful'))),
+                          ...secondHalfExpansion,
+                          ...pills.filter(p => p.pillType === 'suggested'),
+                        ]}
+                        selectedFeedbackPill={null}
+                        selectedExpansionPill={null}
+                        onPillClick={handlePillClick}
+                        disabled={isLoading}
+                      />
+                    );
+                  })()}
+                </>
+              )}
             </div>
           </div>
-        </div>
+        )}
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Type a reply..."
             disabled={isLoading}
@@ -925,26 +961,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         </div>
       </div>
 
-      {/* Phase 3.3: "Need More" feedback modal */}
-      <FeedbackModal
-        open={feedbackModalOpen}
-        onClose={() => {
-          setFeedbackModalOpen(false);
-          setSelectedMessageId('');
-        }}
-        messageId={selectedMessageId}
-        onSuccess={() => {
-          // Update feedback state to show button as clicked
-          if (selectedMessageId) {
-            setFeedbackState((prev) => ({
-              ...prev,
-              [selectedMessageId]: 'need_more',
-            }));
-          }
-        }}
-      />
-
-      {/* Phase 3.4: Copy feedback modal */}
+      {/* Phase 5: Copy feedback modal (kept per plan decision) */}
       {/* Opens immediately after copy button is clicked (no intermediate toast) */}
       {/* Uses same toast notification system as helpful/not_helpful feedback for consistency */}
       <CopyFeedbackModal
@@ -959,7 +976,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           // The API already handles this, so we don't need to update local state
         }}
         onShowToast={(message, type) => {
-          // Phase 3.4: Show toast notification (same system as helpful/not_helpful feedback)
+          // Phase 5: Show toast notification (same system as helpful/not_helpful feedback)
           // Clear any existing toast timeout to prevent conflicts
           if (toastTimeoutRef.current) {
             clearTimeout(toastTimeoutRef.current);

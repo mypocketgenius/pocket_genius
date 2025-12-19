@@ -244,7 +244,7 @@ export function StarRating({
             {(followUpData.goalAchieved === 'Partially' || followUpData.goalAchieved === 'No') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  What's still missing?
+                  What&apos;s still missing?
                 </label>
                 <textarea
                   value={followUpData.stillNeed}

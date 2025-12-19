@@ -23,7 +23,6 @@ model User {
   creatorMemberships Creator_User[]
   conversations      Conversation[]
   messages           Message[]
-  messageFeedbacks   Message_Feedback[]
   pillUsages         Pill_Usage[]
   events             Event[]
   bookmarks          Bookmark[]
@@ -144,33 +143,10 @@ model Message {
   createdAt      DateTime     @default(now())
 
   // Relations
-  messageFeedbacks Message_Feedback[]
   bookmarks        Bookmark[]
 
   @@index([conversationId])
   @@index([sourceIds])
-  @@index([userId])
-}
-
-// Message_Feedback model - Thumbs up/down feedback, "need more" feedback, and copy feedback
-// Phase 3.3: Added needsMore array and specificSituation for "need more" feedback
-// Phase 3.4: Added copyUsage and copyContext for copy feedback tracking
-model Message_Feedback {
-  id                String   @id @default(cuid())
-  messageId         String
-  message           Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  userId            String?
-  user              User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  feedbackType      String // 'helpful' | 'not_helpful' | 'need_more' | 'copy'
-  // Phase 3.3: "Need More" feedback fields
-  needsMore         String[] @default([]) // ['scripts', 'examples', 'steps', 'case_studies'] - format preferences user needs
-  specificSituation String? // Free text describing user's specific situation (optional)
-  // Phase 3.4: Copy feedback fields
-  copyUsage         String? // 'reference' | 'use_now' | 'share_team' | 'adapt' - how user will use copied content
-  copyContext       String? // Free text context (required if copyUsage is 'adapt')
-  createdAt         DateTime @default(now())
-
-  @@index([messageId])
   @@index([userId])
 }
 

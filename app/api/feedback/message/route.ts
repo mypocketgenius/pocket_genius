@@ -20,7 +20,7 @@ import { prisma } from '@/lib/prisma';
  * 1. Authenticates user (optional - allows anonymous users)
  * 2. Validates request body (messageId, feedbackType, and type-specific fields)
  * 3. Prevents duplicate feedback (one record per message/user/feedbackType)
- * 4. Stores feedback in Message_Feedback table
+ * 4. Stores feedback in Events table (Message_Feedback table was removed in Phase 2 migration)
  * 5. Retrieves message with context and conversation
  * 6. Updates Chunk_Performance counters for each chunk (batched operations)
  * 7. Computes and updates satisfactionRate for helpful/not_helpful feedback
@@ -171,86 +171,116 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Store feedback in Message_Feedback table
+    // 4. Store feedback in Events table (Message_Feedback table was removed in Phase 2 migration)
     // Phase 3.4: Prevent duplicate feedback records - one record per message/user/feedbackType
     // This ensures data integrity and prevents duplicate counter increments
+    
+    // Extract chunkIds from message context for event logging
+    const context = message.context as { chunks?: Array<{ chunkId: string; sourceId: string }> };
+    const chunkIds = (context.chunks || []).map(c => c.chunkId);
+    const conversationId = message.conversationId;
     
     // For copy feedback, handle differently based on whether usage is provided
     // Copy feedback has two stages:
     // 1. Initial copy (copyUsage=null) - created when user clicks copy button
     // 2. Usage submission (copyUsage set) - updates existing record with usage data
     if (feedbackType === 'copy') {
-      // Find all existing copy feedback records for this message and user
-      const allCopyFeedback = await prisma.message_Feedback.findMany({
+      // Find all existing copy events for this message and user
+      // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
+      const allCopyEvents = await prisma.event.findMany({
         where: {
-          messageId,
-          feedbackType: 'copy',
+          eventType: 'copy',
+          sessionId: conversationId,
           userId: dbUserId || undefined,
         },
         orderBy: {
-          createdAt: 'desc', // Get the most recent one first
+          timestamp: 'desc', // Get the most recent one first
         },
+      });
+
+      // Filter events by messageId in metadata
+      const eventsForMessage = allCopyEvents.filter((evt) => {
+        const metadata = evt.metadata as any;
+        return metadata?.messageId === messageId;
       });
 
       if (copyUsage) {
         // Stage 2: User is submitting usage data via modal
-        // Find the initial copy record (without usage) to update
-        const existingFeedback = allCopyFeedback.find((fb) => {
-          const fbAny = fb as any;
-          return !fbAny.copyUsage || fbAny.copyUsage === null;
+        // Find the initial copy event (without usage) to update
+        const existingEvent = eventsForMessage.find((evt) => {
+          const metadata = evt.metadata as any;
+          return !metadata?.copyUsage || metadata.copyUsage === null;
         });
 
-        if (existingFeedback) {
-          // Update existing record with usage data (prevents duplicates)
-          await prisma.message_Feedback.update({
-            where: { id: existingFeedback.id },
+        if (existingEvent) {
+          // Update existing event with usage data (prevents duplicates)
+          await prisma.event.update({
+            where: { id: existingEvent.id },
             data: {
-              copyUsage,
-              copyContext: copyContext || null,
+              metadata: {
+                messageId,
+                copyUsage,
+                copyContext: copyContext || null,
+              },
             },
           });
         } else {
-          // Edge case: No initial copy record found (shouldn't happen normally)
-          // Create new record with usage data
-          await prisma.message_Feedback.create({
+          // Edge case: No initial copy event found (shouldn't happen normally)
+          // Create new event with usage data
+          await prisma.event.create({
             data: {
-              messageId,
+              sessionId: conversationId,
               userId: dbUserId || undefined,
-              feedbackType,
-              copyUsage,
-              copyContext: copyContext || null,
+              eventType: 'copy',
+              chunkIds,
+              metadata: {
+                messageId,
+                copyUsage,
+                copyContext: copyContext || null,
+              },
             },
           });
         }
       } else {
         // Stage 1: User clicked copy button (initial copy event)
-        // Only create record if no copy feedback exists yet (prevents duplicates from multiple clicks)
-        if (allCopyFeedback.length === 0) {
-          await prisma.message_Feedback.create({
+        // Only create event if no copy event exists yet (prevents duplicates from multiple clicks)
+        if (eventsForMessage.length === 0) {
+          await prisma.event.create({
             data: {
-              messageId,
+              sessionId: conversationId,
               userId: dbUserId || undefined,
-              feedbackType,
-              copyUsage: null, // Will be updated when user submits usage
-              copyContext: null,
+              eventType: 'copy',
+              chunkIds,
+              metadata: {
+                messageId,
+                copyUsage: null, // Will be updated when user submits usage
+                copyContext: null,
+              },
             },
           });
         }
-        // If copy feedback already exists, don't create duplicate
+        // If copy event already exists, don't create duplicate
         // This handles rapid copy button clicks gracefully
       }
     } else {
       // For other feedback types (helpful, not_helpful, need_more), check for duplicates
       // These types don't have a two-stage flow like copy feedback
-      const existingFeedback = await prisma.message_Feedback.findFirst({
+      // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
+      const existingEvents = await prisma.event.findMany({
         where: {
-          messageId,
-          feedbackType,
+          eventType: 'user_message',
+          sessionId: conversationId,
           userId: dbUserId || undefined,
         },
       });
 
-      if (existingFeedback) {
+      // Filter events by messageId and feedbackType in metadata
+      const existingEvent = existingEvents.find((evt) => {
+        const metadata = evt.metadata as any;
+        return metadata?.messageId === messageId && metadata?.feedbackType === feedbackType;
+      });
+
+      if (existingEvent) {
         // Feedback already exists - return success without creating duplicate
         // This prevents duplicate counter increments and maintains data integrity
         return NextResponse.json({ 
@@ -259,18 +289,21 @@ export async function POST(req: Request) {
         });
       }
 
-      // Create new feedback record (no duplicate found)
+      // Create new event record (no duplicate found)
       // Phase 3.3: Store needsMore array and specificSituation for "need_more" feedback
-      await prisma.message_Feedback.create({
+      await prisma.event.create({
         data: {
-          messageId,
+          sessionId: conversationId,
           userId: dbUserId || undefined,
-          feedbackType,
-          needsMore: feedbackType === 'need_more' ? needsMore : [],
-          specificSituation:
-            feedbackType === 'need_more' ? specificSituation || null : null,
-          copyUsage: null,
-          copyContext: null,
+          eventType: 'user_message',
+          chunkIds,
+          metadata: {
+            messageId,
+            feedbackType,
+            needsMore: feedbackType === 'need_more' ? needsMore : [],
+            specificSituation:
+              feedbackType === 'need_more' ? specificSituation || null : null,
+          },
         },
       });
     }
@@ -290,8 +323,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 6. Extract chunks from message context
-    const context = message.context as { chunks?: Array<{ chunkId: string; sourceId: string }> };
+    // 6. Extract chunks from message context (reuse context variable declared earlier)
     const chunks = context.chunks || [];
 
     // For 'need_more' feedback, we need chunks to update counters

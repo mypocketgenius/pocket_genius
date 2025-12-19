@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/update-chunk-performance",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
+

@@ -15,7 +15,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: { bookmarkId: string } }
+  { params }: { params: Promise<{ bookmarkId: string }> }
 ) {
   try {
     // 1. Authenticate user (required for bookmarks)
@@ -42,7 +42,7 @@ export async function DELETE(
     }
 
     // 2. Get bookmarkId from params
-    const { bookmarkId } = params;
+    const { bookmarkId } = await params;
 
     if (!bookmarkId) {
       return NextResponse.json(

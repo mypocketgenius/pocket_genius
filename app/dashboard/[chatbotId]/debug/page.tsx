@@ -1,6 +1,6 @@
 // app/dashboard/[chatbotId]/debug/page.tsx
 // Diagnostic page to help debug feedback quantity mismatches
-// Compares Message_Feedback counts with Chunk_Performance aggregates
+// Compares Events counts with Chunk_Performance aggregates
 
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -13,16 +13,19 @@ interface DebugPageProps {
 }
 
 /**
- * Debug page that compares Message_Feedback counts with Chunk_Performance aggregates
- * Helps identify why dashboard quantities don't match Message_Feedback table
+ * Debug page that compares Events counts with Chunk_Performance aggregates
+ * Helps identify why dashboard quantities don't match Events table
  * 
  * Route: /dashboard/[chatbotId]/debug
  * 
  * Features:
  * - Authentication check (required) - Phase 5, Task 3
  * - Creator ownership verification - Phase 5, Task 3
- * - Compares raw Message_Feedback counts with Chunk_Performance aggregates
+ * - Compares raw Events counts with Chunk_Performance aggregates
  * - Shows breakdown by month/year
+ * 
+ * Note: Message_Feedback table was removed in Phase 2 migration.
+ * Feedback is now tracked via Events table (eventType: 'user_message' with feedbackType in metadata).
  */
 export default async function DebugPage({ params }: DebugPageProps) {
   const { chatbotId } = await params;
@@ -37,8 +40,8 @@ export default async function DebugPage({ params }: DebugPageProps) {
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
-    // Count Message_Feedback records for this chatbot
-    // Get all messages for this chatbot's conversations
+    // Count Events records for this chatbot (Message_Feedback table was removed in Phase 2)
+    // Get all conversations for this chatbot
     const conversations = await prisma.conversation.findMany({
       where: { chatbotId },
       select: { id: true },
@@ -54,24 +57,34 @@ export default async function DebugPage({ params }: DebugPageProps) {
     });
     const messageIds = messages.map((m) => m.id);
 
-    // Count feedback by type
-    const [totalFeedback, helpfulFeedback, notHelpfulFeedback] = await Promise.all([
-      prisma.message_Feedback.count({
-        where: { messageId: { in: messageIds } },
-      }),
-      prisma.message_Feedback.count({
-        where: {
-          messageId: { in: messageIds },
-          feedbackType: 'helpful',
-        },
-      }),
-      prisma.message_Feedback.count({
-        where: {
-          messageId: { in: messageIds },
-          feedbackType: 'not_helpful',
-        },
-      }),
-    ]);
+    // Fetch all user_message events for these conversations
+    // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
+    const allFeedbackEvents = await prisma.event.findMany({
+      where: {
+        eventType: 'user_message',
+        sessionId: { in: conversationIds },
+      },
+      select: {
+        id: true,
+        metadata: true,
+      },
+    });
+
+    // Filter events by messageId in metadata and count by feedbackType
+    const feedbackForMessages = allFeedbackEvents.filter((evt) => {
+      const metadata = evt.metadata as any;
+      return metadata?.messageId && messageIds.includes(metadata.messageId);
+    });
+
+    const totalFeedback = feedbackForMessages.length;
+    const helpfulFeedback = feedbackForMessages.filter((evt) => {
+      const metadata = evt.metadata as any;
+      return metadata?.feedbackType === 'helpful';
+    }).length;
+    const notHelpfulFeedback = feedbackForMessages.filter((evt) => {
+      const metadata = evt.metadata as any;
+      return metadata?.feedbackType === 'not_helpful';
+    }).length;
 
     // Get Chunk_Performance aggregates for current month/year
     const chunkPerformanceCurrentMonth = await prisma.chunk_Performance.aggregate({
@@ -147,9 +160,12 @@ export default async function DebugPage({ params }: DebugPageProps) {
           </p>
         </div>
 
-        {/* Message Feedback Summary */}
+        {/* Events Feedback Summary */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Message Feedback (Raw Counts)</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Events Feedback (Raw Counts)</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Note: Message_Feedback table was removed in Phase 2. Feedback is now tracked via Events table.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 rounded-lg p-4">
               <div className="text-sm text-gray-600">Total Feedback</div>
