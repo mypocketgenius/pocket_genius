@@ -181,6 +181,12 @@ npx prisma migrate deploy
 
 # Generate Prisma Client after schema changes
 npx prisma generate
+
+# Seed system pills (Feedback UX System - Phase 1)
+npx tsx prisma/seed-pills.ts
+
+# Verify Phase 1 schema implementation
+npx tsx scripts/verify-phase1-schema.ts
 ```
 
 ### Environment Variables

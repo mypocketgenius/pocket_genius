@@ -24,6 +24,10 @@ model User {
   conversations      Conversation[]
   messages           Message[]
   messageFeedbacks   Message_Feedback[]
+  pillUsages         Pill_Usage[]
+  events             Event[]
+  bookmarks          Bookmark[]
+  conversationFeedbacks Conversation_Feedback[]
 }
 
 // Creator model - AI creator profile
@@ -68,6 +72,10 @@ model Chatbot {
   conversations     Conversation[]
   sources           Source[]
   chunkPerformances Chunk_Performance[]
+  pills             Pill[]
+  pillUsages        Pill_Usage[]
+  bookmarks         Bookmark[]
+  ratingsAggregate  Chatbot_Ratings_Aggregate?
 }
 
 // Source model - Content sources (books, courses, etc.)
@@ -116,6 +124,7 @@ model Conversation {
 
   // Relations
   messages Message[]
+  conversationFeedback Conversation_Feedback?
 
   @@index([chatbotId, status])
   @@index([userId])
@@ -136,6 +145,7 @@ model Message {
 
   // Relations
   messageFeedbacks Message_Feedback[]
+  bookmarks        Bookmark[]
 
   @@index([conversationId])
   @@index([sourceIds])
@@ -184,6 +194,9 @@ model Chunk_Performance {
   needsStepsCount     Int @default(0) // Count of users needing step-by-step instructions
   needsCaseStudyCount Int @default(0) // Count of users needing case studies/real scenarios
 
+  // Phase 3.4: Copy feedback counter
+  copyToUseNowCount Int @default(0) // Count of users copying content to use immediately
+
   // Computed satisfaction rate (updated on each feedback)
   satisfactionRate Float @default(0)
 
@@ -202,4 +215,123 @@ model Chunk_Performance {
   @@index([chatbotId, month, year, satisfactionRate])
   @@index([chatbotId, month, year, timesUsed])
   @@index([sourceId])
+}
+
+// Pill model - Feedback, expansion, and suggested question pills
+// Phase 1: Feedback UX System Update
+model Pill {
+  id          String   @id @default(cuid())
+  chatbotId   String?  // NULL for system pills
+  chatbot     Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  pillType    String   // 'feedback' | 'expansion' | 'suggested'
+  label       String   // Display text
+  prefillText String   // Input prefill text
+  displayOrder Int     @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  pillUsages       Pill_Usage[] @relation("PillUsage")
+  pairedPillUsages Pill_Usage[] @relation("PillPairing")
+  
+  @@index([chatbotId])
+  @@index([pillType])
+}
+
+// Pill_Usage model - Tracks when pills are used
+// Phase 1: Feedback UX System Update
+model Pill_Usage {
+  id              String   @id @default(cuid())
+  pillId          String
+  pill            Pill     @relation("PillUsage", fields: [pillId], references: [id], onDelete: Cascade)
+  sessionId       String?  // Conversation ID
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId       String
+  chatbot         Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  sourceChunkIds  String[] @default([])
+  prefillText     String
+  sentText        String
+  wasModified     Boolean  @default(false)
+  pairedWithPillId String?
+  pairedWithPill  Pill?    @relation("PillPairing", fields: [pairedWithPillId], references: [id])
+  timestamp       DateTime @default(now())
+
+  @@index([pillId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([chatbotId])
+}
+
+// Event model - General event logging (copy, bookmark, conversation patterns, etc.)
+// Phase 1: Feedback UX System Update
+model Event {
+  id          String   @id @default(cuid())
+  sessionId   String?  // Conversation ID
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType   String   // 'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission'
+  chunkIds    String[] @default([])
+  metadata    Json?    // Event-specific data
+  timestamp   DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+// Bookmark model - User-saved messages
+// Phase 1: Feedback UX System Update
+model Bookmark {
+  id          String   @id @default(cuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId   String
+  chatbot     Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  chunkIds    String[] @default([]) // Chunks from message context
+  notes       String?  // Optional user notes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([messageId, userId]) // One bookmark per message per user
+  @@index([userId])
+  @@index([chatbotId])
+  @@index([createdAt])
+}
+
+// Conversation_Feedback model - Chat rating and follow-up questions
+// Phase 1: Feedback UX System Update (Phase 3.5: End-of-conversation survey)
+model Conversation_Feedback {
+  id           String   @id @default(cuid())
+  conversationId String
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating       Int?     // 1-5 star rating
+  userGoal     String?  // What were you trying to accomplish?
+  goalAchieved String?  // Yes/Partially/No
+  stillNeed    String?  // What's still missing?
+  timeSaved    String?  // How much time did this save you? (e.g., "5 minutes", "30 minutes", "1 hour", "2+ hours", "Not applicable")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([conversationId]) // One rating per conversation
+  @@index([userId])
+  @@index([rating])
+}
+
+// Chatbot_Ratings_Aggregate model - Aggregated ratings for chatbots
+// Phase 1: Feedback UX System Update
+model Chatbot_Ratings_Aggregate {
+  id                String   @id @default(cuid())
+  chatbotId         String   @unique
+  chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  averageRating     Decimal  @db.Decimal(3, 2)
+  ratingCount       Int      @default(0)
+  ratingDistribution Json?   // {"1": 5, "2": 10, "3": 25, ...}
+  updatedAt         DateTime @updatedAt
 }
