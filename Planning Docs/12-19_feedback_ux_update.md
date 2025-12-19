@@ -890,7 +890,7 @@ npx tsx scripts/migrate-feedback-to-pills.ts
 
 **Files Created/Modified:**
 - ✅ `app/api/jobs/update-chunk-performance/route.ts` - Background job to aggregate Events/Pill_Usage into Chunk_Performance
-- ✅ `vercel.json` - Cron configuration (every 15 minutes)
+- ✅ `vercel.json` - Cron configuration (daily at midnight UTC - Hobby plan limitation)
 - ✅ `app/dashboard/[chatbotId]/debug/page.tsx` - Already updated to use Events table (Phase 5)
 
 **Changes:**
@@ -910,10 +910,11 @@ npx tsx scripts/migrate-feedback-to-pills.ts
 
 **Purpose:** Aggregate Events and Pill_Usage into Chunk_Performance counters
 
-**Schedule:** Run every 15 minutes (Vercel Cron: `*/15 * * * *`)
+**Schedule:** Run daily at midnight UTC (Vercel Cron: `0 0 * * *`)
+**Note:** Vercel Hobby plan only supports daily cron jobs, so the job processes the last 24 hours of data each day.
 
 **Process:**
-1. ✅ Query Events and Pill_Usage from last 15 minutes
+1. ✅ Query Events and Pill_Usage from last 24 hours
 2. ✅ Group by chunkId
 3. ✅ Update Chunk_Performance counters (see above)
 4. ✅ Recalculate satisfactionRate after updates
@@ -1184,7 +1185,7 @@ npx tsx scripts/migrate-feedback-to-pills.ts
 
 5. **Chunk_Performance Updates:**
    - Should we update Chunk_Performance in real-time or batch?
-   - **Decision:** Batch updates via background job (every 15 minutes) for performance. Real-time updates can cause database contention.
+   - **Decision:** Batch updates via background job (daily at midnight UTC) for performance. Real-time updates can cause database contention. Note: Vercel Hobby plan limitation requires daily cron jobs only.
 
 6. **Pill Loading Performance:**
    - Why do helpful/not helpful pills load slower?
@@ -1317,7 +1318,7 @@ npx tsx scripts/migrate-feedback-to-pills.ts
 
 ### 7. Should we update Chunk_Performance?
 
-**Answer:** Yes. Task 10 includes background job to update Chunk_Performance counters from Events/Pill_Usage data every 15 minutes.
+**Answer:** Yes. Task 10 includes background job to update Chunk_Performance counters from Events/Pill_Usage data daily at midnight UTC. Note: Updated to daily schedule due to Vercel Hobby plan limitation (only supports daily cron jobs).
 
 ### 8. Is "feedback-pill" the right component name?
 

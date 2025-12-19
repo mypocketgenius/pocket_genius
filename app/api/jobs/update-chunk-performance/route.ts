@@ -1,6 +1,6 @@
 // app/api/jobs/update-chunk-performance/route.ts
 // Phase 4, Task 10: Background job to aggregate Events and Pill_Usage into Chunk_Performance counters
-// Runs every 15 minutes via Vercel Cron
+// Runs daily at midnight UTC via Vercel Cron (Hobby plan limitation: daily cron jobs only)
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -12,7 +12,7 @@ import { Prisma } from '@prisma/client';
  * Background job that aggregates Events and Pill_Usage data into Chunk_Performance counters.
  * 
  * Process:
- * 1. Query Events and Pill_Usage from last 15 minutes
+ * 1. Query Events and Pill_Usage from last 24 hours
  * 2. Group by chunkId
  * 3. Update Chunk_Performance counters:
  *    - Copy events → increment copyToUseNowCount (if metadata.copyUsage='use_now')
@@ -21,7 +21,8 @@ import { Prisma } from '@prisma/client';
  *    - Pill_Usage with expansion pill → increment appropriate needs*Count
  * 4. Recalculate satisfactionRate from helpfulCount / (helpfulCount + notHelpfulCount)
  * 
- * Schedule: Every 15 minutes (Vercel Cron schedule: every 15 minutes)
+ * Schedule: Daily at midnight UTC (Vercel Cron: 0 0 * * *)
+ * Note: Vercel Hobby plan only supports daily cron jobs
  * 
  * @example
  * ```bash
@@ -45,19 +46,19 @@ export async function POST(req: Request) {
 
     const startTime = Date.now();
     const now = new Date();
-    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     // Get current month/year for Chunk_Performance records
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    console.log(`[Update Chunk Performance] Starting aggregation for events/pill usage since ${fifteenMinutesAgo.toISOString()}`);
+    console.log(`[Update Chunk Performance] Starting aggregation for events/pill usage since ${twentyFourHoursAgo.toISOString()}`);
 
-    // 1. Query Events from last 15 minutes
+    // 1. Query Events from last 24 hours
     const recentEvents = await prisma.event.findMany({
       where: {
         timestamp: {
-          gte: fifteenMinutesAgo,
+          gte: twentyFourHoursAgo,
         },
       },
       select: {
@@ -69,11 +70,11 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. Query Pill_Usage from last 15 minutes
+    // 2. Query Pill_Usage from last 24 hours
     const recentPillUsages = await prisma.pill_Usage.findMany({
       where: {
         timestamp: {
-          gte: fifteenMinutesAgo,
+          gte: twentyFourHoursAgo,
         },
       },
       select: {
