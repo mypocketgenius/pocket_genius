@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 /**
  * POST /api/jobs/update-chunk-performance
@@ -153,13 +154,13 @@ export async function POST(req: Request) {
 
       // Map pill IDs to counter types
       const pillId = pill.id;
-      let counterType: 'helpful' | 'not_helpful' | 'needsExamples' | 'needsSteps' | 'needsScripts' | 'needsCaseStudy' | null = null;
+      let counterType: 'helpful' | 'notHelpful' | 'needsExamples' | 'needsSteps' | 'needsScripts' | 'needsCaseStudy' | null = null;
 
       if (pill.pillType === 'feedback') {
         if (pillId === 'pill_helpful_system') {
           counterType = 'helpful';
         } else if (pillId === 'pill_not_helpful_system') {
-          counterType = 'not_helpful';
+          counterType = 'notHelpful';
         }
       } else if (pill.pillType === 'expansion') {
         if (pillId === 'pill_example_system') {
@@ -233,7 +234,7 @@ export async function POST(req: Request) {
         const messages = await prisma.message.findMany({
           where: {
             role: 'assistant',
-            context: { not: null },
+            context: { not: Prisma.JsonNull },
           },
           select: {
             context: true,
