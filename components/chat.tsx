@@ -832,7 +832,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 }}
                 className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 active:scale-95"
               >
-                How would I actually use this?
+                How would I use this?
               </button>
             </div>
             
