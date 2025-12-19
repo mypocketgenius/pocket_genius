@@ -887,16 +887,18 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               ) : (
                 // After messages: Two rows
                 <>
-                  {/* Row 1: Helpful pill + first half of expansion pills + suggested questions */}
+                  {/* Row 1: Helpful pill + first half of expansion pills + first half of suggested questions */}
                   {(() => {
                     const expansionPills = pills.filter(p => p.pillType === 'expansion');
                     const firstHalfExpansion = expansionPills.slice(0, Math.ceil(expansionPills.length / 2));
+                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
+                    const firstHalfSuggested = suggestedPills.slice(0, Math.ceil(suggestedPills.length / 2));
                     return (
                       <PillRow
                         pills={[
                           ...pills.filter(p => p.pillType === 'feedback' && p.label.toLowerCase().includes('helpful') && !p.label.toLowerCase().includes('not')),
                           ...firstHalfExpansion,
-                          ...pills.filter(p => p.pillType === 'suggested'),
+                          ...firstHalfSuggested,
                         ]}
                         selectedFeedbackPill={null}
                         selectedExpansionPill={null}
@@ -906,16 +908,18 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     );
                   })()}
                   
-                  {/* Row 2: Not helpful pill + second half of expansion pills + suggested questions */}
+                  {/* Row 2: Not helpful pill + second half of expansion pills + second half of suggested questions */}
                   {(() => {
                     const expansionPills = pills.filter(p => p.pillType === 'expansion');
                     const secondHalfExpansion = expansionPills.slice(Math.ceil(expansionPills.length / 2));
+                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
+                    const secondHalfSuggested = suggestedPills.slice(Math.ceil(suggestedPills.length / 2));
                     return (
                       <PillRow
                         pills={[
                           ...pills.filter(p => p.pillType === 'feedback' && (p.label.toLowerCase().includes('not') || p.label.toLowerCase().includes('not helpful'))),
                           ...secondHalfExpansion,
-                          ...pills.filter(p => p.pillType === 'suggested'),
+                          ...secondHalfSuggested,
                         ]}
                         selectedFeedbackPill={null}
                         selectedExpansionPill={null}

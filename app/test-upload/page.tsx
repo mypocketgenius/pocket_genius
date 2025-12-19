@@ -3,8 +3,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 
 export default function TestUploadPage() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<string>('');
@@ -61,7 +64,17 @@ export default function TestUploadPage() {
 
   return (
     <div className="container mx-auto p-8 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">Test File Upload</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          aria-label="Go back"
+          title="Go back"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+        <h1 className="text-2xl font-bold">Test File Upload</h1>
+      </div>
       
       <div className="bg-gray-100 p-4 rounded mb-6">
         <p className="text-sm text-gray-700">

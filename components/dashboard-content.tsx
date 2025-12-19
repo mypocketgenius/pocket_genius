@@ -6,6 +6,8 @@
 // Displays chunk usage list with sorting, pagination, and chunk text display
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +58,7 @@ interface DashboardContentProps {
  * - Sort controls
  */
 export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardContentProps) {
+  const router = useRouter();
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,7 +159,17 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            aria-label="Go back"
+            title="Go back"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+        </div>
         <p className="text-muted-foreground">{chatbotTitle}</p>
       </div>
 

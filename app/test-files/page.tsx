@@ -3,6 +3,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 
 interface FileRecord {
   id: string;
@@ -14,6 +16,7 @@ interface FileRecord {
 }
 
 export default function TestFilesPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -72,7 +75,17 @@ export default function TestFilesPage() {
 
   return (
     <div className="container mx-auto p-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">File Management & Ingestion</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          aria-label="Go back"
+          title="Go back"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+        <h1 className="text-2xl font-bold">File Management & Ingestion</h1>
+      </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-6">
         <h2 className="font-semibold mb-2">Quick Trigger</h2>
