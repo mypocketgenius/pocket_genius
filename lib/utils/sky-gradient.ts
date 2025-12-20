@@ -1,0 +1,225 @@
+/**
+ * Sky Gradient Utility
+ * 
+ * Creates a subtle, time-of-day-based gradient that mirrors the sky outside.
+ * The gradient is extremely desaturated (2-3% color intensity) to remain
+ * sophisticated and minimal while creating subconscious emotional resonance.
+ * 
+ * Uses HSL color space for easier interpolation and saturation control.
+ */
+
+interface Gradient {
+  start: string; // HSL color string
+  end: string;   // HSL color string
+}
+
+interface HSLColor {
+  h: number; // Hue (0-360)
+  s: number; // Saturation (0-100)
+  l: number; // Lightness (0-100)
+}
+
+/**
+ * Converts HSL color object to CSS HSL string
+ */
+function hslToString(color: HSLColor): string {
+  return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+}
+
+/**
+ * Parses HSL string to HSL color object
+ */
+function parseHSL(hslString: string): HSLColor {
+  const match = hslString.match(/hsl\((\d+),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)/);
+  if (!match) {
+    throw new Error(`Invalid HSL string: ${hslString}`);
+  }
+  return {
+    h: parseInt(match[1], 10),
+    s: parseFloat(match[2]),
+    l: parseFloat(match[3]),
+  };
+}
+
+/**
+ * Interpolates between two HSL colors
+ * Handles hue wrapping (e.g., 350° to 10° should go through 0°, not backwards)
+ */
+function interpolateHSL(color1: HSLColor, color2: HSLColor, t: number): HSLColor {
+  // Clamp t between 0 and 1
+  t = Math.max(0, Math.min(1, t));
+
+  // Interpolate hue with wrapping
+  let h1 = color1.h;
+  let h2 = color2.h;
+  let dh = h2 - h1;
+  
+  // Take the shorter path around the color wheel
+  if (Math.abs(dh) > 180) {
+    if (dh > 0) {
+      dh -= 360;
+    } else {
+      dh += 360;
+    }
+  }
+  
+  const h = (h1 + dh * t + 360) % 360;
+
+  // Interpolate saturation and lightness linearly
+  const s = color1.s + (color2.s - color1.s) * t;
+  const l = color1.l + (color2.l - color1.l) * t;
+
+  return { h, s, l };
+}
+
+/**
+ * Interpolates between two gradient stops
+ */
+function interpolateGradients(
+  gradient1: Gradient,
+  gradient2: Gradient,
+  t: number
+): Gradient {
+  const start1 = parseHSL(gradient1.start);
+  const end1 = parseHSL(gradient1.end);
+  const start2 = parseHSL(gradient2.start);
+  const end2 = parseHSL(gradient2.end);
+
+  const start = interpolateHSL(start1, start2, t);
+  const end = interpolateHSL(end1, end2, t);
+
+  return {
+    start: hslToString(start),
+    end: hslToString(end),
+  };
+}
+
+/**
+ * Calculates the sky gradient based on the current time of day
+ * 
+ * Time periods:
+ * - Night (0-5am): Deep indigo with hints of violet
+ * - Dawn (5-7am): Soft peaches and lavenders
+ * - Morning (7-11am): Pale azure with warm highlights
+ * - Midday (11am-3pm): Bright pale azure
+ * - Afternoon (3-6pm): Warm azure
+ * - Golden hour (6-8pm): Amber glow
+ * - Dusk (8-10pm): Lavender to indigo transition
+ * - Evening (10pm-midnight): Deep indigo
+ * 
+ * @param hour - Current hour (0-23)
+ * @param minute - Current minute (0-59)
+ * @returns Gradient object with start and end HSL color strings
+ */
+export function getSkyGradient(hour: number, minute: number): Gradient {
+  const timeDecimal = hour + minute / 60;
+
+  // Define key gradient stops throughout the day
+  const gradients: Record<string, Gradient> = {
+    // Night (0-5am): Deep indigo with hints of violet
+    night: {
+      start: 'hsl(240, 15%, 8%)',
+      end: 'hsl(260, 12%, 12%)',
+    },
+    // Dawn (5-7am): Soft peaches and lavenders
+    dawn: {
+      start: 'hsl(20, 25%, 92%)',
+      end: 'hsl(280, 20%, 94%)',
+    },
+    // Morning (7-11am): Pale azure with warm highlights
+    morning: {
+      start: 'hsl(200, 20%, 96%)',
+      end: 'hsl(210, 15%, 98%)',
+    },
+    // Midday (11am-3pm): Bright pale azure
+    midday: {
+      start: 'hsl(200, 18%, 97%)',
+      end: 'hsl(190, 12%, 99%)',
+    },
+    // Afternoon (3-6pm): Warm azure
+    afternoon: {
+      start: 'hsl(210, 15%, 96%)',
+      end: 'hsl(200, 18%, 98%)',
+    },
+    // Golden hour (6-8pm): Amber glow
+    golden: {
+      start: 'hsl(35, 30%, 94%)',
+      end: 'hsl(25, 25%, 96%)',
+    },
+    // Dusk (8-10pm): Lavender to indigo transition
+    dusk: {
+      start: 'hsl(260, 18%, 90%)',
+      end: 'hsl(240, 15%, 92%)',
+    },
+    // Evening (10pm-midnight): Deep indigo
+    evening: {
+      start: 'hsl(240, 15%, 12%)',
+      end: 'hsl(250, 12%, 10%)',
+    },
+  };
+
+  // Determine current gradient based on time
+  let currentGradient: Gradient;
+
+  if (timeDecimal >= 0 && timeDecimal < 5) {
+    // Night (0-5am)
+    currentGradient = gradients.night;
+  } else if (timeDecimal >= 5 && timeDecimal < 7) {
+    // Dawn (5-7am): Interpolate between night and dawn
+    const t = (timeDecimal - 5) / 2;
+    currentGradient = interpolateGradients(gradients.night, gradients.dawn, t);
+  } else if (timeDecimal >= 7 && timeDecimal < 11) {
+    // Morning (7-11am): Interpolate between dawn and morning
+    const t = (timeDecimal - 7) / 4;
+    currentGradient = interpolateGradients(gradients.dawn, gradients.morning, t);
+  } else if (timeDecimal >= 11 && timeDecimal < 15) {
+    // Midday (11am-3pm): Interpolate between morning and midday
+    const t = (timeDecimal - 11) / 4;
+    currentGradient = interpolateGradients(gradients.morning, gradients.midday, t);
+  } else if (timeDecimal >= 15 && timeDecimal < 18) {
+    // Afternoon (3-6pm): Interpolate between midday and afternoon
+    const t = (timeDecimal - 15) / 3;
+    currentGradient = interpolateGradients(gradients.midday, gradients.afternoon, t);
+  } else if (timeDecimal >= 18 && timeDecimal < 20) {
+    // Golden hour (6-8pm): Interpolate between afternoon and golden
+    const t = (timeDecimal - 18) / 2;
+    currentGradient = interpolateGradients(gradients.afternoon, gradients.golden, t);
+  } else if (timeDecimal >= 20 && timeDecimal < 22) {
+    // Dusk (8-10pm): Interpolate between golden and dusk
+    const t = (timeDecimal - 20) / 2;
+    currentGradient = interpolateGradients(gradients.golden, gradients.dusk, t);
+  } else if (timeDecimal >= 22 && timeDecimal < 24) {
+    // Evening (10pm-midnight): Interpolate between dusk and evening, then to night
+    // First half (10pm-11pm): dusk -> evening
+    // Second half (11pm-midnight): evening -> night
+    if (timeDecimal < 23) {
+      const t = (timeDecimal - 22) / 1; // 0 to 1 over 1 hour
+      currentGradient = interpolateGradients(gradients.dusk, gradients.evening, t);
+    } else {
+      const t = (timeDecimal - 23) / 1; // 0 to 1 over 1 hour
+      currentGradient = interpolateGradients(gradients.evening, gradients.night, t);
+    }
+  } else {
+    // Safety fallback (shouldn't happen with valid input)
+    currentGradient = gradients.night;
+  }
+
+  return currentGradient;
+}
+
+/**
+ * Determines if the current time period is "light" (daytime) or "dark" (nighttime)
+ * Used for adaptive message bubble styling
+ * 
+ * @param hour - Current hour (0-23)
+ * @returns 'light' for daytime (6am-8pm), 'dark' for nighttime
+ */
+export function getTimeTheme(hour: number): 'light' | 'dark' {
+  // Daytime: 6am to 8pm (6-20)
+  // Nighttime: 8pm to 6am (20-24, 0-6)
+  if (hour >= 6 && hour < 20) {
+    return 'light';
+  }
+  return 'dark';
+}
+

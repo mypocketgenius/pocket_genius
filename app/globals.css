@@ -125,3 +125,46 @@
   }
 }
 
+/* Sky gradient transition - very slow, imperceptible changes */
+.sky-gradient-transition {
+  transition: background 300s ease;
+}
+
+/* Glassmorphism message bubbles with adaptive contrast */
+.message-bubble {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: background-color 300s ease, 
+              color 300s ease, 
+              box-shadow 300s ease, 
+              border-color 300s ease;
+}
+
+/* Stable chrome elements - header and input area */
+/* Transitions only occur at theme changes (6am/8pm), not constantly */
+.app-header {
+  transition: background-color 2s ease,
+              border-color 2s ease,
+              color 2s ease;
+}
+
+.input-area {
+  transition: background-color 2s ease,
+              border-color 2s ease;
+}
+
+.input-field {
+  transition: background-color 2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease,
+              color 2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+}
+
+.input-field::placeholder {
+  opacity: 0.7;
+}
+

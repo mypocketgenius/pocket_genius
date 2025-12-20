@@ -13,6 +13,7 @@ import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
+import { useSkyGradient } from '../lib/hooks/use-sky-gradient';
 
 interface Message {
   id: string;
@@ -67,6 +68,58 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialInputValueRef = useRef<string>(''); // Track initial prefill value
   const pillClickedRef = useRef<boolean>(false); // Track if a pill was clicked
+  
+  // Sky gradient for dynamic time-of-day background with adaptive theme
+  const { gradient: skyGradient, theme: timeTheme } = useSkyGradient();
+  
+  // Adaptive bubble styles based on time theme
+  const bubbleStyles = {
+    light: {
+      ai: 'rgba(255, 255, 255, 0.75)', // Semi-transparent white
+      user: 'rgba(59, 130, 246, 0.85)', // Blue with slight transparency
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.06)',
+      text: '#1a1a1a',
+      userText: '#ffffff',
+    },
+    dark: {
+      ai: 'rgba(255, 255, 255, 0.08)', // Subtle glass effect
+      user: 'rgba(59, 130, 246, 0.7)', // Blue with more transparency for dark
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+      text: '#e8e8e8',
+      userText: '#ffffff',
+    },
+  };
+  
+  // Stable chrome styles for header and input area (solid, grounding elements)
+  const chromeStyles = {
+    light: {
+      header: {
+        bg: 'rgb(255, 255, 255)',
+        border: 'rgba(0, 0, 0, 0.08)',
+        text: '#1a1a1a',
+      },
+      input: {
+        bg: 'rgb(255, 255, 255)',
+        border: 'rgba(0, 0, 0, 0.12)',
+        text: '#1a1a1a',
+      },
+    },
+    dark: {
+      header: {
+        bg: 'rgb(20, 20, 22)',
+        border: 'rgba(255, 255, 255, 0.12)',
+        text: '#e8e8e8',
+      },
+      input: {
+        bg: 'rgb(28, 28, 30)',
+        border: 'rgba(255, 255, 255, 0.18)',
+        text: '#e8e8e8',
+      },
+    },
+  };
+  
+  const currentBubbleStyle = bubbleStyles[timeTheme];
+  const currentChromeStyle = chromeStyles[timeTheme];
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -702,26 +755,55 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-dvh max-w-4xl mx-auto bg-white">
+    <div className="flex flex-col h-dvh max-w-4xl mx-auto" style={{ backgroundColor: currentChromeStyle.header.bg }}>
       {/* Header */}
-      <div className="border-b border-gray-200 px-4 py-2.5">
+      <div 
+        className="app-header border-b px-4 py-2.5"
+        style={{
+          backgroundColor: currentChromeStyle.header.bg,
+          borderColor: currentChromeStyle.header.border,
+          color: currentChromeStyle.header.text,
+        }}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.back()}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
+              className="flex items-center justify-center w-8 h-8 rounded-full transition-colors opacity-80"
+              style={{
+                color: currentChromeStyle.header.text,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
+                  ? 'rgba(0, 0, 0, 0.05)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
               aria-label="Go back"
               title="Go back"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
             <button
               onClick={handleSettings}
-              className="flex items-center gap-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg px-2 py-1 transition-colors opacity-80"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors opacity-80"
+              style={{
+                color: currentChromeStyle.header.text,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
+                  ? 'rgba(0, 0, 0, 0.05)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
               aria-label="Settings"
               title="Settings"
             >
-              <Settings className="w-5 h-5 text-gray-700" />
+              <Settings className="w-5 h-5" />
               <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
             </button>
           </div>
@@ -819,14 +901,25 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
 
       {/* Messages container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        className="flex-1 overflow-y-auto p-4 space-y-4 sky-gradient-transition"
+        style={{
+          background: `linear-gradient(135deg, ${skyGradient.start}, ${skyGradient.end})`,
+        }}
+      >
         {isLoadingMessages && (
-          <div className="text-center text-gray-500 mt-8 opacity-80">
+          <div 
+            className="text-center mt-8 opacity-80"
+            style={{ color: currentBubbleStyle.text }}
+          >
             <p className="text-sm">Loading conversation...</p>
           </div>
         )}
         {!isLoadingMessages && messages.length === 0 && (
-          <div className="text-center text-gray-500 mt-8 opacity-80">
+          <div 
+            className="text-center mt-8 opacity-80"
+            style={{ color: currentBubbleStyle.text }}
+          >
             <p className="text-lg mb-2">Start a conversation</p>
             <p className="text-sm">Ask a question about The Art of War</p>
           </div>
@@ -848,11 +941,21 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             >
               <div className={`max-w-[100%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
                 <div
-                  className={`rounded-lg px-4 py-2 ${
-                    message.role === 'user'
-                      ? 'bg-blue-500 text-white font-medium'
-                      : 'bg-gray-100 text-gray-900 font-normal'
+                  className={`rounded-lg px-4 py-2 message-bubble ${
+                    message.role === 'user' ? 'font-medium' : 'font-normal'
                   }`}
+                  style={{
+                    background: message.role === 'user' 
+                      ? currentBubbleStyle.user 
+                      : currentBubbleStyle.ai,
+                    color: message.role === 'user' 
+                      ? currentBubbleStyle.userText 
+                      : currentBubbleStyle.text,
+                    boxShadow: currentBubbleStyle.shadow,
+                    border: `1px solid ${message.role === 'user' 
+                      ? 'rgba(255, 255, 255, 0.2)' 
+                      : 'rgba(255, 255, 255, 0.18)'}`,
+                  }}
                 >
                   <div className="whitespace-pre-wrap break-words">
                     {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
@@ -926,11 +1029,40 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {isLoading && messages[messages.length - 1]?.role === 'assistant' && 
          messages[messages.length - 1]?.content === '' && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-4 py-2">
+            <div 
+              className="message-bubble rounded-lg px-4 py-2"
+              style={{
+                background: currentBubbleStyle.ai,
+                color: currentBubbleStyle.text,
+                boxShadow: currentBubbleStyle.shadow,
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+              }}
+            >
               <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '0ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '150ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '300ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -940,20 +1072,32 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       </div>
 
       {/* Phase 4: Input area with dynamic pills */}
-      <div className="border-t border-gray-200 px-3 py-2 bg-gray-200 relative">
+      <div 
+        className="input-area border-t px-3 py-2 relative"
+        style={{
+          backgroundColor: currentChromeStyle.input.bg,
+          borderColor: currentChromeStyle.input.border,
+        }}
+      >
         {/* Toggle button - positioned at top center, half-protruding */}
         {pills.length > 0 && (
           <button
             onClick={() => setPillsVisible(!pillsVisible)}
-            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center transition-colors opacity-80"
-            style={{ clipPath: 'inset(0 0 30% 0)' }}
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors border"
+            style={{
+              backgroundColor: currentChromeStyle.input.bg,
+              color: currentChromeStyle.input.text,
+              borderColor: currentChromeStyle.input.border,
+              opacity: 0.8,
+              clipPath: 'inset(0 0 30% 0)',
+            }}
             aria-label={pillsVisible ? 'Hide pills' : 'Show pills'}
             title={pillsVisible ? 'Hide pills' : 'Show pills'}
           >
             {pillsVisible ? (
-              <ChevronUp className="w-4 h-4 text-gray-700 -mt-0.5" />
+              <ChevronUp className="w-4 h-4 -mt-0.5" style={{ color: currentChromeStyle.input.text }} />
             ) : (
-              <ChevronDown className="w-4 h-4 text-gray-700 -mt-0.5" />
+              <ChevronDown className="w-4 h-4 -mt-0.5" style={{ color: currentChromeStyle.input.text }} />
             )}
           </button>
         )}
@@ -1034,10 +1178,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             placeholder="Type a reply..."
             disabled={isLoading}
             rows={1}
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
+            className="input-field flex-1 resize-none border rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
             style={{
               minHeight: '52px',
               maxHeight: '120px',
+              backgroundColor: currentChromeStyle.input.bg,
+              borderColor: currentChromeStyle.input.border,
+              color: currentChromeStyle.input.text,
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
