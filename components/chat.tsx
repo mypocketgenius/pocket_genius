@@ -665,7 +665,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   return (
     <div className="flex flex-col h-dvh max-w-4xl mx-auto bg-white">
       {/* Header */}
-      <div className="border-b border-gray-200 p-4">
+      <div className="border-b border-gray-200 px-4 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -988,7 +988,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[52px]"
+            className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px]"
             title="Send message"
           >
             <ArrowUp className="w-5 h-5" />
