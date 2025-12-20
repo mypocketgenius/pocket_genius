@@ -482,21 +482,25 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
-  // Phase 4: Handle pill click - immediately fill input (no checkmark/selection state)
+  // Phase 4: Handle pill click - append to end of existing text
   const handlePillClick = (pill: PillType) => {
-    // Get current feedback and expansion pills for combining
-    const currentFeedbackPill = pills.find(p => p.id === selectedFeedbackPill);
-    const currentExpansionPill = pills.find(p => p.id === selectedExpansionPill);
+    // Get current input value and append pill text to the end
+    const currentInput = input.trim();
+    const pillText = pill.prefillText.trim();
     
+    // Build new input by appending pill text to existing text
     let newInput = '';
+    if (currentInput) {
+      // Add space between existing text and new pill text
+      newInput = currentInput + ' ' + pillText;
+    } else {
+      // If input is empty, just use the pill text
+      newInput = pillText;
+    }
     
+    // Update pill selection state for tracking
     if (pill.pillType === 'feedback') {
-      // Feedback pills: replace any existing feedback pill, keep expansion pill if exists
       setSelectedFeedbackPill(pill.id);
-      newInput = pill.prefillText;
-      if (currentExpansionPill) {
-        newInput += ' ' + currentExpansionPill.prefillText;
-      }
       
       // Show thank you toast for feedback pills
       setToast({
@@ -508,29 +512,20 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         toastTimeoutRef.current = null;
       }, 2000);
     } else if (pill.pillType === 'expansion') {
-      // Expansion pills: replace any existing expansion pill, keep feedback pill if exists
       setSelectedExpansionPill(pill.id);
-      if (currentFeedbackPill) {
-        newInput = currentFeedbackPill.prefillText + ' ' + pill.prefillText;
-      } else {
-        newInput = pill.prefillText;
-      }
     } else if (pill.pillType === 'suggested') {
-      // Suggested questions: can combine with feedback pill
       setSelectedSuggestedPill(pill.id);
-      if (currentFeedbackPill) {
-        newInput = currentFeedbackPill.prefillText + ' ' + pill.prefillText;
-      } else {
-        newInput = pill.prefillText;
-      }
     }
     
-    // Immediately fill input (no checkmark/selection visual state)
+    // Update input with appended text
     setInput(newInput);
-    initialInputValueRef.current = newInput;
+    // Update initial value ref only if this is the first pill click (input was empty)
+    if (!initialInputValueRef.current) {
+      initialInputValueRef.current = newInput;
+    }
     pillClickedRef.current = true; // Mark that a pill was clicked
     setPillsVisible(true); // Keep pills visible when a pill is clicked
-    setWasModified(false);
+    // Don't reset wasModified - preserve user's existing modifications
     inputRef.current?.focus();
     // Move cursor to end
     setTimeout(() => {
