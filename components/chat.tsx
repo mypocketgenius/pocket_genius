@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown } from 'lucide-react';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
@@ -409,6 +409,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
+  // Handle Branch button click
+  const handleBranch = () => {
+    // Clear any existing toast timeout first
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast({
+      message: 'Feature coming soon',
+      type: 'success',
+    });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 3000);
+  };
+
   // Phase 4: Handle Save button click
   const handleSave = async (messageId: string) => {
     // Check if already bookmarked
@@ -503,6 +520,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       setSelectedFeedbackPill(pill.id);
       
       // Show thank you toast for feedback pills
+      // Clear any existing toast timeout first
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+        toastTimeoutRef.current = null;
+      }
       setToast({
         message: 'Thanks for your feedback!',
         type: 'success',
@@ -820,6 +842,20 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     />
                   )}
                 </div>
+                
+                {/* Message actions for user messages */}
+                {message.role === 'user' && message.content && !isLoading && (
+                  <div className="space-y-3 mt-1 flex justify-end">
+                    <button
+                      onClick={handleBranch}
+                      className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                      title="Branch conversation"
+                    >
+                      <GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
+                      <span>Branch</span>
+                    </button>
+                  </div>
+                )}
                 
                 {/* Phase 4: Message actions for assistant messages */}
                 {message.role === 'assistant' && message.content && !isLoading && (

@@ -159,7 +159,7 @@ export function StarRating({
                 key={star}
                 className={`w-4 h-4 ${
                   star <= Math.round(aggregateRating)
-                    ? 'fill-yellow-400 text-yellow-400'
+                    ? 'fill-yellow-200 text-yellow-300'
                     : 'fill-gray-200 text-gray-200'
                 }`}
               />
@@ -192,7 +192,7 @@ export function StarRating({
               <Star
                 className={`w-5 h-5 ${
                   star <= displayRating
-                    ? 'fill-yellow-400 text-yellow-400'
+                    ? 'fill-yellow-200 text-yellow-300'
                     : 'fill-gray-200 text-gray-300'
                 }`}
               />
