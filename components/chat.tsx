@@ -706,26 +706,24 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       {/* Header */}
       <div className="border-b border-gray-200 px-4 py-2.5">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => router.back()}
-                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
-                aria-label="Go back"
-                title="Go back"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-700" />
-              </button>
-              <button
-                onClick={handleSettings}
-                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
-                aria-label="Settings"
-                title="Settings"
-              >
-                <Settings className="w-5 h-5 text-gray-700" />
-              </button>
-            </div>
-            <h1 className="text-xl font-semibold opacity-80">{chatbotTitle}</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </button>
+            <button
+              onClick={handleSettings}
+              className="flex items-center gap-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg px-2 py-1 transition-colors opacity-80"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-gray-700" />
+              <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
+            </button>
           </div>
           {/* Phase 4: Star rating in header */}
           {conversationId && (
