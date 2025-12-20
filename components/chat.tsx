@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft } from 'lucide-react';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
@@ -59,12 +59,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [selectedSuggestedPill, setSelectedSuggestedPill] = useState<string | null>(null);
   const [wasModified, setWasModified] = useState(false);
   const [bookmarkedMessages, setBookmarkedMessages] = useState<Set<string>>(new Set());
+  const [pillsVisible, setPillsVisible] = useState<boolean>(true); // Toggle state for pills visibility
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialInputValueRef = useRef<string>(''); // Track initial prefill value
+  const pillClickedRef = useRef<boolean>(false); // Track if a pill was clicked
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -214,6 +216,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // Add user message immediately
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    initialInputValueRef.current = '';
+    pillClickedRef.current = false; // Reset pill click tracking
     setIsLoading(true);
     setError(null);
 
@@ -524,6 +528,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // Immediately fill input (no checkmark/selection visual state)
     setInput(newInput);
     initialInputValueRef.current = newInput;
+    pillClickedRef.current = true; // Mark that a pill was clicked
+    setPillsVisible(true); // Keep pills visible when a pill is clicked
     setWasModified(false);
     inputRef.current?.focus();
     // Move cursor to end
@@ -538,6 +544,18 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setInput(newValue);
+    
+    // Reset pill click flag when input is cleared
+    if (newValue.trim() === '') {
+      pillClickedRef.current = false;
+      initialInputValueRef.current = '';
+      setPillsVisible(true); // Show pills when input is cleared
+    }
+    
+    // Auto-collapse pills when user types 70+ characters without clicking a pill
+    if (newValue.length >= 70 && !pillClickedRef.current) {
+      setPillsVisible(false);
+    }
     
     // Check if user modified prefilled text
     if (initialInputValueRef.current && newValue !== initialInputValueRef.current) {
@@ -866,10 +884,28 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       </div>
 
       {/* Phase 4: Input area with dynamic pills */}
-      <div className="border-t border-gray-200 px-3 py-2 bg-gray-200">
-        {/* Dynamic pill rows */}
+      <div className="border-t border-gray-200 px-3 py-2 bg-gray-200 relative">
+        {/* Toggle button - positioned at top center, half-protruding */}
         {pills.length > 0 && (
-          <div className="mb-1 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-hide">
+          <button
+            onClick={() => setPillsVisible(!pillsVisible)}
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center transition-colors"
+            style={{ clipPath: 'inset(0 0 30% 0)' }}
+            aria-label={pillsVisible ? 'Hide pills' : 'Show pills'}
+            title={pillsVisible ? 'Hide pills' : 'Show pills'}
+          >
+            {pillsVisible ? (
+              <ChevronUp className="w-4 h-4 text-gray-700 -mt-0.5" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-700 -mt-0.5" />
+            )}
+          </button>
+        )}
+        
+        {/* Dynamic pill rows */}
+        {/* Visibility controlled by pillsVisible state (can be toggled manually or auto-collapsed by character limit) */}
+        {pills.length > 0 && pillsVisible && (
+          <div className="mb-1 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-hide pt-2">
             <div className="flex flex-col gap-0.5 w-max">
               {/* Phase 4: Organize pills into two rows */}
               {/* Before messages: Only show suggested questions */}
