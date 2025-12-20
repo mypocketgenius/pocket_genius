@@ -710,7 +710,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => router.back()}
-                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
                 aria-label="Go back"
                 title="Go back"
               >
@@ -718,14 +718,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               </button>
               <button
                 onClick={handleSettings}
-                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors opacity-80"
                 aria-label="Settings"
                 title="Settings"
               >
                 <Settings className="w-5 h-5 text-gray-700" />
               </button>
             </div>
-            <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
+            <h1 className="text-xl font-semibold opacity-80">{chatbotTitle}</h1>
           </div>
           {/* Phase 4: Star rating in header */}
           {conversationId && (
@@ -737,7 +737,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           )}
         </div>
         {error && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm opacity-80">
             {error}
           </div>
         )}
@@ -787,7 +787,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 />
               </svg>
             )}
-            <span>{toast.message}</span>
+            <span className="opacity-80">{toast.message}</span>
             <button
               onClick={() => {
                 setToast(null);
@@ -823,12 +823,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoadingMessages && (
-          <div className="text-center text-gray-500 mt-8">
+          <div className="text-center text-gray-500 mt-8 opacity-80">
             <p className="text-sm">Loading conversation...</p>
           </div>
         )}
         {!isLoadingMessages && messages.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
+          <div className="text-center text-gray-500 mt-8 opacity-80">
             <p className="text-lg mb-2">Start a conversation</p>
             <p className="text-sm">Ask a question about The Art of War</p>
           </div>
@@ -852,8 +852,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 <div
                   className={`rounded-lg px-4 py-2 ${
                     message.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-900'
+                      ? 'bg-blue-500 text-white font-medium'
+                      : 'bg-gray-100 text-gray-900 font-normal'
                   }`}
                 >
                   <div className="whitespace-pre-wrap break-words">
@@ -875,7 +875,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                   <div className="space-y-3 mt-1 flex justify-end">
                     <button
                       onClick={handleBranch}
-                      className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                      className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95 opacity-80"
                       title="Branch conversation"
                     >
                       <GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
@@ -892,7 +892,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       {/* Copy button */}
                       <button
                         onClick={() => handleCopy(message.id, message.content)}
-                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95"
+                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-95 opacity-80"
                         title="Copy message"
                       >
                         <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-gray-600" />
@@ -902,7 +902,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       <button
                         onClick={() => handleSave(message.id)}
                         disabled={bookmarkedMessages.has(message.id)}
-                        className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                        className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all opacity-80 ${
                           bookmarkedMessages.has(message.id)
                             ? 'bg-blue-100 text-blue-700 border border-blue-400'
                             : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
@@ -947,7 +947,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {pills.length > 0 && (
           <button
             onClick={() => setPillsVisible(!pillsVisible)}
-            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center transition-colors"
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center transition-colors opacity-80"
             style={{ clipPath: 'inset(0 0 30% 0)' }}
             aria-label={pillsVisible ? 'Hide pills' : 'Show pills'}
             title={pillsVisible ? 'Hide pills' : 'Show pills'}
@@ -1036,7 +1036,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             placeholder="Type a reply..."
             disabled={isLoading}
             rows={1}
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="flex-1 resize-none border border-gray-300 rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
             style={{
               minHeight: '52px',
               maxHeight: '120px',
@@ -1051,7 +1051,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px]"
+            className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px] opacity-80"
             title="Send message"
           >
             <ArrowUp className="w-5 h-5" />

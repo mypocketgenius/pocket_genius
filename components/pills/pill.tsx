@@ -55,7 +55,7 @@ interface PillProps {
 export function Pill({ pill, isSelected, onClick, disabled = false }: PillProps) {
   // Determine styling based on pill type
   const getPillStyles = () => {
-    const baseStyles = 'flex-shrink-0 px-4 py-1 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 min-h-[36px] flex items-center justify-center gap-1.5';
+    const baseStyles = 'flex-shrink-0 px-4 py-1 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 min-h-[36px] flex items-center justify-center gap-1.5 opacity-80';
     
     if (disabled) {
       return `${baseStyles} bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60`;
