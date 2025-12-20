@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch } from 'lucide-react';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Settings } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
@@ -426,6 +426,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }, 3000);
   };
 
+  // Handle Settings button click
+  const handleSettings = () => {
+    // Clear any existing toast timeout first
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast({
+      message: 'Feature coming soon',
+      type: 'success',
+    });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 3000);
+  };
+
   // Phase 4: Handle Save button click
   const handleSave = async (messageId: string) => {
     // Check if already bookmarked
@@ -690,14 +707,24 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       <div className="border-b border-gray-200 px-4 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
-              aria-label="Go back"
-              title="Go back"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => router.back()}
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                aria-label="Go back"
+                title="Go back"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-700" />
+              </button>
+              <button
+                onClick={handleSettings}
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings className="w-5 h-5 text-gray-700" />
+              </button>
+            </div>
             <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
           </div>
           {/* Phase 4: Star rating in header */}
