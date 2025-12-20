@@ -55,7 +55,7 @@ export function PillRow({
   }
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+    <div className="flex gap-1 overflow-x-auto overflow-y-hidden pb-1 scrollbar-hide">
       {pills.map((pill) => {
         // Determine if this pill is selected
         const isSelected =

@@ -85,6 +85,17 @@
     /* Modern browsers with dvh support */
     min-height: 100dvh;
   }
+  
+  .scrollbar-hide {
+    /* Firefox */
+    scrollbar-width: none;
+    /* Safari and Chrome */
+    -ms-overflow-style: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Toast animation for Phase 4, Task 4: Visual feedback */

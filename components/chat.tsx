@@ -869,8 +869,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       <div className="border-t border-gray-200 px-3 py-2 bg-gray-200">
         {/* Dynamic pill rows */}
         {pills.length > 0 && (
-          <div className="mb-2 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-            <div className="flex flex-col gap-1.5 w-max">
+          <div className="mb-1 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-hide">
+            <div className="flex flex-col gap-0.5 w-max">
               {/* Phase 4: Organize pills into two rows */}
               {/* Before messages: Only show suggested questions */}
               {/* After messages: Show feedback + expansion + suggested */}
