@@ -278,7 +278,7 @@ function getEffectiveTime(hour: number, preference: 'light' | 'dark'): number {
  * Maps hour to nighttime range (8pm-6am)
  * Day hours (6am-8pm) are mapped proportionally to night hours
  */
-function mapToNightRange(hour: number): number {
+export function mapToNightRange(hour: number): number {
   // Already in night range (8pm-6am)
   if (hour >= 20 || hour < 6) {
     return hour;
@@ -302,7 +302,7 @@ function mapToNightRange(hour: number): number {
  * Maps hour to daytime range (6am-8pm)
  * Night hours (8pm-6am) are mapped proportionally to day hours
  */
-function mapToDayRange(hour: number): number {
+export function mapToDayRange(hour: number): number {
   // Already in day range (6am-8pm)
   if (hour >= 6 && hour < 20) {
     return hour;
