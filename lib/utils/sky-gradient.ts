@@ -148,8 +148,8 @@ export function getSkyGradient(hour: number, minute: number): Gradient {
     },
     // Golden hour (6-8pm): Amber glow - more visible warm tones
     golden: {
-      start: 'hsl(35, 35%, 80%)', // More saturation and slightly darker for visibility
-      end: 'hsl(25, 30%, 85%)',
+      start: 'hsl(35, 35%, 90%)', // More saturation and slightly darker for visibility
+      end: 'hsl(25, 30%, 92%)',
     },
     // Dusk (8-10pm): Lavender to indigo transition
     dusk: {
@@ -247,14 +247,14 @@ export function getChromeColors(gradient: Gradient): {
   inputField: string;
   border: string;
 } {
-  // Use the start color (lighter end) as base
+  // Use the end color (bottom of gradient) as base for chrome elements
   // Header is 3% darker, input area is 5% darker, border is 8% darker
-  const inputAreaColor = adjustLightness(gradient.start, -5);
+  const inputAreaColor = adjustLightness(gradient.end, -5);
   return {
-    header: adjustLightness(gradient.start, -3),
+    header: adjustLightness(gradient.end, -3),
     input: inputAreaColor,
     inputField: adjustLightness(inputAreaColor, 7), // Much lighter than input area for clear visual distinction
-    border: adjustLightness(gradient.start, -8),
+    border: adjustLightness(gradient.end, -8),
   };
 }
 
