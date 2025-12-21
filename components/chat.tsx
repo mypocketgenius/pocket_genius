@@ -70,7 +70,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const pillClickedRef = useRef<boolean>(false); // Track if a pill was clicked
   
   // Sky gradient for dynamic time-of-day background with adaptive theme
-  const { gradient: skyGradient, theme: timeTheme } = useSkyGradient();
+  // Chrome colors are derived from the gradient for harmonious design
+  const { gradient: skyGradient, theme: timeTheme, chrome: chromeColors } = useSkyGradient();
   
   // Adaptive bubble styles based on time theme
   const bubbleStyles = {
@@ -90,36 +91,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     },
   };
   
-  // Stable chrome styles for header and input area (solid, grounding elements)
-  const chromeStyles = {
-    light: {
-      header: {
-        bg: 'rgb(255, 255, 255)',
-        border: 'rgba(0, 0, 0, 0.08)',
-        text: '#1a1a1a',
-      },
-      input: {
-        bg: 'rgb(255, 255, 255)',
-        border: 'rgba(0, 0, 0, 0.12)',
-        text: '#1a1a1a',
-      },
-    },
-    dark: {
-      header: {
-        bg: 'rgb(20, 20, 22)',
-        border: 'rgba(255, 255, 255, 0.12)',
-        text: '#e8e8e8',
-      },
-      input: {
-        bg: 'rgb(28, 28, 30)',
-        border: 'rgba(255, 255, 255, 0.18)',
-        text: '#e8e8e8',
-      },
-    },
-  };
-  
   const currentBubbleStyle = bubbleStyles[timeTheme];
-  const currentChromeStyle = chromeStyles[timeTheme];
+  
+  // Extract text color from chrome colors (use header text color)
+  // For light theme, use dark text; for dark theme, use light text
+  const chromeTextColor = timeTheme === 'light' ? '#1a1a1a' : '#e8e8e8';
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -755,14 +731,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-dvh max-w-4xl mx-auto" style={{ backgroundColor: currentChromeStyle.header.bg }}>
+    <div className="flex flex-col h-dvh max-w-4xl mx-auto" style={{ backgroundColor: chromeColors.header }}>
       {/* Header */}
       <div 
         className="app-header border-b px-4 py-2.5"
         style={{
-          backgroundColor: currentChromeStyle.header.bg,
-          borderColor: currentChromeStyle.header.border,
-          color: currentChromeStyle.header.text,
+          backgroundColor: chromeColors.header,
+          borderColor: chromeColors.border,
+          color: chromeTextColor,
         }}
       >
         <div className="flex items-center justify-between gap-3">
@@ -771,7 +747,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               onClick={() => router.back()}
               className="flex items-center justify-center w-8 h-8 rounded-full transition-colors opacity-80"
               style={{
-                color: currentChromeStyle.header.text,
+                color: chromeTextColor,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = timeTheme === 'light' 
@@ -790,7 +766,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               onClick={handleSettings}
               className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors opacity-80"
               style={{
-                color: currentChromeStyle.header.text,
+                color: chromeTextColor,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = timeTheme === 'light' 
@@ -1075,8 +1051,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       <div 
         className="input-area border-t px-3 py-2 relative"
         style={{
-          backgroundColor: currentChromeStyle.input.bg,
-          borderColor: currentChromeStyle.input.border,
+          backgroundColor: chromeColors.input,
+          borderColor: chromeColors.border,
         }}
       >
         {/* Toggle button - positioned at top center, half-protruding */}
@@ -1085,9 +1061,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             onClick={() => setPillsVisible(!pillsVisible)}
             className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors border"
             style={{
-              backgroundColor: currentChromeStyle.input.bg,
-              color: currentChromeStyle.input.text,
-              borderColor: currentChromeStyle.input.border,
+              backgroundColor: chromeColors.input,
+              color: chromeTextColor,
+              borderColor: chromeColors.border,
               opacity: 0.8,
               clipPath: 'inset(0 0 30% 0)',
             }}
@@ -1095,9 +1071,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             title={pillsVisible ? 'Hide pills' : 'Show pills'}
           >
             {pillsVisible ? (
-              <ChevronUp className="w-4 h-4 -mt-0.5" style={{ color: currentChromeStyle.input.text }} />
+              <ChevronUp className="w-4 h-4 -mt-0.5" style={{ color: chromeTextColor }} />
             ) : (
-              <ChevronDown className="w-4 h-4 -mt-0.5" style={{ color: currentChromeStyle.input.text }} />
+              <ChevronDown className="w-4 h-4 -mt-0.5" style={{ color: chromeTextColor }} />
             )}
           </button>
         )}
@@ -1112,14 +1088,38 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               {/* After messages: Show feedback + expansion + suggested */}
               
               {messages.length === 0 ? (
-                // Before messages: Only suggested questions
-                <PillRow
-                  pills={pills.filter(p => p.pillType === 'suggested')}
-                  selectedFeedbackPill={null}
-                  selectedExpansionPill={null}
-                  onPillClick={handlePillClick}
-                  disabled={isLoading}
-                />
+                // Before messages: Two rows with suggested questions split between them
+                <>
+                  {/* Row 1: First half of suggested questions */}
+                  {(() => {
+                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
+                    const firstHalfSuggested = suggestedPills.slice(0, Math.ceil(suggestedPills.length / 2));
+                    return (
+                      <PillRow
+                        pills={firstHalfSuggested}
+                        selectedFeedbackPill={null}
+                        selectedExpansionPill={null}
+                        onPillClick={handlePillClick}
+                        disabled={isLoading}
+                      />
+                    );
+                  })()}
+                  
+                  {/* Row 2: Second half of suggested questions */}
+                  {(() => {
+                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
+                    const secondHalfSuggested = suggestedPills.slice(Math.ceil(suggestedPills.length / 2));
+                    return (
+                      <PillRow
+                        pills={secondHalfSuggested}
+                        selectedFeedbackPill={null}
+                        selectedExpansionPill={null}
+                        onPillClick={handlePillClick}
+                        disabled={isLoading}
+                      />
+                    );
+                  })()}
+                </>
               ) : (
                 // After messages: Two rows
                 <>
@@ -1182,9 +1182,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             style={{
               minHeight: '52px',
               maxHeight: '120px',
-              backgroundColor: currentChromeStyle.input.bg,
-              borderColor: currentChromeStyle.input.border,
-              color: currentChromeStyle.input.text,
+              backgroundColor: chromeColors.inputField, // Lighter than input area
+              borderColor: chromeColors.border,
+              color: chromeTextColor,
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;

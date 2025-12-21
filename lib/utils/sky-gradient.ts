@@ -8,7 +8,7 @@
  * Uses HSL color space for easier interpolation and saturation control.
  */
 
-interface Gradient {
+export interface Gradient {
   start: string; // HSL color string
   end: string;   // HSL color string
 }
@@ -21,9 +21,14 @@ interface HSLColor {
 
 /**
  * Converts HSL color object to CSS HSL string
+ * Rounds values to appropriate precision for CSS
  */
 function hslToString(color: HSLColor): string {
-  return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+  // Round hue to integer, saturation and lightness to 1 decimal place
+  const h = Math.round(color.h);
+  const s = Math.round(color.s * 10) / 10;
+  const l = Math.round(color.l * 10) / 10;
+  return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
 /**
@@ -141,10 +146,10 @@ export function getSkyGradient(hour: number, minute: number): Gradient {
       start: 'hsl(210, 15%, 96%)',
       end: 'hsl(200, 18%, 98%)',
     },
-    // Golden hour (6-8pm): Amber glow
+    // Golden hour (6-8pm): Amber glow - more visible warm tones
     golden: {
-      start: 'hsl(35, 30%, 94%)',
-      end: 'hsl(25, 25%, 96%)',
+      start: 'hsl(35, 35%, 80%)', // More saturation and slightly darker for visibility
+      end: 'hsl(25, 30%, 85%)',
     },
     // Dusk (8-10pm): Lavender to indigo transition
     dusk: {
@@ -208,6 +213,134 @@ export function getSkyGradient(hour: number, minute: number): Gradient {
 }
 
 /**
+ * Extracts lightness value from HSL color string
+ */
+function extractLightness(hslString: string): number {
+  const color = parseHSL(hslString);
+  return color.l;
+}
+
+/**
+ * Adjusts the lightness of an HSL color string
+ * 
+ * @param hslString - HSL color string to adjust
+ * @param adjustment - Percentage points to adjust lightness (can be negative)
+ * @returns New HSL color string with adjusted lightness
+ */
+function adjustLightness(hslString: string, adjustment: number): string {
+  const color = parseHSL(hslString);
+  const newLightness = Math.max(0, Math.min(100, color.l + adjustment));
+  return hslToString({ ...color, l: newLightness });
+}
+
+/**
+ * Gets chrome colors (header, input) derived from the sky gradient
+ * These are slightly darker than the gradient for subtle definition
+ * Input field is lighter than input area to signify it's an input field
+ * 
+ * @param gradient - Current sky gradient
+ * @returns Chrome colors derived from gradient
+ */
+export function getChromeColors(gradient: Gradient): {
+  header: string;
+  input: string;
+  inputField: string;
+  border: string;
+} {
+  // Use the start color (lighter end) as base
+  // Header is 3% darker, input area is 5% darker, border is 8% darker
+  const inputAreaColor = adjustLightness(gradient.start, -5);
+  return {
+    header: adjustLightness(gradient.start, -3),
+    input: inputAreaColor,
+    inputField: adjustLightness(inputAreaColor, 7), // Much lighter than input area for clear visual distinction
+    border: adjustLightness(gradient.start, -8),
+  };
+}
+
+/**
+ * Maps actual hour to effective hour based on user preference
+ * Dark mode constrains to nighttime (8pm-6am), light mode to daytime (6am-8pm)
+ * 
+ * @param hour - Actual hour (0-23)
+ * @param preference - User's dark/light mode preference
+ * @returns Effective hour for gradient calculation
+ */
+function getEffectiveTime(hour: number, preference: 'light' | 'dark'): number {
+  if (preference === 'dark') {
+    return mapToNightRange(hour);
+  } else {
+    return mapToDayRange(hour);
+  }
+}
+
+/**
+ * Maps hour to nighttime range (8pm-6am)
+ * Day hours (6am-8pm) are mapped proportionally to night hours
+ */
+function mapToNightRange(hour: number): number {
+  // Already in night range (8pm-6am)
+  if (hour >= 20 || hour < 6) {
+    return hour;
+  }
+  
+  // Map day hours (6am-8pm = 14 hours) to night range (8pm-6am = 10 hours)
+  // Spread proportionally: 6am -> 8pm (20), 8pm -> 6am (6)
+  const dayProgress = (hour - 6) / 14; // 0 at 6am, 1 at 8pm
+  let nightHour = 20 + (dayProgress * 10); // 20 (8pm) to 30
+  
+  // Wrap around midnight: values >= 24 map to 0-6 range
+  // 24 -> 0, 25 -> 1, ..., 30 -> 6
+  if (nightHour >= 24) {
+    nightHour = nightHour - 24; // Maps 24->0, 25->1, ..., 30->6
+  }
+  
+  return nightHour;
+}
+
+/**
+ * Maps hour to daytime range (6am-8pm)
+ * Night hours (8pm-6am) are mapped proportionally to day hours
+ */
+function mapToDayRange(hour: number): number {
+  // Already in day range (6am-8pm)
+  if (hour >= 6 && hour < 20) {
+    return hour;
+  }
+  
+  // Map night hours (8pm-6am = 10 hours) to day range (6am-8pm = 14 hours)
+  let nightProgress: number;
+  if (hour >= 20) {
+    // 8pm-midnight: 0 to 0.4
+    nightProgress = (hour - 20) / 10;
+  } else {
+    // midnight-6am: 0.4 to 1
+    nightProgress = (hour + 4) / 10;
+  }
+  
+  // Map to day range: 6am -> 6am, midnight -> 2pm, 6am -> 8pm
+  // Clamp result to ensure it's within 6-20 range (daytime)
+  const dayHour = 6 + (nightProgress * 14);
+  return Math.max(6, Math.min(19.99, dayHour));
+}
+
+/**
+ * Detects user's dark/light mode preference
+ * Checks system preference first, falls back to time-based detection
+ */
+function getUserPreference(): 'light' | 'dark' {
+  // Check system preference if available (client-side)
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? 'dark' : 'light';
+  }
+  
+  // Fallback: use time-based detection
+  const hour = new Date().getHours();
+  return getTimeTheme(hour);
+}
+
+/**
  * Determines if the current time period is "light" (daytime) or "dark" (nighttime)
  * Used for adaptive message bubble styling
  * 
@@ -221,5 +354,24 @@ export function getTimeTheme(hour: number): 'light' | 'dark' {
     return 'light';
   }
   return 'dark';
+}
+
+/**
+ * Gets sky gradient with user preference consideration
+ * Dark mode uses night range, light mode uses day range
+ * 
+ * @param hour - Current hour (0-23)
+ * @param minute - Current minute (0-59)
+ * @param preference - Optional user preference, defaults to system detection
+ * @returns Sky gradient adjusted for user preference
+ */
+export function getSkyGradientWithPreference(
+  hour: number,
+  minute: number,
+  preference?: 'light' | 'dark'
+): Gradient {
+  const userPreference = preference || getUserPreference();
+  const effectiveHour = getEffectiveTime(hour, userPreference);
+  return getSkyGradient(effectiveHour, minute);
 }
 

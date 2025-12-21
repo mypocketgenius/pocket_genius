@@ -553,3 +553,4 @@ console.error('Pinecone query failed');
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment setup
 - [ENV_VARIABLES.md](./ENV_VARIABLES.md) - Environment variables
 - [Sentry Next.js Docs](https://docs.sentry.io/platforms/javascript/guides/nextjs)
+
