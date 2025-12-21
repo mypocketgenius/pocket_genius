@@ -9,6 +9,7 @@ interface SourceAttributionProps {
   chunkIds: string[];
   chatbotId: string;
   messageContext?: Prisma.JsonValue; // Message.context from database
+  textColor?: string; // Dynamic text color based on time theme
 }
 
 /**
@@ -48,6 +49,7 @@ export function SourceAttribution({
   chunkIds,
   chatbotId,
   messageContext,
+  textColor = '#4b5563', // Default gray-600, but will be overridden by dynamic color
 }: SourceAttributionProps) {
   // Extract source names from message context
   const getSourceNames = (): string[] => {
@@ -83,7 +85,7 @@ export function SourceAttribution({
   }
 
   return (
-    <div className="mt-2 pt-2 text-xs text-gray-600">
+    <div className="mt-2 pt-2 text-xs" style={{ color: textColor, opacity: 0.8 }}>
       <span className="font-medium">Sources:</span>{' '}
       <span>{sourceNames.join(', ')}</span>
     </div>

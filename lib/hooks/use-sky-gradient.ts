@@ -65,9 +65,11 @@ export function useSkyGradient(): SkyGradientState {
     const hour = now.getHours();
     const minute = now.getMinutes();
     const gradient = getSkyGradientWithPreference(hour, minute, 'light');
+    // Use actual time-based theme for text colors
+    const timeBasedTheme = getTimeTheme(hour);
     return {
       gradient,
-      theme: 'light',
+      theme: timeBasedTheme,
       chrome: getChromeColors(gradient),
     };
   });
@@ -113,9 +115,12 @@ export function useSkyGradient(): SkyGradientState {
       const hour = now.getHours();
       const minute = now.getMinutes();
       const gradient = getSkyGradientWithPreference(hour, minute, preference);
+      // Use actual time-based theme for text colors, not preference
+      // This ensures 8pm-6am uses dark theme, 6am-8pm uses light theme
+      const timeBasedTheme = getTimeTheme(hour);
       setState({
         gradient,
-        theme: preference,
+        theme: timeBasedTheme,
         chrome: getChromeColors(gradient),
       });
     };

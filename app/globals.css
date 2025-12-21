@@ -125,9 +125,9 @@
   }
 }
 
-/* Sky gradient transition - very slow, imperceptible changes */
+/* Sky gradient transition - matches header transition for synchronized changes */
 .sky-gradient-transition {
-  transition: background 300s ease;
+  transition: background 2s ease;
 }
 
 /* Glassmorphism message bubbles with adaptive contrast */

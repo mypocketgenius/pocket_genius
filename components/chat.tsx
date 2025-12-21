@@ -943,6 +943,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       chunkIds={[]} // Will be extracted from context by component
                       chatbotId={chatbotId}
                       messageContext={message.context}
+                      textColor={currentBubbleStyle.text}
                     />
                   )}
                 </div>
