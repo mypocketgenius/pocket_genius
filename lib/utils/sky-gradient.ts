@@ -249,12 +249,12 @@ export function getChromeColors(gradient: Gradient): {
 } {
   // Use the end color (bottom of gradient) as base for chrome elements
   // Header is 3% darker, input area is 5% darker, border is 8% darker
-  const inputAreaColor = adjustLightness(gradient.end, -5);
+  const inputAreaColor = adjustLightness(gradient.end, -8);
   return {
-    header: adjustLightness(gradient.end, -3),
+    header: adjustLightness(gradient.end, -5),
     input: inputAreaColor,
-    inputField: adjustLightness(inputAreaColor, 7), // Much lighter than input area for clear visual distinction
-    border: adjustLightness(gradient.end, -8),
+    inputField: adjustLightness(inputAreaColor, 12), // Much lighter than input area for clear visual distinction
+    border: adjustLightness(gradient.end, -10),
   };
 }
 

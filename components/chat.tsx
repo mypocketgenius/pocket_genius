@@ -1059,7 +1059,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {pills.length > 0 && (
           <button
             onClick={() => setPillsVisible(!pillsVisible)}
-            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-colors border"
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center border"
             style={{
               backgroundColor: chromeColors.input,
               color: chromeTextColor,

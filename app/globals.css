@@ -153,6 +153,13 @@
               border-color 2s ease;
 }
 
+/* Chevron toggle button - matches input area transition for consistency */
+.input-area button {
+  transition: background-color 2s ease,
+              border-color 2s ease,
+              color 2s ease;
+}
+
 .input-field {
   transition: background-color 2s ease,
               border-color 0.2s ease,
