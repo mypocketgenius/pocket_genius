@@ -64,12 +64,11 @@ export function ThemeSettings({ open, onClose }: ThemeSettingsProps) {
   function handleSave() {
     if (selectedPeriod) {
       // Period selected = lock to that period (custom mode)
-      theme.setMode('custom');
       theme.setCustomPeriod(selectedPeriod);
     } else {
       // No period selected = use the selected mode
+      // setMode automatically clears customPeriod when mode is not 'custom'
       theme.setMode(selectedMode);
-      theme.setCustomPeriod(undefined);
     }
     onClose();
   }
