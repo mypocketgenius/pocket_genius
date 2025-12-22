@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter, Lora } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/lib/theme/theme-context";
+import { ThemeBody } from "@/components/theme-body";
 
 // Configure Inter font for body/paragraphs
 // Inter is a variable font, supporting weights 100-900
@@ -36,7 +38,12 @@ export default function RootLayout({
       }}
     >
       <html lang="en" suppressHydrationWarning className={`${inter.variable} ${lora.variable}`}>
-        <body suppressHydrationWarning>{children}</body>
+        <body suppressHydrationWarning>
+          <ThemeProvider>
+            <ThemeBody />
+            {children}
+          </ThemeProvider>
+        </body>
       </html>
     </ClerkProvider>
   );

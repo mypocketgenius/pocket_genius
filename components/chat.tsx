@@ -7,13 +7,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CopyFeedbackModal } from './copy-feedback-modal';
+import { ThemeSettings } from './theme-settings';
 import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Settings } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
-import { useSkyGradient } from '../lib/hooks/use-sky-gradient';
+import { useTheme } from '../lib/theme/theme-context';
 
 interface Message {
   id: string;
@@ -52,6 +53,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState('');
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
   
   // Phase 4: Pill system state
   const [pills, setPills] = useState<PillType[]>([]);
@@ -69,33 +71,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const initialInputValueRef = useRef<string>(''); // Track initial prefill value
   const pillClickedRef = useRef<boolean>(false); // Track if a pill was clicked
   
-  // Sky gradient for dynamic time-of-day background with adaptive theme
+  // Theme context for dynamic time-of-day background with adaptive theme
   // Chrome colors are derived from the gradient for harmonious design
-  const { gradient: skyGradient, theme: timeTheme, chrome: chromeColors } = useSkyGradient();
+  const theme = useTheme();
   
-  // Adaptive bubble styles based on time theme
-  const bubbleStyles = {
-    light: {
-      ai: 'rgba(255, 255, 255, 0.75)', // Semi-transparent white
-      user: 'rgba(59, 130, 246, 0.85)', // Blue with slight transparency
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.06)',
-      text: '#1a1a1a',
-      userText: '#ffffff',
-    },
-    dark: {
-      ai: 'rgba(255, 255, 255, 0.08)', // Subtle glass effect
-      user: 'rgba(59, 130, 246, 0.7)', // Blue with more transparency for dark
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-      text: '#e8e8e8',
-      userText: '#ffffff',
-    },
-  };
-  
-  const currentBubbleStyle = bubbleStyles[timeTheme];
-  
-  // Extract text color from chrome colors (use header text color)
-  // For light theme, use dark text; for dark theme, use light text
-  const chromeTextColor = timeTheme === 'light' ? '#1a1a1a' : '#e8e8e8';
+  // Use theme values from context
+  const skyGradient = theme.gradient;
+  const timeTheme = theme.theme;
+  const chromeColors = theme.chrome;
+  const currentBubbleStyle = theme.bubbleStyles[timeTheme];
+  const chromeTextColor = theme.textColor;
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -455,21 +440,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }, 3000);
   };
 
-  // Handle Settings button click
+  // Handle Settings button click - open theme settings modal
   const handleSettings = () => {
-    // Clear any existing toast timeout first
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-      toastTimeoutRef.current = null;
-    }
-    setToast({
-      message: 'Feature coming soon',
-      type: 'success',
-    });
-    toastTimeoutRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimeoutRef.current = null;
-    }, 3000);
+    setThemeSettingsOpen(true);
   };
 
   // Phase 4: Handle Save button click
@@ -1238,6 +1211,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             toastTimeoutRef.current = null;
           }, type === 'success' ? 3000 : 5000);
         }}
+      />
+
+      {/* Theme Settings Modal */}
+      <ThemeSettings
+        open={themeSettingsOpen}
+        onClose={() => setThemeSettingsOpen(false)}
       />
     </div>
   );

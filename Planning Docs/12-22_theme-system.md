@@ -361,35 +361,12 @@ export function ThemeSettings({ open, onClose }: ThemeSettingsProps) {
 }
 ```
 
-### 5. Refactored Sky Gradient Hook (`lib/hooks/use-sky-gradient.ts`)
+### 5. Remove Old Sky Gradient Hook (`lib/hooks/use-sky-gradient.ts`)
 
 **Migration Strategy**: 
-- Keep `useSkyGradient` as a thin wrapper around `useTheme()` for backward compatibility
-- Deprecate gradually - mark as deprecated but keep functional
-- Eventually remove once all components use `useTheme()` directly
-
-```typescript
-/**
- * @deprecated Use useTheme() from lib/theme/theme-context instead
- * This hook is kept for backward compatibility
- */
-export function useSkyGradient(): SkyGradientState {
-  const theme = useTheme(); // Get from context
-  return {
-    gradient: theme.gradient,
-    theme: theme.theme,
-    chrome: theme.chrome,
-  };
-}
-
-Updated to use theme context instead of direct time calculation:
-
-```typescript
-export function useSkyGradient(): SkyGradientState {
-  const theme = useTheme(); // Get from context
-  // Use theme.mode and theme.customPeriod
-  // Calculate gradient based on theme mode
-}
+- Remove `useSkyGradient` hook entirely (no backward compatibility needed)
+- All components use `useTheme()` directly from theme context
+- Delete `lib/hooks/use-sky-gradient.ts` file
 ```
 
 ### 6. Storage Strategy (Inlined in theme-context.tsx)
@@ -505,17 +482,17 @@ function saveThemeSettings(settings: ThemeSettings): void {
 **Visible output**: Styled modal matching app design
 
 ### Task 5: Refactor Existing Code
-**Subtask 4.1** — Update `useSkyGradient` hook to use theme context  
-**Visible output**: Hook refactored, uses `useTheme()`
+**Subtask 5.1** — Delete `lib/hooks/use-sky-gradient.ts`  
+**Visible output**: Old hook file removed
 
-**Subtask 4.2** — Update chat component to use theme context  
+**Subtask 5.2** — Update chat component to use theme context  
 **Visible output**: Chat component uses `useTheme()` instead of `useSkyGradient()`
 
-**Subtask 4.3** — Remove duplicate color definitions from chat.tsx  
+**Subtask 5.3** — Remove duplicate color definitions from chat.tsx  
 **Visible output**: Colors imported from theme config
 
-**Subtask 4.4** — Wire settings button to open settings modal  
-**Visible output**: Settings button opens ThemeSettings modal
+**Subtask 5.4** — Wire settings button to open settings modal  
+**Visible output**: Settings button (existing Settings icon in chat header, line 782) opens ThemeSettings modal
 
 ### Task 6: Add Theme Provider to App (Site-Wide)
 **Subtask 5.1** — Wrap app with ThemeProvider in `app/layout.tsx`  
@@ -539,16 +516,17 @@ lib/
     types.ts           # TypeScript types (Gradient, ChromeColors, ThemeSettings, etc.)
     config.ts          # Centralized color definitions and logic functions
     theme-context.tsx  # React context provider (includes inlined storage utilities)
-  hooks/
-    use-sky-gradient.ts # Deprecated wrapper around useTheme() (backward compatibility)
 
 components/
   theme-settings.tsx   # Settings UI component
-  chat.tsx             # Updated to use theme context
+  chat.tsx             # Updated to use theme context (removed useSkyGradient import)
 
 lib/utils/
   sky-gradient.ts      # Export mapToNightRange, mapToDayRange (currently private - need to export)
 ```
+
+**Deleted Files:**
+- `lib/hooks/use-sky-gradient.ts` (removed - no backward compatibility needed)
 
 ### File Limits
 - `config.ts`: ≤120 lines (color definitions)
@@ -616,17 +594,17 @@ lib/utils/
 ## Implementation Notes
 
 ### Migration Strategy
-1. Create new theme system alongside existing code
-2. Refactor one component at a time (start with chat)
-3. Keep old code until new system is stable
-4. Remove old code after full migration
+1. Create new theme system (types, config, context)
+2. Export helper functions from sky-gradient.ts
+3. Update chat component to use `useTheme()` directly
+4. Delete `useSkyGradient` hook file
+5. Remove duplicate color definitions from chat.tsx
 
-### Backward Compatibility
+### Migration Notes
+- No backward compatibility needed - remove `useSkyGradient` hook entirely
+- All components updated to use `useTheme()` directly
 - Default theme mode = "cycle" (DEFAULT_THEME constant)
 - Existing localStorage keys ignored (new key: `pocket-genius-theme`)
-- No breaking changes to existing components initially
-- `useSkyGradient` hook kept as wrapper for backward compatibility (deprecated but functional)
-- Migration path: Gradually migrate components from `useSkyGradient` to `useTheme()`
 
 ### Important Clarifications
 
