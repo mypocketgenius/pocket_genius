@@ -854,6 +854,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         className="flex-1 overflow-y-auto p-4 space-y-4 sky-gradient-transition"
         style={{
           background: `linear-gradient(135deg, ${skyGradient.start}, ${skyGradient.end})`,
+          WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
         }}
       >
         {isLoadingMessages && (
