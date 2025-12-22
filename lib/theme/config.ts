@@ -135,12 +135,12 @@ export function getEffectiveHourForMode(
     
     case 'dark-cycle':
       // Cycle through dark periods only (night, evening)
-      // Use mapToNightRange to constrain to 8pm-6am range
+      // Use mapToNightRange to constrain to 10pm-5am range
       return mapToNightRange(actualHour);
     
     case 'light-cycle':
       // Cycle through light periods only (dawn through dusk)
-      // Use mapToDayRange to constrain to 6am-8pm range
+      // Use mapToDayRange to constrain to 5am-10pm range
       return mapToDayRange(actualHour);
     
     case 'custom':

@@ -147,53 +147,55 @@ function getEffectiveTime(hour: number, preference: 'light' | 'dark'): number {
 }
 
 /**
- * Maps hour to nighttime range (8pm-6am)
- * Day hours (6am-8pm) are mapped proportionally to night hours
+ * Maps hour to dark period range (10pm-5am)
+ * Dark periods are: evening (10pm-midnight) and night (0-5am)
+ * Light hours (5am-10pm) are mapped proportionally to dark hours
  */
 export function mapToNightRange(hour: number): number {
-  // Already in night range (8pm-6am)
-  if (hour >= 20 || hour < 6) {
+  // Already in dark range (10pm-5am)
+  if (hour >= 22 || hour < 5) {
     return hour;
   }
   
-  // Map day hours (6am-8pm = 14 hours) to night range (8pm-6am = 10 hours)
-  // Spread proportionally: 6am -> 8pm (20), 8pm -> 6am (6)
-  const dayProgress = (hour - 6) / 14; // 0 at 6am, 1 at 8pm
-  let nightHour = 20 + (dayProgress * 10); // 20 (8pm) to 30
+  // Map light hours (5am-10pm = 17 hours) to dark range (10pm-5am = 7 hours)
+  // Spread proportionally: 5am -> 10pm (22), 10pm -> 5am (5)
+  const lightProgress = (hour - 5) / 17; // 0 at 5am, 1 at 10pm
+  let darkHour = 22 + (lightProgress * 7); // 22 (10pm) to 29
   
-  // Wrap around midnight: values >= 24 map to 0-6 range
-  // 24 -> 0, 25 -> 1, ..., 30 -> 6
-  if (nightHour >= 24) {
-    nightHour = nightHour - 24; // Maps 24->0, 25->1, ..., 30->6
+  // Wrap around midnight: values >= 24 map to 0-5 range
+  // 24 -> 0, 25 -> 1, ..., 29 -> 5
+  if (darkHour >= 24) {
+    darkHour = darkHour - 24; // Maps 24->0, 25->1, ..., 29->5
   }
   
-  return nightHour;
+  return darkHour;
 }
 
 /**
- * Maps hour to daytime range (6am-8pm)
- * Night hours (8pm-6am) are mapped proportionally to day hours
+ * Maps hour to light period range (5am-10pm)
+ * Light periods are: dawn, morning, midday, afternoon, golden, dusk (5am-10pm)
+ * Dark hours (10pm-5am) are mapped proportionally to light hours
  */
 export function mapToDayRange(hour: number): number {
-  // Already in day range (6am-8pm)
-  if (hour >= 6 && hour < 20) {
+  // Already in light range (5am-10pm)
+  if (hour >= 5 && hour < 22) {
     return hour;
   }
   
-  // Map night hours (8pm-6am = 10 hours) to day range (6am-8pm = 14 hours)
-  let nightProgress: number;
-  if (hour >= 20) {
-    // 8pm-midnight: 0 to 0.4
-    nightProgress = (hour - 20) / 10;
+  // Map dark hours (10pm-5am = 7 hours) to light range (5am-10pm = 17 hours)
+  let darkProgress: number;
+  if (hour >= 22) {
+    // 10pm-midnight: 0 to ~0.29
+    darkProgress = (hour - 22) / 7;
   } else {
-    // midnight-6am: 0.4 to 1
-    nightProgress = (hour + 4) / 10;
+    // midnight-5am: ~0.29 to 1
+    darkProgress = (hour + 2) / 7;
   }
   
-  // Map to day range: 6am -> 6am, midnight -> 2pm, 6am -> 8pm
-  // Clamp result to ensure it's within 6-20 range (daytime)
-  const dayHour = 6 + (nightProgress * 14);
-  return Math.max(6, Math.min(19.99, dayHour));
+  // Map to light range: 5am -> 5am, midnight -> ~noon, 5am -> 10pm
+  // Clamp result to ensure it's within 5-22 range (light periods)
+  const lightHour = 5 + (darkProgress * 17);
+  return Math.max(5, Math.min(21.99, lightHour));
 }
 
 /**
