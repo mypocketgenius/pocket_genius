@@ -704,7 +704,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-dvh max-w-4xl mx-auto" style={{ backgroundColor: chromeColors.header }}>
+    <div className="flex flex-col h-dvh w-full" style={{ backgroundColor: chromeColors.header }}>
       {/* Header */}
       <div 
         className="app-header border-b px-4 py-2.5"
@@ -890,7 +890,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
-              <div className={`max-w-[100%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+              <div className={`max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
                 <div
                   className={`rounded-lg px-4 py-2 message-bubble ${
                     message.role === 'user' ? 'font-medium' : 'font-normal'
