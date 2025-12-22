@@ -5,22 +5,25 @@ Change the theme system from smooth color interpolation between periods to fixed
 
 ## Acceptance Criteria
 - [ ] Each time period uses a fixed gradient (no interpolation within period)
-- [ ] Colors change instantly when crossing period boundaries
+- [ ] Colors transition smoothly between periods via CSS (2s ease transition)
 - [ ] All 8 periods have distinct fixed palettes
 - [ ] Custom mode still locks to selected period's fixed palette
-- [ ] Cycle modes still work but with instant transitions
+- [ ] Cycle modes still work with smooth CSS transitions
 - [ ] Theme context still updates every 5 minutes
+- [ ] Minutes are completely ignored (not used in calculations)
+- [ ] Interpolation functions completely removed
 - [ ] Tests updated to reflect fixed palette behavior
 
-## Clarifying Questions
+## Clarifying Questions (Answered)
 1. Should transitions between periods be instant or have a brief fade?
-   - **Assumption**: Instant transitions (simpler, matches "fixed palette" requirement)
+   - **Answer**: Brief transition via CSS (already implemented in `theme-body.tsx` with `transition: 'background 2s ease'`)
+   - **Implementation**: CSS transitions handle smooth color changes automatically - no code changes needed
 
 2. Should we keep the interpolation functions for potential future use?
-   - **Assumption**: Keep functions but don't use them (for potential reversion or future features)
+   - **Answer**: Remove completely - this update fully replaces interpolation features
 
 3. Should custom mode still use minute=0 or can we ignore minutes entirely?
-   - **Assumption**: Ignore minutes entirely since we're using fixed palettes
+   - **Answer**: Ignore minutes entirely - not used anywhere in fixed palette system
 
 ## Minimal Approach
 1. Update `getSkyGradient()` to return fixed gradient based on period (no interpolation)
@@ -77,7 +80,8 @@ export function getSkyGradient(hour: number, minute: number): Gradient {
 - Import `GRADIENT_PRESETS` from `../theme/config`
 - Remove all interpolation logic (lines 166-210)
 - Update JSDoc to reflect fixed palette behavior
-- Keep `minute` parameter for API compatibility but ignore it
+- Keep `minute` parameter for API compatibility but ignore it completely
+- **Note**: CSS transitions (already in `theme-body.tsx`) provide smooth color changes between periods
 
 ### 2. Update Period Detection (`lib/theme/config.ts`)
 
@@ -100,8 +104,9 @@ const gradient = getSkyGradient(effectiveHour, minute);
 ```
 
 **Changes**:
-- **CRITICAL**: Update line 78 to `const minute = 0;` (remove conditional)
-- Update comment on line 76-77 to reflect fixed palette behavior
+- **CRITICAL**: Update line 78 to `const minute = 0;` (remove conditional, ignore minutes entirely)
+- Remove `actualMinute` parameter usage completely
+- Update comment on line 76-77 to reflect fixed palette behavior (minutes ignored)
 - Update all related comments throughout function
 
 ### 4. Update Tests (`__tests__/lib/theme/config.test.ts`)
@@ -157,14 +162,17 @@ function interpolateGradients(...) { ... }
 **Visible output**: Comments updated to explain fixed palettes (no interpolation)
 
 ### Task 3: Cleanup Unused Functions
-**Subtask 3.1** — Remove `interpolateHSL()` function (line 53)  
-**Visible output**: Function removed from `sky-gradient.ts`
+**Subtask 3.1** — Remove `interpolateHSL()` function (line 53) completely  
+**Visible output**: Function removed from `sky-gradient.ts` (no longer needed)
 
-**Subtask 3.2** — Remove `interpolateGradients()` function (line 83)  
-**Visible output**: Function removed from `sky-gradient.ts`
+**Subtask 3.2** — Remove `interpolateGradients()` function (line 83) completely  
+**Visible output**: Function removed from `sky-gradient.ts` (no longer needed)
 
 **Subtask 3.3** — **VERIFY**: Keep `parseHSL()` and `hslToString()` — they're used by `getChromeColors()` → `adjustLightness()`  
 **Visible output**: Helper functions remain (still needed for chrome color calculations)
+
+**Subtask 3.4** — Remove any references to interpolation functions  
+**Visible output**: No interpolation code remains in codebase
 
 ### Task 4: Update Tests
 **Subtask 4.1** — Update config tests for fixed palette behavior  
@@ -197,6 +205,9 @@ function interpolateGradients(...) { ... }
 
 **Subtask 5.5** — Verify `parseHSL()` and `hslToString()` still work with `getChromeColors()`  
 **Visible output**: Chrome colors still calculate correctly (functions still needed)
+
+**Subtask 5.6** — Verify CSS transitions work smoothly between periods  
+**Visible output**: Color changes transition smoothly (2s ease) when period changes
 
 ## Architectural Discipline
 
@@ -238,15 +249,16 @@ function interpolateGradients(...) { ... }
 
 ## Tests
 
-### Test 1: Fixed Palette Per Period
-- **Input**: Hour 6 (dawn period)
-- **Expected**: Always returns dawn gradient, regardless of minute
-- **Verify**: `getSkyGradient(6, 0)` === `getSkyGradient(6, 30)` === `getSkyGradient(6, 59)`
+### Test 1: Fixed Palette Per Period (Minutes Ignored)
+- **Input**: Hour 6 (dawn period) with different minutes
+- **Expected**: Always returns dawn gradient, regardless of minute (minutes completely ignored)
+- **Verify**: `getSkyGradient(6, 0)` === `getSkyGradient(6, 30)` === `getSkyGradient(6, 59)` === dawn gradient
 
-### Test 2: Instant Transition
+### Test 2: Period Boundary Transition
 - **Input**: Hour 4.9 (night) vs Hour 5.0 (dawn)
 - **Expected**: Different gradients (night vs dawn)
 - **Verify**: `getSkyGradient(4.9, 0)` !== `getSkyGradient(5.0, 0)`
+- **Note**: CSS transitions (2s ease) provide smooth visual transition between periods
 
 ### Test 3: Custom Mode Fixed Palette
 - **Input**: Custom mode → golden hour
@@ -274,12 +286,13 @@ function interpolateGradients(...) { ... }
 ### Key Changes Summary
 1. **CRITICAL**: Remove duplicate gradient definitions from `sky-gradient.ts` (use `GRADIENT_PRESETS` from config)
 2. **Remove interpolation logic** from `getSkyGradient()` (~45 lines)
-3. **Remove unused functions**: `interpolateHSL()`, `interpolateGradients()` (~50 lines)
+3. **Remove interpolation functions completely**: `interpolateHSL()`, `interpolateGradients()` (~50 lines) - fully replaced, not kept
 4. **KEEP helper functions**: `parseHSL()`, `hslToString()` — still used by `getChromeColors()` → `adjustLightness()`
-5. **Use fixed period detection** via `getCurrentPeriod()` from config (accepts decimal hours)
+5. **Use fixed period detection** via `getCurrentPeriod()` from config (accepts decimal hours, ignores minutes)
 6. **Return fixed gradient** from `GRADIENT_PRESETS` (centralized source)
-7. **Update theme context**: Always use `minute = 0` (line 78)
+7. **Update theme context**: Always use `minute = 0`, ignore `actualMinute` completely (line 78)
 8. **Update JSDoc** to reflect fixed palette behavior
+9. **CSS transitions**: Already implemented in `theme-body.tsx` (2s ease) - provides smooth color changes between periods
 
 ### Backward Compatibility
 - Function signatures remain the same
@@ -289,8 +302,10 @@ function interpolateGradients(...) { ... }
 
 ### Important Notes
 - **DO NOT REMOVE** `parseHSL()` and `hslToString()` — they're used by `getChromeColors()` → `adjustLightness()`
-- Only remove `interpolateHSL()` and `interpolateGradients()` (no longer called)
-- `getCurrentPeriod()` accepts decimal hours (e.g., 6.5 = 6:30am) — works correctly
+- **REMOVE COMPLETELY** `interpolateHSL()` and `interpolateGradients()` — fully replaced, not kept for future use
+- `getCurrentPeriod()` accepts decimal hours (e.g., 6.5 = 6:30am) but minutes are ignored in period detection
+- **CSS Transitions**: Already implemented in `theme-body.tsx` with `transition: 'background 2s ease'` - provides smooth visual transitions between periods automatically
+- **Minutes**: Completely ignored throughout the system - not used in any calculations
 
 ### Performance Impact
 - **Positive**: Simpler code, faster execution (no interpolation calculations)

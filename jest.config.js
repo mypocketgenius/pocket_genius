@@ -2,18 +2,12 @@
 // Jest configuration for MVP unit tests
 // Phase 6, Task 1: Testing infrastructure setup
 
-module.exports = {
+const baseConfig = {
   preset: 'ts-jest',
-  testEnvironment: 'node',
-  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  // Use jsdom environment for React component tests
-  testEnvironmentOptions: {
-    customExportConditions: [''],
-  },
   collectCoverageFrom: [
     'lib/**/*.ts',
     'lib/**/*.tsx',
@@ -29,7 +23,6 @@ module.exports = {
       statements: 60,
     },
   },
-  // Transform files for React Testing Library
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
@@ -37,4 +30,22 @@ module.exports = {
       },
     }],
   },
+};
+
+module.exports = {
+  ...baseConfig,
+  projects: [
+    {
+      ...baseConfig,
+      displayName: 'node',
+      testEnvironment: 'node',
+      testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/**/theme-context.test.ts'],
+    },
+    {
+      ...baseConfig,
+      displayName: 'jsdom',
+      testEnvironment: 'jsdom',
+      testMatch: ['**/__tests__/**/theme-context.test.ts'],
+    },
+  ],
 };

@@ -10,6 +10,7 @@ import {
   GRADIENT_PRESETS,
   TEXT_COLORS,
 } from '@/lib/theme/config';
+import { getSkyGradient } from '@/lib/utils/sky-gradient';
 import type { ThemeMode, TimePeriod } from '@/lib/theme/types';
 
 describe('getCurrentPeriod', () => {
@@ -183,6 +184,106 @@ describe('TEXT_COLORS', () => {
   it('should have colors for light and dark themes', () => {
     expect(TEXT_COLORS.light).toBe('#1a1a1a');
     expect(TEXT_COLORS.dark).toBe('#e8e8e8');
+  });
+});
+
+describe('getSkyGradient - Fixed Palette Behavior', () => {
+  describe('same hour returns same gradient regardless of minutes', () => {
+    it('should return same gradient for hour 6 with different minutes (dawn period)', () => {
+      const gradient1 = getSkyGradient(6, 0);
+      const gradient2 = getSkyGradient(6, 30);
+      const gradient3 = getSkyGradient(6, 59);
+      
+      expect(gradient1).toEqual(gradient2);
+      expect(gradient2).toEqual(gradient3);
+      expect(gradient1.start).toBe(gradient2.start);
+      expect(gradient1.end).toBe(gradient2.end);
+    });
+
+    it('should return same gradient for hour 12 with different minutes (midday period)', () => {
+      const gradient1 = getSkyGradient(12, 0);
+      const gradient2 = getSkyGradient(12, 30);
+      const gradient3 = getSkyGradient(12, 59);
+      
+      expect(gradient1).toEqual(gradient2);
+      expect(gradient2).toEqual(gradient3);
+    });
+
+    it('should return same gradient for hour 19 with different minutes (golden period)', () => {
+      const gradient1 = getSkyGradient(19, 0);
+      const gradient2 = getSkyGradient(19, 30);
+      const gradient3 = getSkyGradient(19, 59);
+      
+      expect(gradient1).toEqual(gradient2);
+      expect(gradient2).toEqual(gradient3);
+    });
+  });
+
+  describe('period boundary transitions', () => {
+    it('should return different gradients at period boundaries', () => {
+      // Night (4.9) vs Dawn (5.0)
+      const nightGradient = getSkyGradient(4, 54); // 4:54am = 4.9 hours
+      const dawnGradient = getSkyGradient(5, 0); // 5:00am = 5.0 hours
+      
+      expect(nightGradient).not.toEqual(dawnGradient);
+      expect(nightGradient.start).not.toBe(dawnGradient.start);
+    });
+
+    it('should return correct gradient for each period', () => {
+      // Test each period's time range
+      expect(getSkyGradient(2, 0).start).toBe(GRADIENT_PRESETS.night.start); // Night
+      expect(getSkyGradient(6, 0).start).toBe(GRADIENT_PRESETS.dawn.start); // Dawn
+      expect(getSkyGradient(9, 0).start).toBe(GRADIENT_PRESETS.morning.start); // Morning
+      expect(getSkyGradient(13, 0).start).toBe(GRADIENT_PRESETS.midday.start); // Midday
+      expect(getSkyGradient(16, 0).start).toBe(GRADIENT_PRESETS.afternoon.start); // Afternoon
+      expect(getSkyGradient(19, 0).start).toBe(GRADIENT_PRESETS.golden.start); // Golden
+      expect(getSkyGradient(21, 0).start).toBe(GRADIENT_PRESETS.dusk.start); // Dusk
+      expect(getSkyGradient(23, 0).start).toBe(GRADIENT_PRESETS.evening.start); // Evening
+    });
+  });
+
+  describe('midnight boundary edge case', () => {
+    it('should handle midnight boundary correctly (evening vs night)', () => {
+      // Evening (23.9) vs Night (0.0) - tests wrapping at midnight
+      const eveningGradient = getSkyGradient(23, 54); // 23:54 = 23.9 hours
+      const nightGradient = getSkyGradient(0, 0); // 0:00 = 0.0 hours
+      
+      expect(eveningGradient).not.toEqual(nightGradient);
+      expect(eveningGradient.start).toBe(GRADIENT_PRESETS.evening.start);
+      expect(nightGradient.start).toBe(GRADIENT_PRESETS.night.start);
+    });
+
+    it('should return night gradient at midnight (0:00)', () => {
+      const gradient = getSkyGradient(0, 0);
+      expect(gradient.start).toBe(GRADIENT_PRESETS.night.start);
+      expect(gradient.end).toBe(GRADIENT_PRESETS.night.end);
+    });
+
+    it('should return evening gradient just before midnight (23:59)', () => {
+      const gradient = getSkyGradient(23, 59);
+      expect(gradient.start).toBe(GRADIENT_PRESETS.evening.start);
+      expect(gradient.end).toBe(GRADIENT_PRESETS.evening.end);
+    });
+  });
+
+  describe('fixed palette consistency', () => {
+    it('should return same gradient throughout a period', () => {
+      // Test dawn period (5-7am) - multiple times should return same gradient
+      const gradient1 = getSkyGradient(5, 0);
+      const gradient2 = getSkyGradient(5, 30);
+      const gradient3 = getSkyGradient(6, 0);
+      const gradient4 = getSkyGradient(6, 59);
+      
+      // All should be dawn gradient
+      expect(gradient1.start).toBe(GRADIENT_PRESETS.dawn.start);
+      expect(gradient2.start).toBe(GRADIENT_PRESETS.dawn.start);
+      expect(gradient3.start).toBe(GRADIENT_PRESETS.dawn.start);
+      expect(gradient4.start).toBe(GRADIENT_PRESETS.dawn.start);
+      
+      expect(gradient1).toEqual(gradient2);
+      expect(gradient2).toEqual(gradient3);
+      expect(gradient3).toEqual(gradient4);
+    });
   });
 });
 

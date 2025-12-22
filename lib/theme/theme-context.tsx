@@ -5,6 +5,8 @@ import type { ThemeMode, TimePeriod, Gradient, ChromeColors, BubbleStyles, Theme
 import { getSkyGradient, getChromeColors, getTimeTheme } from '../utils/sky-gradient';
 import {
   getEffectiveHourForMode,
+  getCurrentPeriod,
+  PERIOD_THEMES,
   DEFAULT_THEME,
   BUBBLE_STYLES,
   TEXT_COLORS,
@@ -73,18 +75,20 @@ function calculateThemeValues(
   // Get effective hour based on theme mode
   const effectiveHour = getEffectiveHourForMode(mode, actualHour, customPeriod);
   
-  // For custom mode, use minute=0 to lock to period midpoint
-  // For other modes, use actual minute for smooth interpolation
-  const minute = mode === 'custom' ? 0 : actualMinute;
+  // Always use minute=0 since we use fixed palettes per period (no interpolation)
+  // Minutes are completely ignored - each period has one consistent gradient
+  const minute = 0;
   
-  // Calculate gradient
+  // Calculate gradient (returns fixed palette for the period)
   const gradient = getSkyGradient(effectiveHour, minute);
   
   // Calculate chrome colors from gradient
   const chrome = getChromeColors(gradient);
   
-  // Calculate theme (light/dark) based on effective hour
-  const theme = getTimeTheme(effectiveHour);
+  // Calculate theme (light/dark) based on period, not just hour
+  // This ensures dusk (8-10pm) uses light theme (dark text) even though it's after 8pm
+  const period = getCurrentPeriod(effectiveHour);
+  const theme = PERIOD_THEMES[period];
   
   // Get text color based on theme
   const textColor = TEXT_COLORS[theme];
@@ -93,23 +97,21 @@ function calculateThemeValues(
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Load theme settings from localStorage on mount
-  const [settings, setSettings] = useState<ThemeSettings>(() => {
-    // On server, return default theme to avoid hydration mismatch
-    if (typeof window === 'undefined') {
-      return DEFAULT_THEME;
-    }
-    return loadThemeSettings();
-  });
+  // Initialize settings with DEFAULT_THEME for both server and client
+  // This ensures server and client render identical HTML to avoid hydration mismatch
+  // Settings will be loaded from localStorage after hydration
+  const [settings, setSettings] = useState<ThemeSettings>(DEFAULT_THEME);
   
   const [isHydrated, setIsHydrated] = useState(false);
   
-  // Initialize theme values
+  // Initialize theme values with consistent default for SSR
+  // Use DEFAULT_THEME settings and fixed hour (12 noon) for both server and client initial render
+  // This ensures server and client render the same initial HTML to avoid hydration mismatch
+  // Will be updated after hydration with actual settings and time
   const [themeValues, setThemeValues] = useState(() => {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-    return calculateThemeValues(settings.mode, settings.customPeriod, hour, minute);
+    // Always use DEFAULT_THEME settings and hour 12 (midday) for initial render
+    // This ensures server and client render identical HTML regardless of localStorage
+    return calculateThemeValues(DEFAULT_THEME.mode, DEFAULT_THEME.customPeriod, 12, 0);
   });
   
   // Update theme values function
@@ -126,9 +128,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setIsHydrated(true);
     // Reload settings from localStorage after hydration
     const loadedSettings = loadThemeSettings();
-    if (loadedSettings.mode !== settings.mode || loadedSettings.customPeriod !== settings.customPeriod) {
-      setSettings(loadedSettings);
-    }
+    // Always update settings to ensure we have the latest from localStorage
+    setSettings(loadedSettings);
+    // Update theme values will be triggered by the settings change effect below
   }, []);
   
   // Update theme values when settings change

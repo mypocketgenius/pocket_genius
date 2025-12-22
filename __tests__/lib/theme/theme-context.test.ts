@@ -48,9 +48,9 @@ describe('ThemeProvider', () => {
     jest.restoreAllMocks();
   });
 
-  const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ThemeProvider>{children}</ThemeProvider>
-  );
+  const wrapper = ({ children }: { children: React.ReactNode }) => {
+    return React.createElement(ThemeProvider, null, children);
+  };
 
   describe('default theme', () => {
     it('should use default theme when no localStorage value', () => {
@@ -166,7 +166,7 @@ describe('ThemeProvider', () => {
     });
   });
 
-  describe('gradient calculation', () => {
+  describe('gradient calculation - Fixed Palette Behavior', () => {
     it('should calculate gradient based on current time in cycle mode', () => {
       mockDate(14, 30); // 2:30pm (afternoon)
       
@@ -175,6 +175,27 @@ describe('ThemeProvider', () => {
       expect(result.current.gradient).toBeDefined();
       expect(result.current.gradient.start).toBeDefined();
       expect(result.current.gradient.end).toBeDefined();
+    });
+
+    it('should return same gradient for same hour regardless of minutes', () => {
+      // Test that minutes are ignored - same hour should return same gradient
+      mockDate(6, 0); // 6:00am (dawn)
+      const { result: result1 } = renderHook(() => useTheme(), { wrapper });
+      const gradient1 = result1.current.gradient;
+      
+      mockDate(6, 30); // 6:30am (dawn) - different minute, same hour
+      const { result: result2 } = renderHook(() => useTheme(), { wrapper });
+      const gradient2 = result2.current.gradient;
+      
+      mockDate(6, 59); // 6:59am (dawn) - different minute, same hour
+      const { result: result3 } = renderHook(() => useTheme(), { wrapper });
+      const gradient3 = result3.current.gradient;
+      
+      // All should return same gradient (fixed palette per period)
+      expect(gradient1.start).toBe(gradient2.start);
+      expect(gradient2.start).toBe(gradient3.start);
+      expect(gradient1.end).toBe(gradient2.end);
+      expect(gradient2.end).toBe(gradient3.end);
     });
 
     it('should use custom period time in custom mode', () => {
@@ -188,6 +209,23 @@ describe('ThemeProvider', () => {
 
       // Gradient should be based on golden hour (7pm), not current time (10am)
       expect(result.current.gradient).toBeDefined();
+      // Custom mode locks to fixed palette for selected period
+      expect(result.current.gradient.start).toBeDefined();
+      expect(result.current.gradient.end).toBeDefined();
+    });
+
+    it('should use minute=0 always (minutes completely ignored)', () => {
+      // Verify that different minutes at same hour produce same gradient
+      mockDate(12, 0); // noon
+      const { result: result1 } = renderHook(() => useTheme(), { wrapper });
+      const gradient1 = result1.current.gradient;
+      
+      mockDate(12, 45); // 12:45pm - different minute
+      const { result: result2 } = renderHook(() => useTheme(), { wrapper });
+      const gradient2 = result2.current.gradient;
+      
+      // Should be identical (fixed palette, minutes ignored)
+      expect(gradient1).toEqual(gradient2);
     });
   });
 
