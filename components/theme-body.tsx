@@ -31,6 +31,9 @@ export function ThemeBody() {
         body.style.backgroundAttachment = 'fixed';
       }
       
+      // Prevent scroll overhangs/bounce on iOS Safari/Chrome
+      body.style.overscrollBehavior = 'none';
+      
       body.style.minHeight = '100vh';
       body.style.transition = 'background 2s ease';
     }
@@ -40,6 +43,7 @@ export function ThemeBody() {
       if (body) {
         body.style.background = '';
         body.style.backgroundAttachment = '';
+        body.style.overscrollBehavior = '';
         body.style.minHeight = '';
         body.style.transition = '';
       }
