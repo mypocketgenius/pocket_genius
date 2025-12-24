@@ -175,7 +175,6 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
           
           {/* Search bar */}
           <SearchBar
-            navigateOnSearch={true}
             variant="inline"
           />
         </div>

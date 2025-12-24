@@ -318,27 +318,10 @@ function HomeContent() {
     );
   };
 
-  // Handle search change from header
-  const handleSearchChange = useCallback((query: string) => {
-    setSearchQuery(query);
-    // Update URL immediately
-    const params = new URLSearchParams(searchParams.toString());
-    if (query) {
-      params.set('search', query);
-    } else {
-      params.delete('search');
-    }
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
-
   return (
     <main className="min-h-screen bg-background">
       {/* Header with search */}
-      <AppHeader
-        onSearchChange={handleSearchChange}
-        initialSearchQuery={searchQuery}
-        navigateOnSearch={false}
-      />
+      <AppHeader />
 
       <div className="container mx-auto px-4 py-8">
         {/* Hero Section */}

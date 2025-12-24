@@ -15,21 +15,12 @@ interface AppHeaderProps {
   leftContent?: React.ReactNode;
   // Optional: custom right content
   rightContent?: React.ReactNode;
-  // Optional: callback when search query changes
-  onSearchChange?: (query: string) => void;
-  // Optional: initial search query
-  initialSearchQuery?: string;
-  // Optional: whether search should navigate to homepage (default: true)
-  navigateOnSearch?: boolean;
 }
 
 export function AppHeader({
   showAuth = true,
   leftContent,
   rightContent,
-  onSearchChange,
-  initialSearchQuery = '',
-  navigateOnSearch = true,
 }: AppHeaderProps) {
 
   return (
@@ -50,9 +41,6 @@ export function AppHeader({
 
           {/* Search bar */}
           <SearchBar
-            initialValue={initialSearchQuery}
-            onSearchChange={onSearchChange}
-            navigateOnSearch={navigateOnSearch}
             variant="header"
           />
 

@@ -760,7 +760,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           
           {/* Search bar */}
           <SearchBar
-            navigateOnSearch={true}
             variant="inline"
             inputStyle={{
               backgroundColor: timeTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
