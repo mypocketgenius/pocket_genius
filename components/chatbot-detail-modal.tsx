@@ -3,11 +3,12 @@
 // Phase 3.7.3: Chatbot Detail Modal Component
 // Displays detailed chatbot information in a modal when card is clicked
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { X, Heart, Star, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -104,24 +105,8 @@ export function ChatbotDetailModal({
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
-  // Fetch reviews when modal opens
-  useEffect(() => {
-    if (open) {
-      fetchReviews(1);
-      if (isSignedIn) {
-        checkFavoriteStatus();
-      }
-    } else {
-      // Reset state when modal closes
-      setReviews([]);
-      setReviewsPage(1);
-      setHasMoreReviews(false);
-      setReviewsError(null);
-    }
-  }, [open, chatbot.id, isSignedIn]);
-
   // Fetch reviews from API
-  const fetchReviews = async (page: number) => {
+  const fetchReviews = useCallback(async (page: number) => {
     setIsLoadingReviews(true);
     setReviewsError(null);
     
@@ -150,10 +135,10 @@ export function ChatbotDetailModal({
     } finally {
       setIsLoadingReviews(false);
     }
-  };
+  }, [chatbot.id]);
 
   // Check if chatbot is favorited by current user
-  const checkFavoriteStatus = async () => {
+  const checkFavoriteStatus = useCallback(async () => {
     if (!isSignedIn || !clerkUserId) return;
     
     try {
@@ -164,7 +149,23 @@ export function ChatbotDetailModal({
     } catch (error) {
       console.error('Error checking favorite status:', error);
     }
-  };
+  }, [isSignedIn, clerkUserId]);
+
+  // Fetch reviews when modal opens
+  useEffect(() => {
+    if (open) {
+      fetchReviews(1);
+      if (isSignedIn) {
+        checkFavoriteStatus();
+      }
+    } else {
+      // Reset state when modal closes
+      setReviews([]);
+      setReviewsPage(1);
+      setHasMoreReviews(false);
+      setReviewsError(null);
+    }
+  }, [open, chatbot.id, isSignedIn, fetchReviews, checkFavoriteStatus]);
 
   // Toggle favorite status
   const handleToggleFavorite = async () => {
@@ -333,11 +334,15 @@ export function ChatbotDetailModal({
           {/* Creator Section */}
           <div className="flex items-start gap-3">
             {chatbot.creator.avatarUrl ? (
-              <img
-                src={chatbot.creator.avatarUrl}
-                alt={chatbot.creator.name}
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                <Image
+                  src={chatbot.creator.avatarUrl}
+                  alt={chatbot.creator.name}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
             ) : (
               <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-gray-500 text-lg">

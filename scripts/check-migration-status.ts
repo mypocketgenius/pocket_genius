@@ -74,11 +74,11 @@ async function checkMigrationStatus() {
     } else {
       if (missingMigrations.length > 0) {
         console.log(`   ⚠️  Missing ${missingMigrations.length} migration(s):`);
-        missingMigrations.forEach(m => console.log(`      - ${m}`));
+        missingMigrations.forEach((m: string) => console.log(`      - ${m}`));
       }
       if (extraMigrations.length > 0) {
         console.log(`   ⚠️  Extra ${extraMigrations.length} migration(s) in database (not in filesystem):`);
-        extraMigrations.forEach(m => console.log(`      - ${m}`));
+        extraMigrations.forEach((m: string) => console.log(`      - ${m}`));
       }
     }
 

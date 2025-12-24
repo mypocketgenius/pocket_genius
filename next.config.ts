@@ -2,7 +2,11 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    unoptimized: false,
+    // Note: For production, configure remotePatterns with specific domains
+    // For now, we'll use unoptimized prop on Image components for external avatars
+  },
 };
 
 // Wrap Next.js config with Sentry

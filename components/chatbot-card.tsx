@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Heart, Star } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -187,12 +188,14 @@ export function ChatbotCard({
         )}
 
         {/* Image placeholder or creator avatar */}
-        <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
+        <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden relative">
           {chatbot.creator.avatarUrl ? (
-            <img
+            <Image
               src={chatbot.creator.avatarUrl}
               alt={chatbot.creator.name}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              unoptimized
             />
           ) : (
             <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center">

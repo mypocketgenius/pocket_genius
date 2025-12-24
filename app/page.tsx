@@ -3,7 +3,7 @@
 // Phase 3.7.4: Homepage Component with Grid Layout
 // Amazon-style homepage with categorized chatbot grids, search, and filters
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useAuth } from '@clerk/nextjs';
 import { Search, X, Loader2 } from 'lucide-react';
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { useDebounce } from '@/lib/hooks/use-debounce';
+import Image from 'next/image';
 
 // Type definitions matching the API response format
 type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
@@ -84,7 +85,7 @@ interface ChatbotsResponse {
  * - "Load More" pagination
  * - Loading states, empty states, error handling
  */
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isSignedIn } = useAuth();
@@ -144,27 +145,8 @@ export default function Home() {
     fetchFilters();
   }, []);
 
-  // Fetch chatbots when filters/search change
-  useEffect(() => {
-    fetchChatbots(1, true);
-  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes]);
-
-  // Update URL params when filters change
-  useEffect(() => {
-    const params = new URLSearchParams();
-    
-    if (debouncedSearch) params.set('search', debouncedSearch);
-    selectedCategories.forEach(cat => params.append('category', cat));
-    selectedCategoryTypes.forEach(type => params.append('categoryType', type));
-    if (selectedCreator) params.set('creator', selectedCreator);
-    selectedTypes.forEach(type => params.append('type', type));
-    if (currentPage > 1) params.set('page', currentPage.toString());
-
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes, currentPage, router]);
-
   // Fetch chatbots from API
-  const fetchChatbots = async (page: number, reset: boolean = false) => {
+  const fetchChatbots = useCallback(async (page: number, reset: boolean = false) => {
     if (reset) {
       setIsLoading(true);
       setError(null);
@@ -206,7 +188,26 @@ export default function Home() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes]);
+
+  // Fetch chatbots when filters/search change
+  useEffect(() => {
+    fetchChatbots(1, true);
+  }, [fetchChatbots]);
+
+  // Update URL params when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    selectedCategories.forEach(cat => params.append('category', cat));
+    selectedCategoryTypes.forEach(type => params.append('categoryType', type));
+    if (selectedCreator) params.set('creator', selectedCreator);
+    selectedTypes.forEach(type => params.append('type', type));
+    if (currentPage > 1) params.set('page', currentPage.toString());
+
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes, currentPage, router]);
 
   // Handle "Load More" button
   const handleLoadMore = () => {
@@ -555,7 +556,7 @@ export default function Home() {
                     )}
                     {pagination && currentPage >= pagination.totalPages && (
                       <div className="text-center mt-8 text-muted-foreground">
-                        <p>You've reached the end</p>
+                        <p>You&apos;ve reached the end</p>
                       </div>
                     )}
                   </>
@@ -616,7 +617,7 @@ export default function Home() {
                     )}
                     {pagination && currentPage >= pagination.totalPages && (
                       <div className="text-center mt-8 text-muted-foreground">
-                        <p>You've reached the end</p>
+                        <p>You&apos;ve reached the end</p>
                       </div>
                     )}
                   </div>
@@ -636,5 +637,51 @@ export default function Home() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-background">
+          <header className="border-b bg-white sticky top-0 z-50">
+            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+              <h1 className="text-2xl font-bold">Pocket Genius</h1>
+              <div className="flex gap-4 items-center">
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <Button variant="default" size="sm">
+                      Sign In
+                    </Button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <Button variant="secondary" size="sm">
+                      Sign Up
+                    </Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
+              </div>
+            </div>
+          </header>
+          <div className="container mx-auto px-4 py-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-48 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   );
 }

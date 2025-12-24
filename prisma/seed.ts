@@ -101,6 +101,7 @@ async function main() {
       slug: 'art-of-war',
       description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
       isPublic: true,
+      isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,
       type: 'DEEP_DIVE',
       priceCents: 0,
@@ -113,6 +114,7 @@ async function main() {
       slug: 'art-of-war',
       description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
       isPublic: true,
+      isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,
       type: 'DEEP_DIVE',
       priceCents: 0,
@@ -162,6 +164,39 @@ async function main() {
   }
 
   console.log(`✅ Seeded ${categories.length} categories`);
+
+  // Assign categories to Art of War chatbot
+  // Assigning to multiple categories to make it discoverable
+  const categoryAssignments = [
+    { type: 'ROLE' as const, slug: 'founder' }, // Founders might be interested in strategy
+    { type: 'CHALLENGE' as const, slug: 'positioning' }, // Strategy relates to positioning
+    { type: 'STAGE' as const, slug: 'early_stage' }, // Early stage companies need strategy
+  ];
+
+  for (const cat of categoryAssignments) {
+    const category = await prisma.category.findUnique({
+      where: { type_slug: { type: cat.type, slug: cat.slug } },
+    });
+
+    if (category) {
+      await prisma.chatbot_Category.upsert({
+        where: {
+          chatbotId_categoryId: {
+            chatbotId: chatbot.id,
+            categoryId: category.id,
+          },
+        },
+        update: {},
+        create: {
+          chatbotId: chatbot.id,
+          categoryId: category.id,
+          relevanceScore: 0.8, // High relevance for Art of War
+        },
+      });
+    }
+  }
+
+  console.log(`✅ Assigned ${categoryAssignments.length} categories to chatbot`);
 
   console.log('\n🎉 Seed completed successfully!');
   console.log('\nSummary:');
