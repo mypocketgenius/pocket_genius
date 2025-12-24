@@ -62,10 +62,13 @@ async function main() {
   // Create creator
   const creator = await prisma.creator.upsert({
     where: { id: 'creator_sun_tzu' },
-    update: {},
+    update: {
+      slug: 'sun-tzu',
+    },
     create: {
       id: 'creator_sun_tzu',
       name: 'Sun Tzu',
+      slug: 'sun-tzu',
     },
   });
 
@@ -94,11 +97,26 @@ async function main() {
   // Create chatbot
   const chatbot = await prisma.chatbot.upsert({
     where: { id: 'chatbot_art_of_war' },
-    update: {},
+    update: {
+      slug: 'art-of-war',
+      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
+      isPublic: true,
+      allowAnonymous: true,
+      type: 'DEEP_DIVE',
+      priceCents: 0,
+      currency: 'USD',
+    },
     create: {
       id: 'chatbot_art_of_war',
       title: 'Art of War Deep Dive',
       creatorId: creator.id,
+      slug: 'art-of-war',
+      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
+      isPublic: true,
+      allowAnonymous: true,
+      type: 'DEEP_DIVE',
+      priceCents: 0,
+      currency: 'USD',
     },
   });
 
@@ -117,6 +135,33 @@ async function main() {
   });
 
   console.log('✅ Created source:', source.title);
+
+  // Phase 3.7.1: Seed initial categories
+  console.log('\n🌱 Seeding categories...');
+  const categories = [
+    // ROLE categories
+    { type: 'ROLE' as const, slug: 'founder', label: 'Founder' },
+    { type: 'ROLE' as const, slug: 'sales_leader', label: 'Sales Leader' },
+    { type: 'ROLE' as const, slug: 'product_manager', label: 'Product Manager' },
+    // CHALLENGE categories
+    { type: 'CHALLENGE' as const, slug: 'customer_acquisition', label: 'Customer Acquisition' },
+    { type: 'CHALLENGE' as const, slug: 'pricing', label: 'Pricing' },
+    { type: 'CHALLENGE' as const, slug: 'positioning', label: 'Positioning' },
+    // STAGE categories
+    { type: 'STAGE' as const, slug: 'early_stage', label: 'Early Stage' },
+    { type: 'STAGE' as const, slug: 'growth_stage', label: 'Growth Stage' },
+    { type: 'STAGE' as const, slug: 'scale_stage', label: 'Scale Stage' },
+  ];
+
+  for (const cat of categories) {
+    await prisma.category.upsert({
+      where: { type_slug: { type: cat.type, slug: cat.slug } },
+      update: {},
+      create: cat,
+    });
+  }
+
+  console.log(`✅ Seeded ${categories.length} categories`);
 
   console.log('\n🎉 Seed completed successfully!');
   console.log('\nSummary:');
