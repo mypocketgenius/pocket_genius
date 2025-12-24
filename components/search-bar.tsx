@@ -331,9 +331,25 @@ export function SearchBar({
           {desktopSearch}
         </div>
 
-        {/* Mobile: icon button in header */}
+        {/* Mobile: icon button in header (always show icon, not expanded input) */}
         <div className="md:hidden flex-shrink-0">
-          {mobileSearch}
+          {!isExpanded ? (
+            <button
+              onClick={() => setIsExpanded(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+              aria-label="Search"
+            >
+              <Search className="h-5 w-5 text-gray-600" />
+            </button>
+          ) : (
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+              aria-label="Close search"
+            >
+              <X className="h-5 w-5 text-gray-600" />
+            </button>
+          )}
         </div>
 
         {/* Mobile: expanded search bar below header */}
@@ -342,6 +358,7 @@ export function SearchBar({
             <div className="relative search-input-container">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input
+                ref={inputRef}
                 type="text"
                 placeholder={placeholder}
                 value={searchQuery}
