@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SearchBar } from '@/components/search-bar';
 
 interface ChunkMetadata {
   page?: number;
@@ -159,18 +160,27 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            aria-label="Go back"
-            title="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors flex-shrink-0"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </button>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+          </div>
+          
+          {/* Search bar */}
+          <SearchBar
+            navigateOnSearch={true}
+            variant="inline"
+          />
         </div>
         <p className="text-muted-foreground">{chatbotTitle}</p>
+        
       </div>
 
       {/* Error message */}

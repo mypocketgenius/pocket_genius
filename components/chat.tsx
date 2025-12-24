@@ -15,6 +15,7 @@ import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
+import { SearchBar } from '@/components/search-bar';
 
 interface Message {
   id: string;
@@ -715,10 +716,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }}
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               onClick={() => router.back()}
-              className="flex items-center justify-center w-8 h-8 rounded-full transition-colors opacity-80"
+              className="flex items-center justify-center w-8 h-8 rounded-full transition-colors opacity-80 flex-shrink-0"
               style={{
                 color: chromeTextColor,
               }}
@@ -737,7 +738,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             </button>
             <button
               onClick={handleSettings}
-              className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors opacity-80"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors opacity-80 flex-shrink-0"
               style={{
                 color: chromeTextColor,
               }}
@@ -756,13 +757,28 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
             </button>
           </div>
+          
+          {/* Search bar */}
+          <SearchBar
+            navigateOnSearch={true}
+            variant="inline"
+            inputStyle={{
+              backgroundColor: timeTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
+              borderColor: chromeColors.border,
+              color: chromeTextColor,
+            }}
+            inputClassName="opacity-80"
+          />
+          
           {/* Phase 4: Star rating in header */}
           {conversationId && (
-            <StarRating
-              chatbotId={chatbotId}
-              sessionId={conversationId}
-              messageCount={messages.filter(m => m.role === 'user').length}
-            />
+            <div className="flex-shrink-0">
+              <StarRating
+                chatbotId={chatbotId}
+                sessionId={conversationId}
+                messageCount={messages.filter(m => m.role === 'user').length}
+              />
+            </div>
           )}
         </div>
         {error && (

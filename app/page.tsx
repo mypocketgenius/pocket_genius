@@ -5,16 +5,16 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useAuth } from '@clerk/nextjs';
-import { Search, X, Loader2 } from 'lucide-react';
+import { useAuth } from '@clerk/nextjs';
+import { X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { useDebounce } from '@/lib/hooks/use-debounce';
+import { AppHeader } from '@/components/app-header';
 import Image from 'next/image';
 
 // Type definitions matching the API response format
@@ -105,6 +105,18 @@ function HomeContent() {
     (searchParams.getAll('type') as ChatbotType[]) || []
   );
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Sync searchQuery with URL params (only when URL changes, not when searchQuery changes)
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    setSearchQuery(prev => {
+      // Only update if URL search differs from current state
+      if (urlSearch !== prev) {
+        return urlSearch;
+      }
+      return prev;
+    });
+  }, [searchParams]);
 
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -306,31 +318,27 @@ function HomeContent() {
     );
   };
 
+  // Handle search change from header
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    // Update URL immediately
+    const params = new URLSearchParams(searchParams.toString());
+    if (query) {
+      params.set('search', query);
+    } else {
+      params.delete('search');
+    }
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
   return (
     <main className="min-h-screen bg-background">
-      {/* Header with auth */}
-      <header className="border-b bg-white sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Pocket Genius</h1>
-          <div className="flex gap-4 items-center">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="default" size="sm">
-                  Sign In
-                </Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button variant="secondary" size="sm">
-                  Sign Up
-                </Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-          </div>
-        </div>
-      </header>
+      {/* Header with search */}
+      <AppHeader
+        onSearchChange={handleSearchChange}
+        initialSearchQuery={searchQuery}
+        navigateOnSearch={false}
+      />
 
       <div className="container mx-auto px-4 py-8">
         {/* Hero Section */}
@@ -341,22 +349,10 @@ function HomeContent() {
           <p className="text-muted-foreground mb-6">
             Explore chatbots built on books, courses, and expert content
           </p>
-
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <Input
-              type="text"
-              placeholder="Search chatbots..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 h-12 text-lg"
-            />
-          </div>
         </div>
 
         {/* Filters Section */}
-        <div className="mb-8 space-y-4">
+        <div className="mb-8 space-y-4" suppressHydrationWarning>
           {/* Category Type Filters */}
           <div>
             <h3 className="text-sm font-medium mb-2">Filter by Category Type</h3>
@@ -402,6 +398,7 @@ function HomeContent() {
               value={selectedCreator}
               onChange={(e) => setSelectedCreator(e.target.value)}
               className="w-full md:w-64 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              suppressHydrationWarning
             >
               <option value="">All Creators</option>
               {creators.map(creator => (
@@ -422,6 +419,7 @@ function HomeContent() {
                     id={type}
                     checked={selectedTypes.includes(type)}
                     onCheckedChange={() => toggleType(type)}
+                    suppressHydrationWarning
                   />
                   <label
                     htmlFor={type}
@@ -645,28 +643,7 @@ export default function Home() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-background">
-          <header className="border-b bg-white sticky top-0 z-50">
-            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              <h1 className="text-2xl font-bold">Pocket Genius</h1>
-              <div className="flex gap-4 items-center">
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button variant="default" size="sm">
-                      Sign In
-                    </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
-                    <Button variant="secondary" size="sm">
-                      Sign Up
-                    </Button>
-                  </SignUpButton>
-                </SignedOut>
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
-              </div>
-            </div>
-          </header>
+          <AppHeader />
           <div className="container mx-auto px-4 py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {[...Array(12)].map((_, i) => (
