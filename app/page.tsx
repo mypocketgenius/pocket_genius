@@ -330,7 +330,7 @@ function HomeContent() {
             Your favorite expert, available 24/7
           </h2>
           <p className="text-muted-foreground mb-6">
-            AI trained on their complete work and personalised to your situation
+            AI trained on their complete work, and personalized to your situation.
           </p>
         </div>
 
