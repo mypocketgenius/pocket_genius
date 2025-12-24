@@ -327,10 +327,10 @@ function HomeContent() {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Your favorite thought leader, available 24/7
+            Your favorite expert, available 24/7
           </h2>
           <p className="text-muted-foreground mb-6">
-            AI that knows their frameworks, books, and methods inside-out—giving you personalized guidance exactly when you need it.
+            AI trained on their complete work and personalised to your situation
           </p>
         </div>
 
