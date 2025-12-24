@@ -215,6 +215,145 @@ prisma/
 
 ---
 
+#### Phase 3.7: User-Uploaded Context Files ❌ BETA
+
+**Estimated Time:** 4-5 days
+
+**Objective:** Allow users to upload files (PDFs, docs) to provide context for conversations
+
+**Why defer to Beta:** Advanced feature, not critical for Alpha validation
+
+**Prerequisites:**
+- ✅ File upload infrastructure exists
+- ✅ File model supports user-owned files
+- ✅ Chat API can accept file context
+
+**Tasks:**
+
+1. **Add Conversation_File model:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Conversation_File {
+     id                String   @id @default(cuid())
+     conversationId    String
+     conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+     fileId            String
+     file              File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+     
+     createdAt         DateTime @default(now())
+     
+     @@unique([conversationId, fileId])
+     @@index([conversationId])
+     @@index([fileId])
+   }
+   
+   // Update File model to support user-owned files (not just source files)
+   model File {
+     // ... existing fields ...
+     ownerUserId     String?  // NULL for source files, set for user files
+     owner           User?    @relation(fields: [ownerUserId], references: [id])
+     sourceId        String?  // NULL for user files
+     
+     conversationFiles Conversation_File[]
+   }
+   ```
+
+2. **Create file upload API:**
+
+   **`app/api/files/upload/route.ts`:**
+   ```typescript
+   // Handle user file uploads (PDFs, docs for context)
+   export async function POST(req: Request) {
+     const formData = await req.formData();
+     const file = formData.get('file') as File;
+     const userId = formData.get('userId') as string;
+     
+     // Upload to blob storage
+     const blobUrl = await uploadToBlob(file);
+     
+     // Create File record
+     const fileRecord = await prisma.file.create({
+       data: {
+         ownerUserId: userId,
+         creatorId: user.creatorId, // Or handle differently
+         fileName: file.name,
+         blobUrl,
+         mimeType: file.type,
+         sizeBytes: file.size,
+         status: 'READY', // User files don't need ingestion
+       },
+     });
+     
+     return Response.json({ fileId: fileRecord.id });
+   }
+   ```
+
+3. **Create file attachment UI:**
+
+   **`components/file-attachment.tsx`:**
+   ```typescript
+   'use client';
+   
+   export function FileAttachment({ conversationId }: { conversationId: string }) {
+     const [files, setFiles] = useState<File[]>([]);
+     
+     async function handleUpload(file: File) {
+       const formData = new FormData();
+       formData.append('file', file);
+       formData.append('userId', userId);
+       
+       const res = await fetch('/api/files/upload', {
+         method: 'POST',
+         body: formData,
+       });
+       
+       const { fileId } = await res.json();
+       
+       // Link to conversation
+       await fetch('/api/conversations/[conversationId]/files', {
+         method: 'POST',
+         body: JSON.stringify({ fileId }),
+       });
+     }
+     
+     return (
+       <div>
+         <input type="file" onChange={(e) => handleUpload(e.target.files[0])} />
+         {/* Display attached files */}
+       </div>
+     );
+   }
+   ```
+
+4. **Use file context in chat:**
+
+   **`app/api/chat/route.ts`:**
+   ```typescript
+   // Get conversation files
+   const conversationFiles = await prisma.conversation_File.findMany({
+     where: { conversationId },
+     include: { file: true },
+   });
+   
+   // Extract text from files (if needed)
+   // Add to system prompt or context
+   ```
+
+**Deliverables:**
+- ✅ Conversation_File model
+- ✅ File upload API for user files
+- ✅ File attachment UI component
+- ✅ File context used in chat responses
+
+**Testing Checkpoint:**
+- [ ] Users can upload files
+- [ ] Files linked to conversations
+- [ ] File context used in chat
+- [ ] File deletion handled correctly
+
+---
+
 ## Phase 4: Advanced Analytics & Intelligence (Weeks 13-14)
 
 **Estimated Time:** 2 weeks
@@ -474,6 +613,222 @@ prisma/
 - [ ] Question trends display correctly
 - [ ] No performance issues with large question sets
 - [ ] Integration tests passing
+
+---
+
+#### Phase 4.6: Audience Demographics Analytics ❌ BETA
+
+**Estimated Time:** 3-4 days
+
+**Objective:** Track and aggregate audience demographics for creator dashboards
+
+**Why defer to Beta:** Advanced analytics, not critical for Alpha validation
+
+**Prerequisites:**
+- ✅ Intake forms collecting user context (Phase 3.10 in Alpha)
+- ✅ User_Context model (if needed for intake forms)
+- ✅ Conversation data available
+
+**Tasks:**
+
+1. **Add Chatbot_Audience_Profile model:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Chatbot_Audience_Profile {
+     id                    String   @id @default(cuid())
+     chatbotId             String
+     chatbot               Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     
+     industries            Json     // { "b2b_saas": 45, "e_commerce": 30, ... }
+     roles                 Json     // { "founder": 60, "marketing_leader": 25, ... }
+     stages                Json     // { "early_stage": 55, "growth_stage": 30, ... }
+     
+     avgConversationLength Int
+     avgSessionDuration    Int      // Minutes
+     returnRate            Float    // 0.0-1.0
+     
+     commonGoals           Json     // { "customer_acquisition": 40, "pricing": 30, ... }
+     
+     month                 Int      // 1-12
+     year                  Int
+     
+     createdAt             DateTime @default(now())
+     updatedAt             DateTime @updatedAt
+     
+     @@unique([chatbotId, year, month])
+     @@index([chatbotId])
+   }
+   ```
+
+2. **Create audience aggregation job:**
+
+   **`app/api/jobs/aggregate-audience-profile/route.ts`:**
+   ```typescript
+   export async function POST(req: Request) {
+     const month = new Date().getMonth() + 1;
+     const year = new Date().getFullYear();
+     
+     const chatbots = await prisma.chatbot.findMany({
+       where: { isActive: true },
+     });
+     
+     for (const chatbot of chatbots) {
+       // Get conversations this month
+       const conversations = await prisma.conversation.findMany({
+         where: {
+           chatbotId: chatbot.id,
+           createdAt: {
+             gte: new Date(year, month - 1, 1),
+             lt: new Date(year, month, 1),
+           },
+         },
+         include: {
+           messages: true,
+           conversationFeedback: true,
+         },
+       });
+       
+       // Aggregate demographics from intake responses and user context
+       const industries: Record<string, number> = {};
+       const roles: Record<string, number> = {};
+       const stages: Record<string, number> = {};
+       const goals: Record<string, number> = {};
+       
+       let totalConversationLength = 0;
+       let totalSessionDuration = 0;
+       let returnUsers = new Set<string>();
+       
+       for (const conv of conversations) {
+         // Get user context/intake responses
+         const intakeResponses = await prisma.intake_Response.findMany({
+           where: {
+             userId: conv.userId || undefined,
+             chatbotId: chatbot.id,
+           },
+           include: { intakeQuestion: true },
+         });
+         
+         // Aggregate demographics
+         intakeResponses.forEach(response => {
+           if (response.intakeQuestion.slug === 'industry') {
+             const industry = response.value as string;
+             industries[industry] = (industries[industry] || 0) + 1;
+           }
+           // Similar for roles, stages, goals
+         });
+         
+         totalConversationLength += conv.messages.length;
+         // Calculate session duration from timestamps
+         
+         if (conv.userId) {
+           // Check if user has previous conversations (return user)
+           const previousConvs = await prisma.conversation.count({
+             where: {
+               userId: conv.userId,
+               chatbotId: chatbot.id,
+               createdAt: { lt: conv.createdAt },
+             },
+           });
+           if (previousConvs > 0) returnUsers.add(conv.userId);
+         }
+       }
+       
+       const returnRate = conversations.length > 0 
+         ? returnUsers.size / new Set(conversations.map(c => c.userId).filter(Boolean)).size 
+         : 0;
+       
+       await prisma.chatbot_Audience_Profile.upsert({
+         where: {
+           chatbotId_year_month: {
+             chatbotId: chatbot.id,
+             year,
+             month,
+           },
+         },
+         create: {
+           chatbotId: chatbot.id,
+           industries,
+           roles,
+           stages,
+           commonGoals: goals,
+           avgConversationLength: Math.round(totalConversationLength / conversations.length),
+           avgSessionDuration: Math.round(totalSessionDuration / conversations.length),
+           returnRate,
+           month,
+           year,
+         },
+         update: {
+           industries,
+           roles,
+           stages,
+           commonGoals: goals,
+           avgConversationLength: Math.round(totalConversationLength / conversations.length),
+           avgSessionDuration: Math.round(totalSessionDuration / conversations.length),
+           returnRate,
+         },
+       });
+     }
+     
+     return Response.json({ success: true });
+   }
+   ```
+
+3. **Add to Vercel cron:**
+
+   Update `vercel.json`:
+   ```json
+   {
+     "crons": [
+       {
+         "path": "/api/jobs/aggregate-audience-profile",
+         "schedule": "0 4 * * *"  // Daily at 4 AM UTC
+       }
+     ]
+   }
+   ```
+
+4. **Create audience profile dashboard component:**
+
+   **`components/dashboard/audience-profile.tsx`:**
+   ```typescript
+   export async function AudienceProfileView({ chatbotId }: { chatbotId: string }) {
+     const month = new Date().getMonth() + 1;
+     const year = new Date().getFullYear();
+     
+     const profile = await prisma.chatbot_Audience_Profile.findUnique({
+       where: {
+         chatbotId_year_month: {
+           chatbotId,
+           year,
+           month,
+         },
+       },
+     });
+     
+     if (!profile) return <div>No audience data yet</div>;
+     
+     return (
+       <div className="space-y-6">
+         <h2 className="text-2xl font-bold">Audience Demographics</h2>
+         {/* Display industries, roles, stages, goals */}
+       </div>
+     );
+   }
+   ```
+
+**Deliverables:**
+- ✅ Chatbot_Audience_Profile model
+- ✅ Audience aggregation job
+- ✅ Monthly demographics tracking
+- ✅ Dashboard component
+- ✅ Return rate calculation
+
+**Testing Checkpoint:**
+- [ ] Aggregation job runs successfully
+- [ ] Demographics calculated correctly
+- [ ] Dashboard displays data accurately
+- [ ] Return rate calculation correct
 
 ---
 
@@ -1610,25 +1965,82 @@ export default function PricingPage() {
 
 Add to `prisma/schema.prisma`:
 ```prisma
-model Revenue_Attribution {
-  id String @id @default(cuid())
-  subscriptionId String
-  sourceId String
-  creatorId String
+// Track source usage per conversation (needed for revenue attribution)
+model Conversation_Source_Usage {
+  id                String   @id @default(cuid())
+  conversationId    String
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sourceId          String
+  source            Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   
-  // Attribution
-  attributedAmount Int // in cents
-  usageCount Int // how many times this source was used
+  totalTokens       Int      // Aggregated from messages
+  messageCount       Int      // How many messages used this source
+  firstUsedAt       DateTime
+  lastUsedAt        DateTime
   
-  // Period
-  month Int
-  year Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  createdAt DateTime @default(now())
+  @@unique([conversationId, sourceId])
+  @@index([conversationId])
+  @@index([sourceId])
+}
+
+// Revenue attribution per conversation per source
+model Revenue_per_Conversation {
+  id                String   @id @default(cuid())
+  conversationId    String
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  purchaseId        String
+  purchase          Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   
-  @@index([subscriptionId])
-  @@index([sourceId, month, year])
-  @@index([creatorId, month, year])
+  sourceId          String
+  source            Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  
+  creatorId         String
+  creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  purchaserUserId   String
+  purchaser         User     @relation(fields: [purchaserUserId], references: [id], onDelete: Cascade)
+  
+  amountCents       Int
+  currency          String
+  tokenCount        Int
+  tokenPercentage   Float
+  
+  payoutStatus      PayoutStatus @default(PENDING)
+  payoutProcessor   PaymentProcessor?
+  externalTransferId String?
+  paidOutAt         DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([conversationId])
+  @@index([purchaseId])
+  @@index([sourceId])
+  @@index([creatorId])
+  @@index([payoutStatus])
+}
+
+// Monthly revenue aggregation for creator dashboards
+model Creator_Revenue_Summary {
+  id                String   @id @default(cuid())
+  creatorId         String
+  creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  month             Int      // 1-12
+  year              Int
+  
+  totalRevenueCents Int      // Total earned this month
+  creatorShareCents Int      // What creator received (after platform cut)
+  platformShareCents Int     // What platform kept
+  conversationCount Int      // How many conversations
+  
+  createdAt         DateTime @default(now())
+  
+  @@unique([creatorId, year, month])
+  @@index([creatorId])
 }
 
 model Creator_Payout {
@@ -1686,40 +2098,86 @@ export async function attributeRevenue() {
       },
     });
     
-    // Count source usage
-    const sourceUsage: Record<string, number> = {};
-    conversations.forEach(conv => {
-      conv.messages.forEach(msg => {
-        const context = msg.context as any;
-        const sourceIds = context?.chunks?.map((c: any) => c.sourceId) || [];
-        sourceIds.forEach((sourceId: string) => {
-          sourceUsage[sourceId] = (sourceUsage[sourceId] || 0) + 1;
-        });
-      });
+    // Use Conversation_Source_Usage for accurate tracking
+    const sourceUsages = await prisma.conversation_Source_Usage.findMany({
+      where: {
+        conversationId: { in: conversations.map(c => c.id) },
+      },
     });
     
-    // Attribute revenue proportionally
-    const totalUsage = Object.values(sourceUsage).reduce((a, b) => a + b, 0);
+    // Aggregate by source
+    const sourceUsage: Record<string, { tokens: number; count: number }> = {};
+    sourceUsages.forEach(usage => {
+      if (!sourceUsage[usage.sourceId]) {
+        sourceUsage[usage.sourceId] = { tokens: 0, count: 0 };
+      }
+      sourceUsage[usage.sourceId].tokens += usage.totalTokens;
+      sourceUsage[usage.sourceId].count += usage.messageCount;
+    });
+    
+    // Attribute revenue proportionally by token usage
+    const totalTokens = Object.values(sourceUsage).reduce((sum, usage) => sum + usage.tokens, 0);
     const subscriptionRevenue = getSubscriptionAmount(sub.stripePriceId);
     
-    for (const [sourceId, count] of Object.entries(sourceUsage)) {
-      const attributedAmount = Math.floor(
-        (count / totalUsage) * subscriptionRevenue
-      );
+    for (const [sourceId, usage] of Object.entries(sourceUsage)) {
+      const tokenPercentage = usage.tokens / totalTokens;
+      const attributedAmount = Math.floor(tokenPercentage * subscriptionRevenue);
       
       const source = await prisma.source.findUnique({
         where: { id: sourceId },
       });
       
-      await prisma.revenue_Attribution.create({
-        data: {
-          subscriptionId: sub.id,
-          sourceId,
+      // Create Revenue_per_Conversation records (one per conversation that used this source)
+      const conversationsUsingSource = sourceUsages
+        .filter(su => su.sourceId === sourceId)
+        .map(su => su.conversationId);
+      
+      for (const convId of conversationsUsingSource) {
+        const purchase = await prisma.purchase.findFirst({
+          where: { conversations: { some: { id: convId } } },
+        });
+        
+        if (purchase) {
+          await prisma.revenue_per_Conversation.create({
+            data: {
+              conversationId: convId,
+              purchaseId: purchase.id,
+              sourceId,
+              creatorId: source!.creatorId,
+              purchaserUserId: sub.userId,
+              amountCents: Math.floor(attributedAmount / conversationsUsingSource.length),
+              currency: 'usd',
+              tokenCount: usage.tokens,
+              tokenPercentage,
+              payoutStatus: 'PENDING',
+            },
+          });
+        }
+      }
+      
+      // Update Creator_Revenue_Summary
+      await prisma.creator_Revenue_Summary.upsert({
+        where: {
+          creatorId_year_month: {
+            creatorId: source!.creatorId,
+            year,
+            month,
+          },
+        },
+        create: {
           creatorId: source!.creatorId,
-          attributedAmount,
-          usageCount: count,
-          month,
           year,
+          month,
+          totalRevenueCents: attributedAmount,
+          creatorShareCents: Math.floor(attributedAmount * 0.8), // 80% to creator
+          platformShareCents: Math.floor(attributedAmount * 0.2), // 20% to platform
+          conversationCount: conversationsUsingSource.length,
+        },
+        update: {
+          totalRevenueCents: { increment: attributedAmount },
+          creatorShareCents: { increment: Math.floor(attributedAmount * 0.8) },
+          platformShareCents: { increment: Math.floor(attributedAmount * 0.2) },
+          conversationCount: { increment: conversationsUsingSource.length },
         },
       });
     }
@@ -1844,6 +2302,44 @@ model Workspace_Invitation {
   
   @@index([workspaceId])
   @@index([token])
+}
+
+// Multi-creator source sharing (for collaborative content)
+model Source_Creator {
+  id            String   @id @default(cuid())
+  sourceId      String
+  source        Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  creatorId     String
+  creator       Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  addedByUserId String
+  addedBy       User     @relation(fields: [addedByUserId], references: [id])
+  
+  // Revenue share: 0.0-1.0, all shares for a source must sum to 1.0
+  revenueShare  Decimal? @db.Decimal(5, 4)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([sourceId, creatorId])
+  @@index([creatorId])
+  @@index([sourceId])
+}
+
+// Multi-creator chatbot ownership (for advisor boards, co-authored deep dives)
+model Chatbot_Creator {
+  id          String   @id @default(cuid())
+  chatbotId   String
+  chatbot     Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  role        ChatbotOwnerRole @default(CO_OWNER) // PRIMARY_OWNER | CO_OWNER | CONTRIBUTOR
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([chatbotId, creatorId])
+  @@index([chatbotId])
+  @@index([creatorId])
 }
 ```
 
@@ -2207,11 +2703,181 @@ export async function checkAndSendAlerts() {
 
 ---
 
-## Phase 7: Additional Documentation (Week 22)
+## Phase 7: Content Moderation & Documentation (Week 22)
 
 **Estimated Time:** 1 week
 
 ### **DEFER TO BETA**
+
+#### Phase 7.1: Content Reporting System ❌ BETA
+
+**Estimated Time:** 3-4 days
+
+**Objective:** Implement content reporting system for users to report incorrect/harmful content
+
+**Why defer to Beta:** Not critical for Alpha validation, needed for scale
+
+**Prerequisites:**
+- ✅ Message and Conversation models exist
+- ✅ Chatbot_Version model exists (for version tracking)
+
+**Tasks:**
+
+1. **Add Report model:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   enum ReportReason {
+     INCORRECT_INFORMATION
+     HALLUCINATION
+     INAPPROPRIATE_CONTENT
+     OFF_TOPIC
+     HARMFUL_CONTENT
+     COPYRIGHT_VIOLATION
+     OTHER
+   }
+   
+   enum ReportStatus {
+     PENDING
+     REVIEWED
+     RESOLVED
+     DISMISSED
+   }
+   
+   model Report {
+     id                String   @id @default(cuid())
+     reporterUserId    String
+     reporter          User     @relation(fields: [reporterUserId], references: [id], onDelete: Cascade)
+     chatbotId         String
+     chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     conversationId    String?
+     conversation      Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+     chatbotVersionId  String
+     chatbotVersion    Chatbot_Version @relation(fields: [chatbotVersionId], references: [id], onDelete: Cascade)
+     messageId         String?
+     message           Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+     description       String
+     reason            ReportReason
+     status            ReportStatus @default(PENDING)
+     
+     createdAt         DateTime @default(now())
+     updatedAt         DateTime @updatedAt
+     
+     @@index([chatbotId])
+     @@index([reporterUserId])
+     @@index([status])
+   }
+   ```
+
+2. **Create report API:**
+
+   **`app/api/reports/route.ts`:**
+   ```typescript
+   // POST /api/reports
+   export async function POST(req: Request) {
+     const { userId, chatbotId, conversationId, messageId, reason, description } = await req.json();
+     
+     const chatbot = await prisma.chatbot.findUnique({
+       where: { id: chatbotId },
+     });
+     
+     const report = await prisma.report.create({
+       data: {
+         reporterUserId: userId,
+         chatbotId,
+         conversationId,
+         messageId,
+         chatbotVersionId: chatbot!.currentVersionId!,
+         reason,
+         description,
+         status: 'PENDING',
+       },
+     });
+     
+     return Response.json({ report });
+   }
+   ```
+
+3. **Create report UI component:**
+
+   **`components/report-modal.tsx`:**
+   ```typescript
+   'use client';
+   
+   export function ReportModal({ messageId, chatbotId, onClose }: { 
+     messageId: string; 
+     chatbotId: string;
+     onClose: () => void;
+   }) {
+     const [reason, setReason] = useState<ReportReason>('OTHER');
+     const [description, setDescription] = useState('');
+     
+     async function handleSubmit() {
+       await fetch('/api/reports', {
+         method: 'POST',
+         body: JSON.stringify({
+           userId,
+           chatbotId,
+           messageId,
+           reason,
+           description,
+         }),
+       });
+       
+       onClose();
+     }
+     
+     return (
+       <Dialog open onOpenChange={onClose}>
+         <DialogContent>
+           <DialogHeader>
+             <DialogTitle>Report Content</DialogTitle>
+           </DialogHeader>
+           {/* Report form */}
+         </DialogContent>
+       </Dialog>
+     );
+   }
+   ```
+
+4. **Create admin review dashboard:**
+
+   **`app/admin/reports/page.tsx`:**
+   ```typescript
+   export default async function ReportsPage() {
+     const reports = await prisma.report.findMany({
+       where: { status: 'PENDING' },
+       include: {
+         chatbot: true,
+         message: true,
+         reporter: true,
+       },
+       orderBy: { createdAt: 'desc' },
+     });
+     
+     return (
+       <div>
+         <h1>Content Reports</h1>
+         {/* Display reports for review */}
+       </div>
+     );
+   }
+   ```
+
+**Deliverables:**
+- ✅ Report model with status tracking
+- ✅ Report API endpoint
+- ✅ Report UI component
+- ✅ Admin review dashboard
+- ✅ Report status management
+
+**Testing Checkpoint:**
+- [ ] Users can submit reports
+- [ ] Reports stored correctly
+- [ ] Admin dashboard displays reports
+- [ ] Status updates work correctly
+
+---
 
 #### Phase 7.3: Comprehensive Documentation (Full) ❌ BETA
 
@@ -2341,10 +3007,12 @@ export async function checkAndSendAlerts() {
 
 ### Additional Features
 - [ ] Phase 3.6: Embeddable Widget
+- [ ] Phase 3.7: User-Uploaded Context Files
 
 ### Advanced Analytics
 - [ ] Phase 4.4: Question Clustering
 - [ ] Phase 4.5: Advanced RAG Improvements
+- [ ] Phase 4.6: Audience Demographics Analytics
 
 ### Testing & Quality
 - [ ] Phase 5.1: Enhanced Seed Data
@@ -2358,10 +3026,10 @@ export async function checkAndSendAlerts() {
 ### Payments & Monetization
 - [ ] Phase 8.1: Stripe Integration
 - [ ] Phase 8.2: Paid Conversations
-- [ ] Phase 8.3: Revenue Attribution & Payouts
+- [ ] Phase 8.3: Revenue Attribution & Payouts (includes Conversation_Source_Usage, Revenue_per_Conversation, Creator_Revenue_Summary)
 
 ### Multi-User Workspaces
-- [ ] Phase 9.1: Team Workspace Creation
+- [ ] Phase 9.1: Team Workspace Creation (includes Source_Creator, Chatbot_Creator)
 - [ ] Phase 9.2: Role-Based Permissions
 - [ ] Phase 9.3: Multi-Seat Subscriptions
 
@@ -2370,7 +3038,8 @@ export async function checkAndSendAlerts() {
 - [ ] Phase 10.2: Analytics Digests
 - [ ] Phase 10.3: Alert Notifications
 
-### Documentation
+### Content Moderation & Documentation
+- [ ] Phase 7.1: Content Reporting System
 - [ ] Phase 7.3: Comprehensive Documentation (Full)
 
 **Total Beta Tasks:** 15 tasks

@@ -48,6 +48,10 @@ app/
 │   ├── feedback/
 │   │   ├── message/route.ts           # Enhanced for Phase 3.3-3.5
 │   │   └── conversation/route.ts       # NEW in Phase 3.5
+│   ├── intake/
+│   │   ├── questions/route.ts         # NEW in Phase 3.10
+│   │   └── responses/route.ts          # NEW in Phase 3.10
+│   ├── user-context/route.ts           # NEW in Phase 3.10
 │   ├── jobs/
 │   │   ├── attribute-sentiment/route.ts    # NEW in Phase 4.1
 │   │   ├── aggregate-source-performance/   # NEW in Phase 4.2
@@ -56,23 +60,30 @@ app/
 │   │       route.ts
 │   └── analysis/
 │       └── sentiment/route.ts          # NEW in Phase 4.1
+├── profile/
+│   └── page.tsx                        # NEW in Phase 3.10 (user context settings)
 │
 components/
 ├── feedback-modal.tsx                  # NEW in Phase 3.3
 ├── copy-feedback-modal.tsx             # NEW in Phase 3.4
 ├── conversation-feedback-modal.tsx     # NEW in Phase 3.5
+├── intake-form.tsx                     # NEW in Phase 3.10
+├── user-context-editor.tsx             # NEW in Phase 3.10
 └── dashboard/
     ├── format-preferences.tsx          # NEW in Phase 4.2
     ├── chunk-performance.tsx           # ENHANCED in Phase 4.2
     ├── source-performance.tsx          # NEW in Phase 4.2
-    └── content-gaps.tsx                # NEW in Phase 4.3
+    ├── content-gaps.tsx                # NEW in Phase 4.3
+    └── version-history.tsx            # NEW in Phase 3.9 (optional)
 
 lib/
-└── analysis/
-    └── sentiment.ts                    # NEW in Phase 4.1
+├── analysis/
+│   └── sentiment.ts                    # NEW in Phase 4.1
+└── chatbot/
+    └── versioning.ts                   # NEW in Phase 3.9
 
 prisma/
-└── schema.prisma                       # UPDATED: Message_Feedback (copyUsage, copyContext), Chunk_Performance (copyToUseNowCount), Source_Performance
+└── schema.prisma                       # UPDATED: Chatbot_Version, Intake_Question, Intake_Response, User_Context, Favorited_Chatbots, Message_Feedback (copyUsage, copyContext), Chunk_Performance (copyToUseNowCount), Source_Performance
 ```
 
 ---
@@ -209,6 +220,12 @@ prisma/
 **⚠️ IMPORTANT:** Complete Phase 0.1 before moving to any other features below.
 
 **✅ COMPLETED:** Phase 0.1 is complete. Feedback API now uses batched operations and responds in <500ms. All tests passing. Ready to proceed to Phase 3.
+
+**📝 NOTE:** After completing Phase 3.3 and 3.4 (Dec 18, 2025), a side quest was undertaken to migrate from modal-based feedback to pill-based feedback UX (see `Planning Docs/12-19_feedback_ux_update.md`). This migration:
+- Replaced the "Need More" modal (Phase 3.3) with expansion pills
+- Kept the copy feedback modal (Phase 3.4) per plan decision
+- Integrated Phase 3.5 conversation feedback into the star rating system instead of creating a separate modal
+- All functionality is working, but implemented differently than originally planned
 
 ---
 
@@ -379,7 +396,9 @@ prisma/
 - [x] Integration tests pass ✅
 - [x] Manual testing checklist complete ✅
 
-**Status:** ✅ **COMPLETE** - All deliverables implemented and tested
+**Status:** ✅ **COMPLETE** (Dec 18, 2025) - All deliverables implemented and tested
+
+**Note:** This modal was later replaced by expansion pills during the feedback UX update (Dec 19, 2025). See `Planning Docs/12-19_feedback_ux_update.md` for details.
 
 ---
 
@@ -444,212 +463,76 @@ prisma/
 - [x] Integration tests pass ✅
 - [x] Manual testing checklist complete ✅
 
-**Status:** ✅ **COMPLETE** - All deliverables implemented and tested
+**Status:** ✅ **COMPLETE** (Dec 18, 2025) - All deliverables implemented and tested
+
+**Note:** The copy feedback modal was kept during the feedback UX update (Dec 19, 2025) per plan decision. It remains functional and collects copy usage data.
 
 ---
 
-#### Phase 3.5: End-of-Conversation Survey ✅ ALPHA
+#### Phase 3.5: End-of-Conversation Survey ⚠️ PARTIALLY IMPLEMENTED (Different Approach)
 
-**Objective:** Show survey when user clicks copy button (not after inactivity)
+**Status:** ⚠️ **PARTIALLY IMPLEMENTED** - Functionality exists but implemented differently than originally planned
 
-**Why needed for Alpha:** Critical for understanding user satisfaction and improving content
+**What Actually Happened:**
+- **Original Plan:** Create separate `conversation-feedback-modal.tsx` component triggered by copy button click
+- **Actual Implementation:** Phase 3.5 functionality was absorbed into the `StarRating` component's follow-up modal during the feedback UX update side quest (Dec 19, 2025)
+- **Current State:** 
+  - ✅ Conversation feedback API route exists (`app/api/feedback/conversation/route.ts`)
+  - ✅ `Conversation_Feedback` table exists in schema
+  - ✅ Star rating component includes all Phase 3.5 questions in its follow-up modal:
+    - "What were you trying to accomplish?"
+    - "Did you get what you needed?" (Yes/Partially/No)
+    - "What's still missing?" (conditional)
+    - "How much time did this save you?" (NEW field added)
+  - ✅ Star rating is integrated into chat header (top-right)
+  - ❌ No separate conversation feedback modal triggered by copy button
+  - ❌ Survey not triggered by copy button click (triggered by star rating instead)
 
-**Prerequisites:**
-- ✅ Conversation_Feedback table exists in schema
-- ✅ Copy button implemented (Phase 3.4)
+**Side Quest: Feedback UX Update (Dec 19, 2025)**
+- After completing Phase 3.3 and 3.4, a side quest was undertaken to migrate from modal-based feedback to pill-based feedback UX
+- See `Planning Docs/12-19_feedback_ux_update.md` for full details
+- This migration replaced the "Need More" modal (Phase 3.3) with expansion pills
+- The copy feedback modal (Phase 3.4) was kept per plan decision
+- Phase 3.5's conversation feedback functionality was integrated into the star rating system instead of being a separate modal
 
-**Tasks:**
+**Original Plan (Not Implemented):**
 
 1. **Create conversation feedback modal:**
-
-   **`components/conversation-feedback-modal.tsx`:**
-   ```typescript
-   'use client';
-   
-   import { useState } from 'react';
-   import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-   import { Button } from './ui/button';
-   import { Textarea } from './ui/textarea';
-   import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-   
-   export function ConversationFeedbackModal({
-     open,
-     onClose,
-     conversationId,
-   }: {
-     open: boolean;
-     onClose: () => void;
-     conversationId: string;
-   }) {
-     const [goal, setGoal] = useState('');
-     const [achieved, setAchieved] = useState('');
-     const [stillNeed, setStillNeed] = useState('');
-     
-     async function handleSubmit() {
-       await fetch('/api/feedback/conversation', {
-         method: 'POST',
-         body: JSON.stringify({
-           conversationId,
-           userGoal: goal,
-           goalAchieved: achieved,
-           stillNeed: stillNeed,
-         }),
-       });
-       
-       onClose();
-     }
-     
-     return (
-       <Dialog open={open} onOpenChange={onClose}>
-         <DialogContent className="max-w-md">
-           <DialogHeader>
-             <DialogTitle>Quick feedback (30 seconds)</DialogTitle>
-           </DialogHeader>
-           
-           <div className="space-y-4">
-             <div>
-               <label className="text-sm font-medium block mb-2">
-                 1. What were you trying to accomplish?
-               </label>
-               <Textarea
-                 value={goal}
-                 onChange={(e) => setGoal(e.target.value)}
-                 placeholder="I wanted to learn..."
-                 rows={2}
-               />
-             </div>
-             
-             <div>
-               <label className="text-sm font-medium block mb-2">
-                 2. Did you get what you needed?
-               </label>
-               <RadioGroup value={achieved} onValueChange={setAchieved}>
-                 <div className="flex items-center space-x-2">
-                   <RadioGroupItem value="yes" id="yes" />
-                   <label htmlFor="yes">Yes, completely</label>
-                 </div>
-                 <div className="flex items-center space-x-2">
-                   <RadioGroupItem value="partially" id="partially" />
-                   <label htmlFor="partially">Partially</label>
-                 </div>
-                 <div className="flex items-center space-x-2">
-                   <RadioGroupItem value="no" id="no" />
-                   <label htmlFor="no">No, still need help</label>
-                 </div>
-               </RadioGroup>
-             </div>
-             
-             {(achieved === 'partially' || achieved === 'no') && (
-               <div>
-                 <label className="text-sm font-medium block mb-2">
-                   3. What's still missing?
-                 </label>
-                 <Textarea
-                   value={stillNeed}
-                   onChange={(e) => setStillNeed(e.target.value)}
-                   placeholder="I still need..."
-                   rows={2}
-                 />
-               </div>
-             )}
-             
-             <div className="bg-blue-50 p-3 rounded">
-               <p className="text-sm text-blue-900">
-                 Get 10 bonus questions as thanks for your feedback! 🎁
-               </p>
-             </div>
-             
-             <div className="flex gap-2">
-               <Button variant="outline" onClick={onClose} className="flex-1">
-                 Skip
-               </Button>
-               <Button onClick={handleSubmit} disabled={!goal || !achieved} className="flex-1">
-                 Submit
-               </Button>
-             </div>
-           </div>
-         </DialogContent>
-       </Dialog>
-     );
-   }
-   ```
+   - Planned: `components/conversation-feedback-modal.tsx`
+   - Status: ❌ Never created
 
 2. **Integrate survey trigger into copy button:**
-
-   Update `components/chat.tsx` copy handler (from Phase 3.4):
-   ```typescript
-   import { ConversationFeedbackModal } from './conversation-feedback-modal';
-   
-   const [showConversationFeedback, setShowConversationFeedback] = useState(false);
-   
-   async function handleCopy(messageId: string, content: string) {
-     await navigator.clipboard.writeText(content);
-     
-     // Track copy event
-     await fetch('/api/feedback/message', {
-       method: 'POST',
-       body: JSON.stringify({
-         messageId,
-         feedbackType: 'copy',
-       }),
-     });
-     
-     // Show conversation feedback modal after copy
-     // Only show if conversation has 3+ messages (meaningful conversation)
-     if (messages.length >= 3) {
-       setShowConversationFeedback(true);
-     }
-   }
-   
-   // Add modal to component
-   <ConversationFeedbackModal
-     open={showConversationFeedback}
-     onClose={() => setShowConversationFeedback(false)}
-     conversationId={conversationId!}
-   />
-   ```
+   - Planned: Show modal after copy button click (if 3+ messages)
+   - Status: ❌ Not implemented
 
 3. **Create conversation feedback API:**
+   - Planned: `app/api/feedback/conversation/route.ts`
+   - Status: ✅ Created (but as part of feedback UX update, not Phase 3.5)
 
-   **`app/api/feedback/conversation/route.ts`:**
-   ```typescript
-   import { auth } from '@clerk/nextjs';
-   import { prisma } from '@/lib/prisma';
-   
-   export async function POST(request: Request) {
-     const { userId } = auth();
-     const { conversationId, rating, userGoal, goalAchieved, stillNeed } = await request.json();
-     
-     await prisma.conversation_Feedback.create({
-       data: {
-         conversationId,
-         userId: userId || undefined,
-         rating,
-         userGoal,
-         goalAchieved,
-         stillNeed,
-       },
-     });
-     
-     return Response.json({ success: true });
-   }
-   ```
+**Current Implementation:**
+- Conversation feedback is collected via the `StarRating` component's follow-up modal
+- Users click a star rating (1-5) → follow-up modal appears with all Phase 3.5 questions
+- Data is stored in `Conversation_Feedback` table via `/api/feedback/conversation` route
+- Star rating is displayed in chat header (top-right corner)
 
 **Deliverables:**
-- ✅ End-of-conversation survey modal
-- ✅ Triggered on copy button click (not inactivity)
-- ✅ Only shows for meaningful conversations (3+ messages)
-- ✅ Bonus questions incentive
-- ✅ Conversation_Feedback stored
+- ✅ Conversation feedback functionality (via star rating modal)
+- ✅ Conversation_Feedback API route
+- ✅ All Phase 3.5 questions included in star rating follow-up
+- ❌ Not triggered by copy button (triggered by star rating instead)
+- ❌ No separate conversation feedback modal component
+
+**Note:** The original Phase 3.5 plan (copy-button-triggered survey) was not implemented. Instead, conversation feedback was integrated into the star rating system. This achieves the same goal (collecting conversation-level feedback) but through a different UX flow.
 
 **Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+- [x] Star rating follow-up modal works ✅
+- [x] Conversation feedback API works ✅
+- [x] Data stored in Conversation_Feedback table ✅
+- [ ] Original copy-button trigger (not implemented)
 
 ---
 
-#### Phase 3.7: UI/UX Improvements ✅ ALPHA (Subset)
+#### Phase 3.7: UI/UX Improvements ⚠️ PARTIALLY COMPLETE
 
 **Objective:** Polish homepage, chat interface, and dashboard screens
 
@@ -659,44 +542,1006 @@ prisma/
 - ✅ MVP functionality working
 - ✅ Basic UI components in place
 
+**Status:** ⚠️ **PARTIALLY COMPLETE** - Chat interface is polished, homepage needs Amazon-style redesign
+
+**What's Been Completed:**
+
+1. **Chat interface polish:** ✅ **COMPLETE**
+   - ✅ Time-of-day adaptive themes (sky gradients with 8 periods)
+   - ✅ Theme settings modal (cycle, dark-cycle, light-cycle, custom period)
+   - ✅ Glassmorphism message bubbles with adaptive contrast
+   - ✅ Typography: Inter (body) + Lora (headings) configured
+   - ✅ Loading animations for streaming (bouncing dots)
+   - ✅ Error states with user-friendly messages
+   - ✅ Copy/Save buttons with feedback modals
+   - ✅ Source attribution integrated
+   - ✅ Pills system for feedback/expansion/suggestions
+   - ✅ Star rating component in header
+   - ✅ Responsive design (mobile-optimized)
+   - ✅ Smooth transitions and animations
+
+2. **Dashboard enhancements (basic):** ✅ **COMPLETE**
+   - ✅ Modern card layouts (shadcn/ui components)
+   - ✅ Improved color scheme and spacing
+   - ✅ Loading skeletons
+   - ✅ Empty states with helpful messages
+   - ✅ Responsive tables/lists
+   - ✅ Sort controls and pagination
+
+**What's Missing:**
+
+1. **Homepage improvements:** ❌ **NOT STARTED** (needs Amazon-style redesign)
+
+---
+
+### Phase 3.7.1: Database Schema Migration for Homepage
+
+**Objective:** Add required fields and models to support public chatbot browsing
+
+**Prerequisites:**
+- ✅ Existing `schema.prisma` with MVP models
+- ✅ `Chatbot_Ratings_Aggregate` model exists
+- ✅ `Creator` model exists
+
 **Tasks:**
 
-1. **Homepage improvements:**
-   - Modern hero section with value proposition
-   - Featured chatbots showcase
-   - Clear CTAs (Sign up, Try demo)
-   - Responsive design for mobile
+1. **Add ChatbotType enum:**
+   ```prisma
+   enum ChatbotType {
+     CREATOR
+     FRAMEWORK
+     DEEP_DIVE
+     ADVISOR_BOARD
+   }
+   ```
 
-2. **Chat interface polish:**
-   - Better message styling (rounded corners, shadows)
-   - Improved typography and spacing
-   - Loading animations for streaming
-   - Better error states
-   - Message timestamps
-   - Copy/regenerate buttons
+2. **Add CategoryType enum:**
+   ```prisma
+   enum CategoryType {
+     ROLE      // sales_leader, founder, product_manager
+     CHALLENGE // customer_acquisition, pricing, positioning
+     STAGE     // early_stage, growth_stage, scale_stage
+   }
+   ```
 
-3. **Dashboard enhancements (basic):**
-   - Modern card layouts
-   - Improved color scheme and spacing
-   - Loading skeletons
-   - Empty states with helpful messages
-   - Responsive tables/lists
+3. **Update Chatbot model** - Add fields:
+   ```prisma
+   model Chatbot {
+     // ... existing fields ...
+     slug              String      @unique
+     description       String?
+     isPublic          Boolean     @default(false)
+     allowAnonymous    Boolean     @default(false)
+     type              ChatbotType
+     priceCents        Int         @default(0)
+     currency          String      @default("USD")
+     
+     // ... existing relations ...
+     categories        Chatbot_Category[]
+     favoritedBy       Favorited_Chatbots[]
+     
+     @@index([slug])
+     @@index([isPublic])
+     @@index([isActive])
+     @@index([type])
+   }
+   ```
+
+4. **Add Category model:**
+   ```prisma
+   model Category {
+     id        String   @id @default(cuid())
+     type      CategoryType
+     label     String
+     slug      String
+     icon      String?
+     color     String?
+     
+     chatbots  Chatbot_Category[]
+     
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     
+     @@unique([type, slug])
+     @@index([type])
+   }
+   ```
+
+5. **Add Chatbot_Category junction table:**
+   ```prisma
+   model Chatbot_Category {
+     id              String   @id @default(cuid())
+     chatbotId       String
+     chatbot         Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     categoryId      String
+     category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+     relevanceScore  Float?
+     
+     createdAt       DateTime @default(now())
+     
+     @@unique([chatbotId, categoryId])
+     @@index([categoryId])
+     @@index([chatbotId])
+   }
+   ```
+
+6. **Add Favorited_Chatbots model:**
+   ```prisma
+   model Favorited_Chatbots {
+     id                String   @id @default(cuid())
+     userId            String
+     user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+     chatbotId         String
+     chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     
+     createdAt         DateTime @default(now())
+     
+     @@unique([userId, chatbotId])
+     @@index([userId])
+     @@index([chatbotId])
+   }
+   ```
+
+7. **Update User model** - Add relation:
+   ```prisma
+   model User {
+     // ... existing fields ...
+     favoritedChatbots Favorited_Chatbots[]
+   }
+   ```
+
+8. **Update Creator model** - Add fields if missing:
+   ```prisma
+   model Creator {
+     // ... existing fields ...
+     slug          String   @unique
+     avatarUrl     String?
+     bio           String?
+     socialLinks   Json?    // { website, linkedin, x, facebook, tiktok, masterclass, youtube }
+   }
+   ```
+
+9. **Create and apply migration:**
+   
+   **Step 9a: Verify Database Sync (IMPORTANT)**
+   - Before creating new migrations, verify dev and prod are in sync:
+     ```bash
+     # Check dev database
+     npx tsx scripts/check-migration-status.ts
+     
+     # Check prod database (set prod DATABASE_URL temporarily)
+     DATABASE_URL="your-production-url" npx tsx scripts/check-migration-status.ts
+     ```
+   - Both databases should have the same migrations applied
+   - If prod is behind, apply missing migrations first:
+     ```bash
+     export DATABASE_URL="your-production-url"
+     npx prisma migrate deploy
+     ```
+   
+   **Step 9b: Update Development Database (Local)**
+   - Ensure your `.env.local` points to your **development Neon branch**
+   - Run migration locally (creates migration files + applies to dev DB):
+     ```bash
+     npx prisma migrate dev --name add_homepage_fields
+     npx prisma generate
+     ```
+   - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+   
+   **Step 9c: Commit Migration Files**
+   - Commit the new migration files to git:
+     ```bash
+     git add prisma/migrations/
+     git commit -m "Add homepage fields migration"
+     ```
+   
+   **Step 9d: Deploy to Production (Vercel)**
+   - Push to your repository and deploy to Vercel
+   - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+   - This applies the migration to your **production Neon database**
+   
+   **Note:** This workflow ensures:
+   - Dev and prod are verified to be in sync before adding new migrations
+   - Development database is updated first (for testing)
+   - Migration files are version-controlled
+   - Production database is updated automatically on deployment via Vercel
+
+10. **Update existing Art of War chatbot:**
+    - Set `isPublic: true`
+    - Set `allowAnonymous: true`
+    - Set `type: DEEP_DIVE`
+    - Set `priceCents: 0`
+    - Set `currency: "USD"`
+    - Generate `slug` from title (e.g., "art-of-war")
+    - Add `description` if available
+
+11. **Seed initial categories:**
+    **Use seed script** (add to `prisma/seed.ts` or create `prisma/seed-categories.ts`):
+    ```typescript
+    // Add to prisma/seed.ts or create separate seed-categories.ts
+    async function seedCategories() {
+      const categories = [
+        // ROLE categories
+        { type: 'ROLE', slug: 'founder', label: 'Founder' },
+        { type: 'ROLE', slug: 'sales_leader', label: 'Sales Leader' },
+        { type: 'ROLE', slug: 'product_manager', label: 'Product Manager' },
+        // CHALLENGE categories
+        { type: 'CHALLENGE', slug: 'customer_acquisition', label: 'Customer Acquisition' },
+        { type: 'CHALLENGE', slug: 'pricing', label: 'Pricing' },
+        { type: 'CHALLENGE', slug: 'positioning', label: 'Positioning' },
+        // STAGE categories
+        { type: 'STAGE', slug: 'early_stage', label: 'Early Stage' },
+        { type: 'STAGE', slug: 'growth_stage', label: 'Growth Stage' },
+        { type: 'STAGE', slug: 'scale_stage', label: 'Scale Stage' },
+      ];
+      
+      for (const cat of categories) {
+        await prisma.category.upsert({
+          where: { type_slug: { type: cat.type, slug: cat.slug } },
+          update: {},
+          create: cat,
+        });
+      }
+    }
+    ```
+    Run: `npm run seed` (or `npx prisma db seed` if using separate file)
+
+**Acceptance Criteria:**
+- ✅ Migration runs successfully
+- ✅ All new fields queryable
+- ✅ Enums defined correctly
+- ✅ Indexes created
+- ✅ Existing chatbot updated with new fields
+- ✅ Categories seeded
+
+**Deliverables:**
+- ✅ Updated `schema.prisma` with all required fields
+- ✅ Migration file created
+- ✅ Existing chatbot updated
+- ✅ Categories seeded
+
+---
+
+### Phase 3.7.2: Public Chatbots API Endpoint
+
+**Objective:** Create API endpoint to fetch public chatbots with filtering, search, and pagination
+
+**Prerequisites:**
+- ✅ Phase 3.7.1 complete (schema migration)
+- ✅ Categories seeded
+
+**Tasks:**
+
+1. **Create API route:** `app/api/chatbots/public/route.ts`
+
+2. **Endpoint:** `GET /api/chatbots/public`
+
+3. **Query Parameters:**
+   - `page` (number, default: 1) - Page number (1-indexed)
+   - `pageSize` (number, default: 20) - Items per page
+   - `category` (string, optional) - Category ID to filter by
+   - `categoryType` (string, optional) - CategoryType enum (ROLE, CHALLENGE, STAGE)
+   - `creator` (string, optional) - Creator ID to filter by
+   - `type` (string, optional) - ChatbotType enum (CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)
+   - `search` (string, optional) - Search query (searches title, description, creator name)
+
+4. **Response Format:**
+   ```typescript
+   {
+     chatbots: [
+       {
+         id: string;
+         slug: string;
+         title: string;
+         description: string | null;
+         type: ChatbotType;
+         priceCents: number;
+         currency: string;
+         allowAnonymous: boolean;
+         createdAt: string;
+         creator: {
+           id: string;
+           slug: string;
+           name: string;
+           avatarUrl: string | null;
+         };
+         rating: {
+           averageRating: number | null;  // Decimal as number
+           ratingCount: number;
+         } | null;
+         categories: Array<{
+           id: string;
+           type: CategoryType;
+           label: string;
+           slug: string;
+         }>;
+         favoriteCount: number;  // Aggregated count
+       }
+     ];
+     pagination: {
+       page: number;
+       pageSize: number;
+       totalPages: number;
+       totalItems: number;
+     };
+   }
+   ```
+
+5. **Filter Logic:**
+   - Base filter: `WHERE isPublic = true AND isActive = true`
+   - If `category` provided: Join `Chatbot_Category` and filter by `categoryId`
+   - If `categoryType` provided: Join `Chatbot_Category` → `Category` and filter by `type`
+   - If `creator` provided: Filter by `creatorId`
+   - If `type` provided: Filter by `type` enum
+   - If `search` provided: `WHERE (title ILIKE '%search%' OR description ILIKE '%search%' OR creator.name ILIKE '%search%')`
+
+6. **Pagination:**
+   - Calculate `totalItems` with same filters (without LIMIT/OFFSET)
+   - Calculate `totalPages = Math.ceil(totalItems / pageSize)`
+   - Use `LIMIT pageSize OFFSET (page - 1) * pageSize`
+
+7. **Include Relations:**
+   - `creator` (select: id, slug, name, avatarUrl)
+   - `ratingsAggregate` (Chatbot_Ratings_Aggregate - select: averageRating, ratingCount)
+     - **Note:** `averageRating` is `Decimal` type - convert to `number` using `Number(averageRating)` or `averageRating.toNumber()`
+   - `categories` (via Chatbot_Category → Category - select: id, type, label, slug)
+   - **Favorite Count:** Use Prisma aggregation in query:
+     ```typescript
+     // In the query, use _count for efficient aggregation
+     include: {
+       _count: {
+         select: { favoritedBy: true }
+       }
+     }
+     // Then access as: chatbot._count.favoritedBy
+     ```
+
+8. **Error Handling:**
+   - Invalid query params → 400 with error message
+   - Database errors → 500 with generic error message
+   - No chatbots found → 200 with empty array
+
+9. **No Authentication Required:**
+   - Endpoint is public (no auth check)
+
+**Acceptance Criteria:**
+- ✅ Returns paginated results
+- ✅ Filters work correctly (category, creator, type, search)
+- ✅ Search works on title, description, creator name
+- ✅ Includes creator info, ratings, categories, favorite count
+- ✅ Pagination metadata correct
+- ✅ Handles empty results gracefully
+- ✅ Error handling works
+
+**Deliverables:**
+- ✅ `app/api/chatbots/public/route.ts` created
+- ✅ All filters implemented
+- ✅ Pagination working
+- ✅ Response format matches spec
+
+**Testing:**
+- [ ] Returns chatbots when no filters
+- [ ] Category filter works
+- [ ] Creator filter works
+- [ ] Type filter works
+- [ ] Search works (title, description, creator)
+- [ ] Pagination works (page, pageSize)
+- [ ] Empty results handled correctly
+- [ ] Invalid params return 400
+- [ ] Includes all required fields
+
+---
+
+### Phase 3.7.3: Chatbot Detail Modal Component
+
+**Objective:** Create modal component that shows detailed chatbot information when card is clicked
+
+**Prerequisites:**
+- ✅ Phase 3.7.2 complete (API endpoint)
+
+**Tasks:**
+
+1. **Create component:** `components/chatbot-detail-modal.tsx`
+
+2. **Props Interface:**
+   ```typescript
+   interface ChatbotDetailModalProps {
+     chatbot: {
+       id: string;
+       slug: string;
+       title: string;
+       description: string | null;
+       type: ChatbotType;
+       priceCents: number;
+       currency: string;
+       allowAnonymous: boolean;
+       creator: {
+         id: string;
+         slug: string;
+         name: string;
+         avatarUrl: string | null;
+       };
+       rating: {
+         averageRating: number | null;
+         ratingCount: number;
+       } | null;
+       categories: Array<{
+         id: string;
+         type: CategoryType;
+         label: string;
+         slug: string;
+       }>;
+     };
+     open: boolean;
+     onClose: () => void;
+     onStartChat: (chatbotId: string) => void;
+   }
+   ```
+
+3. **Modal Content:**
+   - **Header:**
+     - Chatbot title (large)
+     - Chatbot type badge
+     - Close button (X)
+   - **Creator Section:**
+     - Creator avatar (or placeholder)
+     - Creator name (clickable link to `/creators/[creatorSlug]`)
+     - Creator bio (if available, truncated)
+   - **Description:**
+     - Full description (not truncated)
+   - **Categories:**
+     - List of category badges (grouped by CategoryType: ROLE, CHALLENGE, STAGE)
+   - **Rating Section:**
+     - Average rating (stars display)
+     - Rating count (e.g., "4.5 (123 reviews)")
+     - **Rating Distribution:** Display if `ratingDistribution` JSON exists from `Chatbot_Ratings_Aggregate`
+       - Show as horizontal bars or percentage breakdown: "5★: 60% (75)", "4★: 25% (31)", etc.
+       - Format: Parse JSON `{"1": 5, "2": 10, "3": 25, "4": 31, "5": 75}` and display visually
+     - Link to "See all reviews" (scrolls to reviews section in modal, or link to full reviews page if exists)
+   - **Reviews List:**
+     - Fetch reviews from `Conversation_Feedback` model (via separate API call)
+     - **Reviews API Endpoint:** `GET /api/chatbots/[chatbotId]/reviews`
+       - Query params: `page` (default: 1), `pageSize` (default: 5), `sort` (default: "recent")
+       - Response: `{ reviews: Array<{ id, userId, userName, rating, comment, timeSaved, createdAt }>, pagination: {...} }`
+       - **Note:** `comment` comes from `userGoal` or `stillNeed` fields in `Conversation_Feedback`
+       - **Note:** `timeSaved` comes from `timeSaved` field (string: "5 minutes", "30 minutes", etc.)
+       - For anonymous users (`userId === null`): Show "Anonymous" as userName
+       - Sort options: "recent" (createdAt DESC), "rating_high" (rating DESC), "rating_low" (rating ASC)
+     - Display: user name (or "Anonymous"), rating (stars), comment (from userGoal/stillNeed), timeSaved, createdAt
+     - Limit to 5 most recent reviews initially
+     - "Load more reviews" button (if >5) - fetches next page
+   - **Pricing Section:**
+     - If `priceCents === 0`: Show "Free" badge
+     - If `priceCents > 0`: Show formatted price (e.g., "$9.99")
+     - Show `allowAnonymous` status ("Anonymous users allowed" or "Login required")
+   - **Actions:**
+     - "Start Chat" button (primary CTA)
+       - If `priceCents === 0` AND `allowAnonymous === true`: Navigate directly to `/chat/[chatbotId]`
+       - If `priceCents === 0` AND `allowAnonymous === false`: Check auth, redirect to login if needed, then navigate
+       - If `priceCents > 0`: **Show disabled button with tooltip** "Payment coming soon" (defer payment flow to Beta)
+     - Favorite button (heart icon) - if user is authenticated
+
+4. **Data Fetching:**
+   - Reviews fetched separately via `GET /api/chatbots/[chatbotId]/reviews` (create this endpoint)
+   - Show loading skeleton while fetching reviews
+   - Handle errors gracefully
+
+5. **Styling:**
+   - Use shadcn/ui Dialog component
+   - Responsive (full screen on mobile, centered modal on desktop)
+   - Scrollable content area
+   - Smooth animations
+
+**Acceptance Criteria:**
+- ✅ Modal opens/closes correctly
+- ✅ All chatbot info displayed
+- ✅ Creator link works
+- ✅ Reviews load and display
+- ✅ "Start Chat" button works correctly
+- ✅ Favorite button works (if authenticated)
+- ✅ Responsive design
+- ✅ Loading states shown
+
+**Deliverables:**
+- ✅ `components/chatbot-detail-modal.tsx` created
+- ✅ Reviews API endpoint created (`/api/chatbots/[chatbotId]/reviews`)
+- ✅ Modal integrated into chatbot cards
+
+**Testing:**
+- [ ] Modal opens on card click
+- [ ] All information displays correctly
+- [ ] Creator link navigates correctly
+- [ ] Reviews load and display
+- [ ] "Start Chat" works (free + anonymous)
+- [ ] "Start Chat" redirects to login (if required)
+- [ ] Favorite button toggles correctly
+- [ ] Modal closes on X click
+- [ ] Modal closes on backdrop click
+- [ ] Responsive on mobile
+
+---
+
+### Phase 3.7.4: Homepage Component with Grid Layout
+
+**Objective:** Create Amazon-style homepage with categorized chatbot grids
+
+**Prerequisites:**
+- ✅ Phase 3.7.2 complete (API endpoint)
+- ✅ Phase 3.7.3 complete (Detail modal)
+
+**Tasks:**
+
+1. **Update homepage:** `app/page.tsx`
+
+2. **Page Structure:**
+   - **Hero Section** (small):
+     - Title: "Chat with AI-powered knowledge"
+     - Subtitle: "Explore chatbots built on books, courses, and expert content"
+     - Search bar (prominent)
+   - **Filters Section:**
+     - Category filter chips (ROLE, CHALLENGE, STAGE) - show active categories
+     - Creator filter (searchable dropdown/combobox)
+     - Chatbot type filter (checkboxes: CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)
+     - Active filters display (chips showing current filters)
+     - "Clear all filters" button
+   - **Categorized Grids:**
+     - For each CategoryType (ROLE, CHALLENGE, STAGE):
+       - Section heading (e.g., "By Role", "By Challenge", "By Stage")
+       - Grid of chatbots in that category
+       - "See all" link (if >6 chatbots)
+     - If no category filters active: Show "All Chatbots" grid
+     - If category filters active: Show filtered results in single grid
+   - **Pagination:**
+     - **Use "Load More" button** (loads next page, appends to current results)
+     - Button shows "Load More" or "Loading..." state
+     - Button disabled when no more pages available
+
+3. **Grid Layout:**
+   - **Mobile:** 2 columns
+   - **Tablet:** 4 columns
+   - **Desktop:** 6+ columns (responsive)
+   - Use CSS Grid with `grid-template-columns: repeat(auto-fill, minmax(250px, 1fr))`
+
+4. **Chatbot Card Component:** `components/chatbot-card.tsx`
+   - **Props:**
+     ```typescript
+     interface ChatbotCardProps {
+       chatbot: {
+         id: string;
+         slug: string;
+         title: string;
+         description: string | null;
+         type: ChatbotType;
+         priceCents: number;
+         currency: string;
+         allowAnonymous: boolean;
+         creator: { name: string; slug: string; avatarUrl: string | null };
+         rating: { averageRating: number | null; ratingCount: number } | null;
+         categories: Array<{ label: string; type: CategoryType }>;
+         favoriteCount: number;  // Note: Display in detail modal, not on card
+       };
+       onCardClick: (chatbot: ChatbotCardProps['chatbot']) => void;
+       isFavorite?: boolean;
+       onFavoriteToggle?: (chatbotId: string, isFavorite: boolean) => void;
+     }
+     ```
+   - **Card Content:**
+     - Image placeholder (or creator avatar)
+     - Title (truncated to 2 lines)
+     - Description (truncated to ~100 chars with "...")
+     - Creator name (clickable, links to `/creators/[creatorSlug]`)
+     - Chatbot type badge
+     - Rating display (stars + count, or "No ratings yet")
+     - Price indicator ("Free" or formatted price)
+     - Favorite button (heart icon, top-right corner) - only if authenticated
+     - **Note:** `favoriteCount` is available but not displayed on card (shown in detail modal instead)
+     - Hover effect (slight elevation/shadow)
+
+5. **Search Functionality:**
+   - Debounced search (300ms delay using `useDebouncedCallback` or custom hook)
+   - Updates URL query params using Next.js `useSearchParams` and `useRouter`
+   - Format: `?search=query&category=id&type=TYPE&page=1`
+   - Triggers API call with search param
+   - Shows loading indicator while searching
+   - Shows "No results" message if empty
+
+6. **Filter Functionality:**
+   - Filters update URL query params using `useSearchParams` and `useRouter`
+   - Format: `?category=id&categoryType=TYPE&creator=id&type=TYPE`
+   - API call triggered on filter change (debounced 300ms)
+   - Active filters shown as removable chips
+   - "Clear all" resets URL params and fetches default results
+
+7. **Data Fetching:**
+   - **Use native `fetch` with React state** (`useState`, `useEffect`)
+   - **No React Query/SWR** - keep it simple for Alpha
+   - Fetch on mount with current URL params (from `useSearchParams`)
+   - Refetch on filter/search change (debounced)
+   - Show skeleton loaders while loading
+   - Store results in state, append on "Load More"
+
+8. **Empty States:**
+   - No chatbots: "You've reached the end" message
+   - No search results: "No chatbots found matching your search"
+   - No filter results: "No chatbots match your filters"
+
+9. **Error Handling:**
+   - Show error message: "Unable to load chatbots. Please try again."
+   - Retry button
+   - Log errors to console/Sentry
+
+**Acceptance Criteria:**
+- ✅ Homepage loads without login
+- ✅ Hero section displays
+- ✅ Search works (debounced)
+- ✅ Filters work (category, creator, type)
+- ✅ Grids display correctly (categorized or filtered)
+- ✅ Cards display all required info
+- ✅ Cards clickable → opens modal
+- ✅ Creator links work
+- ✅ Favorite button works (if authenticated)
+- ✅ Pagination works ("Load More")
+- ✅ Responsive design (2/4/6+ cols)
+- ✅ Loading states shown
+- ✅ Empty states shown
+- ✅ Error handling works
+
+**Deliverables:**
+- ✅ Updated `app/page.tsx`
+- ✅ `components/chatbot-card.tsx` created
+- ✅ Search functionality
+- ✅ Filter functionality
+- ✅ Categorized grids
+- ✅ Responsive layout
+
+**Testing:**
+- [ ] Homepage loads without login
+- [ ] Search works
+- [ ] Category filters work
+- [ ] Creator filter works
+- [ ] Type filter works
+- [ ] Cards display correctly
+- [ ] Card click opens modal
+- [ ] Creator links navigate
+- [ ] Favorite button works
+- [ ] Pagination works
+- [ ] Responsive on mobile/tablet/desktop
+- [ ] Loading states show
+- [ ] Empty states show
+- [ ] Error handling works
+
+---
+
+### Phase 3.7.5: Creator Pages
+
+**Objective:** Create creator profile pages showing their chatbots
+
+**Prerequisites:**
+- ✅ Phase 3.7.4 complete (Homepage)
+
+**Tasks:**
+
+1. **Create page:** `app/creators/[creatorSlug]/page.tsx`
+
+2. **Page Structure:**
+   - **Creator Header:**
+     - Creator avatar (large)
+     - Creator name
+     - Creator bio (if available)
+     - Social links (if available) - icons for website, LinkedIn, X, etc.
+   - **Creator's Chatbots Grid:**
+     - Heading: "Chatbots by [Creator Name]"
+     - Grid of chatbots (same card component as homepage)
+     - Filter by chatbot type (optional)
+     - Pagination if >20 chatbots
+
+3. **Data Fetching:**
+   - Fetch creator by slug: `GET /api/creators/[creatorSlug]`
+   - **Reuse `/api/chatbots/public` endpoint** with `creator` query param (don't duplicate)
+   - Show loading skeletons while fetching
+
+4. **API Endpoint:** `app/api/creators/[creatorSlug]/route.ts`
+   - **Returns creator info only:** `{ id, slug, name, avatarUrl, bio, socialLinks }`
+   - **Note:** Chatbots fetched separately via `/api/chatbots/public?creator=[creatorId]`
+   - **Social Links Format:** JSON object `{ website?: string, linkedin?: string, x?: string, facebook?: string, tiktok?: string, masterclass?: string, youtube?: string }`
+   - **Social Links Display:** Render as clickable icons/links with:
+     - `rel="nofollow noopener noreferrer"` for external links
+     - `target="_blank"` to open in new tab
+     - Icons from `lucide-react` (Globe, Linkedin, Twitter, Facebook, etc.)
+
+5. **Error Handling:**
+   - Creator not found → 404 page
+   - No chatbots → Show "No chatbots yet" message
+
+6. **Navigation:**
+   - Creator name links from chatbot cards → `/creators/[creatorSlug]`
+   - Breadcrumb: Home > Creators > [Creator Name]
+
+**Acceptance Criteria:**
+- ✅ Creator page loads correctly
+- ✅ Creator info displays (name, avatar, bio, social links)
+- ✅ Creator's chatbots display in grid
+- ✅ Chatbot cards work (click → modal)
+- ✅ Links from homepage work
+- ✅ 404 handled for invalid slugs
+
+**Deliverables:**
+- ✅ `app/creators/[creatorSlug]/page.tsx` created
+- ✅ `app/api/creators/[creatorSlug]/route.ts` created
+- ✅ Creator links integrated into cards
+
+**Testing:**
+- [ ] Creator page loads
+- [ ] Creator info displays correctly
+- [ ] Chatbots grid displays
+- [ ] Links from homepage work
+- [ ] Invalid slug shows 404
+- [ ] Social links work (if available)
+
+---
+
+### Phase 3.7.6: Favorites System
+
+**Objective:** Allow users to favorite chatbots and view their favorites
+
+**Prerequisites:**
+- ✅ Phase 3.7.4 complete (Homepage)
+- ✅ User authentication working
+
+**Tasks:**
+
+1. **API Endpoints:**
+
+   **Toggle Favorite:** `POST /api/favorites/[chatbotId]`
+   - **Authentication:** Use Clerk `auth()` pattern (same as other endpoints)
+     ```typescript
+     const { userId: clerkUserId } = await auth();
+     if (!clerkUserId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+     // Look up DB user, then toggle favorite
+     ```
+   - Toggles favorite status (create if not exists, delete if exists)
+   - Returns: `{ isFavorite: boolean }`
+   - **Error Format:** `{ error: string }` (consistent with other endpoints)
+
+   **Get User Favorites:** `GET /api/favorites`
+   - **Authentication:** Get userId from auth (not query param)
+     ```typescript
+     const { userId: clerkUserId } = await auth();
+     if (!clerkUserId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+     ```
+   - **Returns:** Full chatbot objects (same format as `/api/chatbots/public` response)
+     - Response: `{ chatbots: Array<ChatbotObject>, pagination: {...} }`
+     - **Rationale:** Consistency with homepage API, includes all needed data
+
+2. **Update Chatbot Cards:**
+   - Add favorite button (heart icon)
+   - Show filled heart if favorited, outline if not
+   - Toggle on click (optimistic update)
+   - Show loading state while toggling
+   - **Optimistic Update Rollback:** If API call fails, revert UI state and show error toast
+     ```typescript
+     // Pseudo-code:
+     const [isFavorite, setIsFavorite] = useState(originalValue);
+     const handleToggle = async () => {
+       const previousValue = isFavorite;
+       setIsFavorite(!isFavorite); // Optimistic update
+       try {
+         await toggleFavorite(chatbotId);
+       } catch (error) {
+         setIsFavorite(previousValue); // Rollback on error
+         toast.error('Failed to update favorite');
+       }
+     };
+     ```
+
+3. **Favorites Page:** `app/favorites/page.tsx`
+   - Requires authentication (redirect to login if not authenticated)
+   - Shows grid of favorited chatbots (reuse `chatbot-card.tsx` component)
+   - Empty state: "You haven't favorited any chatbots yet"
+   - Link in navigation/header (if navigation exists)
+
+4. **Update Homepage API (`/api/chatbots/public`):**
+   - **Accept optional authentication** (check auth but don't require it)
+   - **If user authenticated:** Include `isFavorite: boolean` field in each chatbot object
+   - **If user not authenticated:** Omit `isFavorite` field
+   - Calculate based on `Favorited_Chatbots` table:
+     ```typescript
+     // In query, if userId exists:
+     include: {
+       favoritedBy: {
+         where: { userId: dbUserId },
+         select: { id: true }
+       }
+     }
+     // Then: isFavorite: chatbot.favoritedBy.length > 0
+     ```
+
+**Acceptance Criteria:**
+- ✅ Favorite button toggles correctly
+- ✅ Favorites persist across sessions
+- ✅ Favorites page shows favorited chatbots
+- ✅ Optimistic updates work
+- ✅ Requires authentication
+
+**Deliverables:**
+- ✅ `app/api/favorites/[chatbotId]/route.ts` created
+- ✅ `app/api/favorites/route.ts` created
+- ✅ `app/favorites/page.tsx` created
+- ✅ Favorite button integrated into cards
+- ✅ Homepage API includes `isFavorite` field
+
+**Testing:**
+- [ ] Favorite button toggles
+- [ ] Favorites persist
+- [ ] Favorites page shows correct chatbots
+- [ ] Requires authentication
+- [ ] Optimistic updates work
+- [ ] Rollback works on API failure
+
+---
+
+### Cross-Cutting Clarifications for Phase 3.7
+
+**1. Authentication Pattern:**
+   - **All authenticated endpoints** follow this pattern:
+     ```typescript
+     import { auth } from '@clerk/nextjs/server';
+     
+     const { userId: clerkUserId } = await auth();
+     if (!clerkUserId) {
+       return NextResponse.json(
+         { error: 'Authentication required' },
+         { status: 401 }
+       );
+     }
+     
+     // Look up DB user
+     const user = await prisma.user.findUnique({
+       where: { clerkId: clerkUserId },
+       select: { id: true },
+     });
+     
+     if (!user) {
+       return NextResponse.json(
+         { error: 'User not found' },
+         { status: 404 }
+       );
+     }
+     ```
+   - **Optional auth endpoints** (like `/api/chatbots/public`):
+     - Check auth but don't require it
+     - If authenticated, include additional fields (e.g., `isFavorite`)
+     - If not authenticated, omit those fields
+
+**2. Error Handling Consistency:**
+   - **All API endpoints** use consistent error format:
+     ```typescript
+     // Success: Return data object
+     return NextResponse.json({ chatbots: [...], pagination: {...} });
+     
+     // Error: Return { error: string } with appropriate status code
+     return NextResponse.json(
+       { error: 'Descriptive error message' },
+       { status: 400 | 401 | 404 | 500 }
+     );
+     ```
+   - **Status Codes:**
+     - `400`: Bad request (invalid params, validation errors)
+     - `401`: Unauthorized (authentication required)
+     - `404`: Not found (resource doesn't exist)
+     - `500`: Server error (database errors, unexpected errors)
+   - **Client-side error handling:**
+     - Show user-friendly messages
+     - Log errors to console/Sentry
+     - Provide retry mechanisms where appropriate
+
+**3. TypeScript Types:**
+   - **Create shared types file:** `lib/types/homepage.ts`
+   - **Define all interfaces there:**
+     ```typescript
+     // lib/types/homepage.ts
+     export type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+     export type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+     
+     export interface ChatbotCardData {
+       id: string;
+       slug: string;
+       title: string;
+       description: string | null;
+       type: ChatbotType;
+       // ... etc
+     }
+     
+     export interface PublicChatbotsResponse {
+       chatbots: ChatbotCardData[];
+       pagination: {
+         page: number;
+         pageSize: number;
+         totalPages: number;
+         totalItems: number;
+       };
+     }
+     ```
+   - **Import in components/API routes:**
+     ```typescript
+     import type { ChatbotCardData, PublicChatbotsResponse } from '@/lib/types/homepage';
+     ```
+   - **Rationale:** Single source of truth, easier to maintain, type safety across codebase
+
+**4. API Response Format Standard:**
+   - **Paginated responses:**
+     ```typescript
+     {
+       [dataKey]: T[];  // e.g., chatbots, reviews, etc.
+       pagination: {
+         page: number;
+         pageSize: number;
+         totalPages: number;
+         totalItems: number;
+       };
+     }
+     ```
+   - **Single resource responses:**
+     ```typescript
+     {
+       [resourceKey]: T;  // e.g., creator, chatbot, etc.
+     }
+     ```
+   - **Error responses:**
+     ```typescript
+     {
+       error: string;
+     }
+     ```
+
+---
+
+**Phase 3.7 Summary:**
+
+**Sub-Phases:**
+- ✅ Phase 3.7.1: Database Schema Migration
+- ✅ Phase 3.7.2: Public Chatbots API Endpoint
+- ✅ Phase 3.7.3: Chatbot Detail Modal Component
+- ✅ Phase 3.7.4: Homepage Component with Grid Layout
+- ✅ Phase 3.7.5: Creator Pages
+- ✅ Phase 3.7.6: Favorites System
 
 **Defer to Beta:**
 - Advanced dashboard visualizations (Recharts)
-- Creator-specific UI elements
+- Advanced filtering (price range, date range, etc.)
+- Payment flow for paid chatbots
+- Reviews page (full reviews list)
 
-**Deliverables:**
-- ✅ Polished homepage
-- ✅ Enhanced chat interface
-- ✅ Basic dashboard UI improvements
-- ✅ Responsive design
-- ✅ Better UX throughout
+**Overall Acceptance Criteria:**
+- ✅ Homepage loads public chatbots without login
+- ✅ Search works (title, description, creator)
+- ✅ Filters work (category, creator, type)
+- ✅ Chatbot cards display correctly
+- ✅ Detail modal works
+- ✅ Creator pages work
+- ✅ Favorites system works
+- ✅ Responsive design works
+- ✅ All tests pass
 
-**Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+**Schema Items Planning Status:**
+
+The following models/features from `database_schema.md` have been assigned to Alpha or Beta:
+
+**Alpha (This Document):**
+- ✅ **Chatbot_Version** - Versioning system (Phase 3.9) - Needed for tracking prompt changes during rapid testing
+- ✅ **Intake_Question / Intake_Response** - User intake forms (Phase 3.10) - Critical for personalization
+- ✅ **User_Context** - User context storage (Phase 3.10) - Editable via profile settings, synced from intake forms
+- ✅ **Favorited_Chatbots** - User favorites system (Phase 3.7) - Needed for homepage browsing
+
+**Beta (See `beta_build.md`):**
+- **Source_Creator** - Multi-creator source sharing (Phase 9) - Multi-creator collaboration
+- **Chatbot_Creator** - Multi-creator chatbot ownership (Phase 9) - Multi-creator collaboration
+- **Conversation_File** - User-uploaded context files (Phase 3) - Advanced user context
+- **Report** - Content reporting system (Phase 7) - Content moderation
+- **Chatbot_Audience_Profile** - Audience demographics (Phase 4) - Advanced analytics
+- **Conversation_Source_Usage** - Source usage tracking (Phase 8) - Revenue attribution
+- **Creator_Revenue_Summary** - Revenue aggregation (Phase 8) - Revenue dashboards
+- **Revenue_per_Conversation** - Revenue attribution (Phase 8) - Revenue tracking
 
 ---
 
@@ -782,6 +1627,928 @@ prisma/
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Manual testing checklist complete
+
+---
+
+#### Phase 3.9: Chatbot Versioning System ✅ ALPHA
+
+**Objective:** Implement versioning system to track chatbot configuration changes
+
+**Why needed for Alpha:** Critical for tracking prompt changes during rapid testing and iteration
+
+**Prerequisites:**
+- ✅ Chatbot model exists
+- ✅ Need to track system prompt, config, and RAG settings changes
+
+**Tasks:**
+
+1. **Add Chatbot_Version model to schema:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Chatbot_Version {
+     id                String   @id @default(cuid())
+     chatbotId         String
+     chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     versionNumber     Int
+     title             String
+     description       String?
+     systemPrompt      String
+     modelProvider     String
+     modelName         String
+     pineconeNs        String
+     vectorNamespace   String
+     configJson        Json?
+     ragSettingsJson   Json?
+     ingestionRunIds   String[]
+     allowAnonymous    Boolean  @default(false)
+     priceCents        Int
+     currency          String
+     type              ChatbotType
+     notes             String?
+     changelog         String?
+     createdByUserId   String
+     createdBy         User     @relation("ChatbotVersionCreator", fields: [createdByUserId], references: [id])
+     
+     activatedAt       DateTime?   // When it became current
+     deactivatedAt     DateTime?   // When it was replaced
+     
+     createdAt         DateTime @default(now())
+     updatedAt         DateTime @updatedAt
+     
+     conversations     Conversation[]
+     
+     @@unique([chatbotId, versionNumber])
+     @@index([chatbotId])
+     @@index([activatedAt])
+   }
+   
+   // Update Chatbot model
+   model Chatbot {
+     // ... existing fields ...
+     currentVersionId  String?
+     currentVersion    Chatbot_Version? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+     versions          Chatbot_Version[]
+   }
+   ```
+
+   **Run migration:**
+   
+   **Step 1a: Update Development Database (Local)**
+   - Ensure your `.env.local` points to your **development Neon branch**
+   - Run migration locally (creates migration files + applies to dev DB):
+     ```bash
+     npx prisma migrate dev --name add_chatbot_versioning
+     npx prisma generate
+     ```
+   - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+   
+   **Step 1b: Commit Migration Files**
+   - Commit the new migration files to git:
+     ```bash
+     git add prisma/migrations/
+     git commit -m "Add chatbot versioning migration"
+     ```
+   
+   **Step 1c: Deploy to Production (Vercel)**
+   - Push to your repository and deploy to Vercel
+   - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+   - This applies the migration to your **production Neon database**
+
+2. **Create version creation utility:**
+
+   **`lib/chatbot/versioning.ts`:**
+   ```typescript
+   import { prisma } from '@/lib/prisma';
+   
+   export async function createChatbotVersion(
+     chatbotId: string,
+     userId: string,
+     changes: {
+       systemPrompt?: string;
+       configJson?: any;
+       ragSettingsJson?: any;
+       notes?: string;
+       changelog?: string;
+     }
+   ) {
+     const chatbot = await prisma.chatbot.findUnique({
+       where: { id: chatbotId },
+       include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } },
+     });
+     
+     if (!chatbot) throw new Error('Chatbot not found');
+     
+     const nextVersionNumber = chatbot.versions[0]?.versionNumber 
+       ? chatbot.versions[0].versionNumber + 1 
+       : 1;
+     
+     // Deactivate current version
+     if (chatbot.currentVersionId) {
+       await prisma.chatbot_Version.update({
+         where: { id: chatbot.currentVersionId },
+         data: { deactivatedAt: new Date() },
+       });
+     }
+     
+     // Create new version
+     const newVersion = await prisma.chatbot_Version.create({
+       data: {
+         chatbotId,
+         versionNumber: nextVersionNumber,
+         title: chatbot.title,
+         description: chatbot.description,
+         systemPrompt: changes.systemPrompt || chatbot.systemPrompt,
+         modelProvider: chatbot.modelProvider,
+         modelName: chatbot.modelName,
+         pineconeNs: chatbot.pineconeNs,
+         vectorNamespace: chatbot.vectorNamespace,
+         configJson: changes.configJson || chatbot.configJson,
+         ragSettingsJson: changes.ragSettingsJson || chatbot.ragSettingsJson,
+         ingestionRunIds: chatbot.ingestionRunIds || [],
+         allowAnonymous: chatbot.allowAnonymous,
+         priceCents: chatbot.priceCents,
+         currency: chatbot.currency,
+         type: chatbot.type,
+         notes: changes.notes,
+         changelog: changes.changelog,
+         createdByUserId: userId,
+         activatedAt: new Date(),
+       },
+     });
+     
+     // Update chatbot to point to new version
+     await prisma.chatbot.update({
+       where: { id: chatbotId },
+       data: { currentVersionId: newVersion.id },
+     });
+     
+     return newVersion;
+   }
+   ```
+
+3. **Update chatbot update API to create versions:**
+
+   **`app/api/chatbots/[chatbotId]/route.ts`:**
+   ```typescript
+   // When updating chatbot config, create new version
+   if (req.method === 'PATCH') {
+     const { systemPrompt, configJson, ragSettingsJson, notes, changelog } = await req.json();
+     
+     await createChatbotVersion(chatbotId, userId, {
+       systemPrompt,
+       configJson,
+       ragSettingsJson,
+       notes,
+       changelog,
+     });
+     
+     // Update chatbot fields that aren't versioned
+     await prisma.chatbot.update({
+       where: { id: chatbotId },
+       data: { /* non-versioned fields */ },
+     });
+   }
+   ```
+
+4. **Update Conversation model to reference version:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Conversation {
+     // ... existing fields ...
+     chatbotVersionId   String
+     chatbotVersion      Chatbot_Version @relation(fields: [chatbotVersionId], references: [id])
+   }
+   ```
+
+5. **Create version history view (optional for Alpha):**
+
+   **`components/dashboard/version-history.tsx`:**
+   ```typescript
+   export async function VersionHistory({ chatbotId }: { chatbotId: string }) {
+     const versions = await prisma.chatbot_Version.findMany({
+       where: { chatbotId },
+       orderBy: { versionNumber: 'desc' },
+       include: { createdBy: { select: { firstName: true, lastName: true } } },
+     });
+     
+     return (
+       <div className="space-y-4">
+         {versions.map((version) => (
+           <Card key={version.id}>
+             <div className="flex justify-between">
+               <div>
+                 <h3>Version {version.versionNumber}</h3>
+                 <p className="text-sm text-gray-600">
+                   Created {version.createdAt.toLocaleDateString()}
+                 </p>
+                 {version.changelog && <p>{version.changelog}</p>}
+               </div>
+               {version.activatedAt && (
+                 <Badge>Current</Badge>
+               )}
+             </div>
+           </Card>
+         ))}
+       </div>
+     );
+   }
+   ```
+
+**Deliverables:**
+- ✅ Chatbot_Version model added to schema
+- ✅ Version creation utility
+- ✅ Automatic versioning on chatbot updates
+- ✅ Conversations reference chatbot versions
+- ✅ Version history tracking
+- ✅ Optional version history UI component
+
+**Testing:**
+- [ ] Creating chatbot creates version 1
+- [ ] Updating chatbot creates new version
+- [ ] Conversations reference correct version
+- [ ] Version history displays correctly
+- [ ] Can rollback to previous version (if implemented)
+
+---
+
+#### Phase 3.10: User Intake Forms ✅ ALPHA
+
+**Objective:** Implement intake forms to collect user context for personalization
+
+**Why needed for Alpha:** Critical for personalizing chatbot responses based on user context
+
+**Prerequisites:**
+- ✅ Chatbot model exists
+- ✅ User model exists
+- ✅ Need to collect user context (industry, role, goals, etc.)
+
+**Tasks:**
+
+1. **Add Intake_Question, Intake_Response, and User_Context models to schema:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   enum IntakeResponseType {
+     TEXT
+     NUMBER
+     SELECT
+     MULTI_SELECT
+     FILE
+     DATE
+     BOOLEAN
+   }
+   
+   enum ContextSource {
+     USER_PROVIDED
+     INFERRED
+     INTAKE_FORM
+     PLATFORM_SYNC
+   }
+   
+   model Intake_Question {
+     id                String   @id @default(cuid())
+     chatbotId         String
+     chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     slug              String
+     questionText      String
+     helperText        String?
+     responseType      IntakeResponseType
+     displayOrder      Int
+     isRequired        Boolean  @default(false)
+     
+     responses         Intake_Response[]
+     
+     createdAt         DateTime @default(now())
+     updatedAt         DateTime @updatedAt
+     
+     @@unique([chatbotId, slug])
+     @@index([chatbotId])
+   }
+   
+   model Intake_Response {
+     id                String   @id @default(cuid())
+     intakeQuestionId  String
+     intakeQuestion    Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
+     userId            String
+     user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+     chatbotId         String?
+     chatbot           Chatbot? @relation("IntakeResponseChatbot", fields: [chatbotId], references: [id], onDelete: Cascade)
+     fileId            String?
+     file              File?    @relation("IntakeResponseFile", fields: [fileId], references: [id], onDelete: Cascade)
+     value             Json
+     reusableAcrossFrameworks Boolean @default(false)
+     
+     createdAt         DateTime @default(now())
+     updatedAt         DateTime @updatedAt
+     
+     @@index([userId])
+     @@index([intakeQuestionId])
+   }
+   
+   // Flexible user context storage (editable via profile settings)
+   model User_Context {
+     id              String   @id @default(cuid())
+     userId          String
+     user            User     @relation("UserContext", fields: [userId], references: [id], onDelete: Cascade)
+     chatbotId       String?  // Null = global context (applies to all chatbots)
+     chatbot         Chatbot? @relation("ChatbotContext", fields: [chatbotId], references: [id], onDelete: Cascade)
+     
+     key             String   // e.g., 'industry', 'role', 'goals', 'company_size'
+     value           Json     // Flexible value storage
+     source          ContextSource @default(USER_PROVIDED)
+     confidence      Float?   // 0.0-1.0 for inferred context
+     
+     expiresAt       DateTime? // Optional expiration for temporary context
+     isVisible       Boolean  @default(true)  // User can see this in profile
+     isEditable      Boolean  @default(true)  // User can edit this in profile
+     
+     createdAt       DateTime @default(now())
+     updatedAt       DateTime @updatedAt
+     
+     @@unique([userId, chatbotId, key])
+     @@index([userId])
+     @@index([chatbotId])
+   }
+   ```
+
+   **Run migration:**
+   
+   **Step 1a: Update Development Database (Local)**
+   - Ensure your `.env.local` points to your **development Neon branch**
+   - Run migration locally (creates migration files + applies to dev DB):
+     ```bash
+     npx prisma migrate dev --name add_intake_forms
+     npx prisma generate
+     ```
+   - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+   
+   **Step 1b: Commit Migration Files**
+   - Commit the new migration files to git:
+     ```bash
+     git add prisma/migrations/
+     git commit -m "Add intake forms migration"
+     ```
+   
+   **Step 1c: Deploy to Production (Vercel)**
+   - Push to your repository and deploy to Vercel
+   - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+   - This applies the migration to your **production Neon database**
+
+2. **Create intake form API:**
+
+   **`app/api/intake/questions/route.ts`:**
+   ```typescript
+   // GET /api/intake/questions?chatbotId=xxx
+   export async function GET(request: Request) {
+     const { searchParams } = new URL(request.url);
+     const chatbotId = searchParams.get('chatbotId');
+     
+     const questions = await prisma.intake_Question.findMany({
+       where: { chatbotId: chatbotId! },
+       orderBy: { displayOrder: 'asc' },
+     });
+     
+     return Response.json({ questions });
+   }
+   
+   // POST /api/intake/questions
+   export async function POST(request: Request) {
+     const { chatbotId, slug, questionText, helperText, responseType, displayOrder, isRequired } = await request.json();
+     
+     const question = await prisma.intake_Question.create({
+       data: {
+         chatbotId,
+         slug,
+         questionText,
+         helperText,
+         responseType,
+         displayOrder,
+         isRequired,
+       },
+     });
+     
+     return Response.json({ question });
+   }
+   ```
+
+   **`app/api/intake/responses/route.ts`:**
+   ```typescript
+   // POST /api/intake/responses
+   export async function POST(request: Request) {
+     const { userId, intakeQuestionId, chatbotId, value, reusableAcrossFrameworks } = await request.json();
+     
+     const response = await prisma.intake_Response.create({
+       data: {
+         userId,
+         intakeQuestionId,
+         chatbotId,
+         value,
+         reusableAcrossFrameworks,
+       },
+     });
+     
+     return Response.json({ response });
+   }
+   ```
+
+3. **Create intake form component:**
+
+   **`components/intake-form.tsx`:**
+   ```typescript
+   'use client';
+   
+   import { useState, useEffect } from 'react';
+   import { Button } from './ui/button';
+   import { Input } from './ui/input';
+   import { Textarea } from './ui/textarea';
+   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+   import { Checkbox } from './ui/checkbox';
+   
+   interface IntakeQuestion {
+     id: string;
+     slug: string;
+     questionText: string;
+     helperText?: string;
+     responseType: 'TEXT' | 'NUMBER' | 'SELECT' | 'MULTI_SELECT' | 'FILE' | 'DATE' | 'BOOLEAN';
+     displayOrder: number;
+     isRequired: boolean;
+   }
+   
+   export function IntakeForm({ chatbotId, userId, onComplete }: { 
+     chatbotId: string; 
+     userId: string;
+     onComplete: () => void;
+   }) {
+     const [questions, setQuestions] = useState<IntakeQuestion[]>([]);
+     const [responses, setResponses] = useState<Record<string, any>>({});
+     const [loading, setLoading] = useState(true);
+     
+     useEffect(() => {
+       fetch(`/api/intake/questions?chatbotId=${chatbotId}`)
+         .then(res => res.json())
+         .then(data => {
+           setQuestions(data.questions);
+           setLoading(false);
+         });
+     }, [chatbotId]);
+     
+     async function handleSubmit() {
+       // Validate required fields
+       const missing = questions.filter(q => q.isRequired && !responses[q.id]);
+       if (missing.length > 0) {
+         alert(`Please answer: ${missing.map(q => q.questionText).join(', ')}`);
+         return;
+       }
+       
+       // Submit all responses
+       await Promise.all(
+         Object.entries(responses).map(([questionId, value]) =>
+           fetch('/api/intake/responses', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               userId,
+               intakeQuestionId: questionId,
+               chatbotId,
+               value,
+             }),
+           })
+         )
+       );
+       
+       onComplete();
+     }
+     
+     if (loading) return <div>Loading...</div>;
+     if (questions.length === 0) {
+       onComplete(); // No questions, skip form
+       return null;
+     }
+     
+     return (
+       <div className="space-y-6 p-6">
+         <h2 className="text-2xl font-bold">Tell us about yourself</h2>
+         <p className="text-gray-600">Help us personalize your experience</p>
+         
+         {questions.map((question) => (
+           <div key={question.id} className="space-y-2">
+             <label className="font-medium">
+               {question.questionText}
+               {question.isRequired && <span className="text-red-500">*</span>}
+             </label>
+             {question.helperText && (
+               <p className="text-sm text-gray-500">{question.helperText}</p>
+             )}
+             
+             {question.responseType === 'TEXT' && (
+               <Input
+                 value={responses[question.id] || ''}
+                 onChange={(e) => setResponses({ ...responses, [question.id]: e.target.value })}
+               />
+             )}
+             
+             {question.responseType === 'SELECT' && (
+               <Select
+                 value={responses[question.id]}
+                 onValueChange={(value) => setResponses({ ...responses, [question.id]: value })}
+               >
+                 <SelectTrigger>
+                   <SelectValue placeholder="Select..." />
+                 </SelectTrigger>
+                 <SelectContent>
+                   {/* Options would come from question metadata */}
+                 </SelectContent>
+               </Select>
+             )}
+             
+             {/* Add other response types as needed */}
+           </div>
+         ))}
+         
+         <Button onClick={handleSubmit} className="w-full">
+           Continue
+         </Button>
+       </div>
+     );
+   }
+   ```
+
+4. **Integrate intake form into chat flow:**
+
+   **`app/chat/[chatbotId]/page.tsx`:**
+   ```typescript
+   // Show intake form before first message if user hasn't completed it
+   const [showIntakeForm, setShowIntakeForm] = useState(false);
+   
+   useEffect(() => {
+     // Check if user has completed intake for this chatbot
+     checkIntakeCompletion(chatbotId, userId).then(completed => {
+       if (!completed) setShowIntakeForm(true);
+     });
+   }, [chatbotId, userId]);
+   
+   if (showIntakeForm) {
+     return (
+       <IntakeForm
+         chatbotId={chatbotId}
+         userId={userId}
+         onComplete={() => setShowIntakeForm(false)}
+       />
+     );
+   }
+   ```
+
+5. **Sync intake responses to User_Context:**
+
+   **`app/api/intake/responses/route.ts`:**
+   ```typescript
+   // After creating intake response, sync to User_Context
+   export async function POST(request: Request) {
+     const { userId, intakeQuestionId, chatbotId, value, reusableAcrossFrameworks } = await request.json();
+     
+     const question = await prisma.intake_Question.findUnique({
+       where: { id: intakeQuestionId },
+     });
+     
+     // Create intake response
+     const response = await prisma.intake_Response.create({
+       data: {
+         userId,
+         intakeQuestionId,
+         chatbotId,
+         value,
+         reusableAcrossFrameworks,
+       },
+     });
+     
+     // Sync to User_Context (global if reusable, chatbot-specific otherwise)
+     const targetChatbotId = reusableAcrossFrameworks ? null : chatbotId;
+     
+     await prisma.user_Context.upsert({
+       where: {
+         userId_chatbotId_key: {
+           userId,
+           chatbotId: targetChatbotId,
+           key: question.slug,
+         },
+       },
+       create: {
+         userId,
+         chatbotId: targetChatbotId,
+         key: question.slug,
+         value,
+         source: 'INTAKE_FORM',
+         isVisible: true,
+         isEditable: true,
+       },
+       update: {
+         value,
+         source: 'INTAKE_FORM',
+         updatedAt: new Date(),
+       },
+     });
+     
+     return Response.json({ response });
+   }
+   ```
+
+6. **Use User_Context in chat:**
+
+   **`app/api/chat/route.ts`:**
+   ```typescript
+   // Fetch user context (global + chatbot-specific)
+   const userContexts = await prisma.user_Context.findMany({
+     where: {
+       userId: user.id,
+       OR: [
+         { chatbotId: null }, // Global context
+         { chatbotId },        // Chatbot-specific context
+       ],
+       isVisible: true,
+     },
+   });
+   
+   // Build user context object
+   const userContext = userContexts.reduce((acc, ctx) => {
+     acc[ctx.key] = ctx.value;
+     return acc;
+   }, {} as Record<string, any>);
+   
+   // Include in system prompt or RAG query
+   const systemPrompt = `You are a helpful assistant. User context: ${JSON.stringify(userContext)}`;
+   ```
+
+7. **Create user profile settings page:**
+
+   **`app/profile/page.tsx`:**
+   ```typescript
+   import { auth } from '@clerk/nextjs/server';
+   import { prisma } from '@/lib/prisma';
+   import { UserContextEditor } from '@/components/user-context-editor';
+   
+   export default async function ProfilePage() {
+     const { userId: clerkId } = auth();
+     const user = await prisma.user.findUnique({
+       where: { clerkId },
+     });
+     
+     // Get all user context (global + chatbot-specific)
+     const userContexts = await prisma.user_Context.findMany({
+       where: {
+         userId: user.id,
+         isVisible: true,
+       },
+       include: {
+         chatbot: {
+           select: { title: true },
+         },
+       },
+       orderBy: [
+         { chatbotId: 'asc' }, // Global context first (null)
+         { key: 'asc' },
+       ],
+     });
+     
+     return (
+       <div className="container mx-auto py-8">
+         <h1 className="text-3xl font-bold mb-8">Profile Settings</h1>
+         <UserContextEditor contexts={userContexts} userId={user.id} />
+       </div>
+     );
+   }
+   ```
+
+8. **Create user context editor component:**
+
+   **`components/user-context-editor.tsx`:**
+   ```typescript
+   'use client';
+   
+   import { useState } from 'react';
+   import { Button } from './ui/button';
+   import { Input } from './ui/input';
+   import { Textarea } from './ui/textarea';
+   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+   import { Card } from './ui/card';
+   import { Badge } from './ui/badge';
+   
+   interface UserContext {
+     id: string;
+     key: string;
+     value: any;
+     chatbotId: string | null;
+     chatbot?: { title: string } | null;
+     source: string;
+     isEditable: boolean;
+   }
+   
+   export function UserContextEditor({ contexts, userId }: { contexts: UserContext[]; userId: string }) {
+     const [editing, setEditing] = useState<Record<string, any>>({});
+     
+     async function handleSave(contextId: string, newValue: any) {
+       await fetch('/api/user-context', {
+         method: 'PATCH',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           contextId,
+           value: newValue,
+         }),
+       });
+       
+       setEditing({ ...editing, [contextId]: false });
+       window.location.reload(); // Refresh to show updated values
+     }
+     
+     // Group by chatbot
+     const globalContexts = contexts.filter(c => !c.chatbotId);
+     const chatbotContexts = contexts.filter(c => c.chatbotId);
+     const byChatbot = chatbotContexts.reduce((acc, ctx) => {
+       const chatbotId = ctx.chatbotId!;
+       if (!acc[chatbotId]) acc[chatbotId] = [];
+       acc[chatbotId].push(ctx);
+       return acc;
+     }, {} as Record<string, UserContext[]>);
+     
+     return (
+       <div className="space-y-8">
+         {/* Global Context */}
+         <Card className="p-6">
+           <h2 className="text-xl font-semibold mb-4">Global Context</h2>
+           <p className="text-sm text-gray-600 mb-4">
+             This information applies to all chatbots
+           </p>
+           <div className="space-y-4">
+             {globalContexts.map((ctx) => (
+               <div key={ctx.id} className="flex items-center gap-4">
+                 <div className="w-32 font-medium capitalize">{ctx.key.replace(/_/g, ' ')}</div>
+                 {editing[ctx.id] ? (
+                   <div className="flex-1 flex gap-2">
+                     <Input
+                       value={editing[ctx.id]}
+                       onChange={(e) => setEditing({ ...editing, [ctx.id]: e.target.value })}
+                     />
+                     <Button size="sm" onClick={() => handleSave(ctx.id, editing[ctx.id])}>
+                       Save
+                     </Button>
+                     <Button size="sm" variant="ghost" onClick={() => setEditing({ ...editing, [ctx.id]: false })}>
+                       Cancel
+                     </Button>
+                   </div>
+                 ) : (
+                   <>
+                     <div className="flex-1">{JSON.stringify(ctx.value)}</div>
+                     {ctx.isEditable && (
+                       <Button size="sm" variant="outline" onClick={() => setEditing({ ...editing, [ctx.id]: ctx.value })}>
+                         Edit
+                       </Button>
+                     )}
+                     <Badge variant="secondary">{ctx.source}</Badge>
+                   </>
+                 )}
+               </div>
+             ))}
+           </div>
+         </Card>
+         
+         {/* Chatbot-Specific Context */}
+         {Object.entries(byChatbot).map(([chatbotId, ctxs]) => (
+           <Card key={chatbotId} className="p-6">
+             <h2 className="text-xl font-semibold mb-4">
+               {ctxs[0].chatbot?.title || 'Chatbot'} Context
+             </h2>
+             <div className="space-y-4">
+               {ctxs.map((ctx) => (
+                 <div key={ctx.id} className="flex items-center gap-4">
+                   <div className="w-32 font-medium capitalize">{ctx.key.replace(/_/g, ' ')}</div>
+                   {editing[ctx.id] ? (
+                     <div className="flex-1 flex gap-2">
+                       <Input
+                         value={editing[ctx.id]}
+                         onChange={(e) => setEditing({ ...editing, [ctx.id]: e.target.value })}
+                       />
+                       <Button size="sm" onClick={() => handleSave(ctx.id, editing[ctx.id])}>
+                         Save
+                       </Button>
+                       <Button size="sm" variant="ghost" onClick={() => setEditing({ ...editing, [ctx.id]: false })}>
+                         Cancel
+                       </Button>
+                     </div>
+                   ) : (
+                     <>
+                       <div className="flex-1">{JSON.stringify(ctx.value)}</div>
+                       {ctx.isEditable && (
+                         <Button size="sm" variant="outline" onClick={() => setEditing({ ...editing, [ctx.id]: ctx.value })}>
+                           Edit
+                         </Button>
+                       )}
+                       <Badge variant="secondary">{ctx.source}</Badge>
+                     </>
+                   )}
+                 </div>
+               ))}
+             </div>
+           </Card>
+         ))}
+       </div>
+     );
+   }
+   ```
+
+9. **Create user context API:**
+
+   **`app/api/user-context/route.ts`:**
+   ```typescript
+   import { auth } from '@clerk/nextjs/server';
+   import { prisma } from '@/lib/prisma';
+   
+   // GET /api/user-context
+   export async function GET(request: Request) {
+     const { userId: clerkId } = auth();
+     const user = await prisma.user.findUnique({ where: { clerkId } });
+     
+     const contexts = await prisma.user_Context.findMany({
+       where: { userId: user.id },
+     });
+     
+     return Response.json({ contexts });
+   }
+   
+   // PATCH /api/user-context
+   export async function PATCH(request: Request) {
+     const { userId: clerkId } = auth();
+     const user = await prisma.user.findUnique({ where: { clerkId } });
+     const { contextId, value } = await request.json();
+     
+     const context = await prisma.user_Context.findUnique({
+       where: { id: contextId },
+     });
+     
+     if (context.userId !== user.id || !context.isEditable) {
+       return Response.json({ error: 'Unauthorized' }, { status: 403 });
+     }
+     
+     await prisma.user_Context.update({
+       where: { id: contextId },
+       data: {
+         value,
+         source: 'USER_PROVIDED', // Mark as user-provided when edited
+         updatedAt: new Date(),
+       },
+     });
+     
+     return Response.json({ success: true });
+   }
+   
+   // POST /api/user-context (create new context)
+   export async function POST(request: Request) {
+     const { userId: clerkId } = auth();
+     const user = await prisma.user.findUnique({ where: { clerkId } });
+     const { chatbotId, key, value } = await request.json();
+     
+     const context = await prisma.user_Context.create({
+       data: {
+         userId: user.id,
+         chatbotId: chatbotId || null,
+         key,
+         value,
+         source: 'USER_PROVIDED',
+         isVisible: true,
+         isEditable: true,
+       },
+     });
+     
+     return Response.json({ context });
+   }
+   ```
+
+**Deliverables:**
+- ✅ Intake_Question and Intake_Response models
+- ✅ User_Context model (editable via profile settings)
+- ✅ Intake form API endpoints
+- ✅ Intake form UI component
+- ✅ User profile settings page (`/profile`)
+- ✅ User context editor component
+- ✅ User context API (GET/PATCH/POST)
+- ✅ Automatic sync from intake responses to User_Context
+- ✅ Integration into chat flow
+- ✅ User context used in chat responses (global + chatbot-specific)
+
+**Testing:**
+- [ ] Intake questions can be created
+- [ ] Intake form displays correctly
+- [ ] Responses are saved
+- [ ] Intake responses sync to User_Context
+- [ ] Form shows before first chat message
+- [ ] User context used in chat responses
+- [ ] Required fields validated
+- [ ] Can skip form if no questions
+- [ ] User profile page displays all context
+- [ ] Users can edit context in profile settings
+- [ ] Global context applies to all chatbots
+- [ ] Chatbot-specific context applies only to that chatbot
+- [ ] Context source (INTAKE_FORM, USER_PROVIDED) tracked correctly
 
 ---
 
@@ -1307,11 +3074,28 @@ Return JSON with:
    }
    ```
 
-   **Then run:**
-   ```bash
-   npx prisma migrate dev --name add_source_performance
-   npx prisma generate
-   ```
+   **Then run migration:**
+   
+   **Step 1a: Update Development Database (Local)**
+   - Ensure your `.env.local` points to your **development Neon branch**
+   - Run migration locally (creates migration files + applies to dev DB):
+     ```bash
+     npx prisma migrate dev --name add_source_performance
+     npx prisma generate
+     ```
+   - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+   
+   **Step 1b: Commit Migration Files**
+   - Commit the new migration files to git:
+     ```bash
+     git add prisma/migrations/
+     git commit -m "Add source performance migration"
+     ```
+   
+   **Step 1c: Deploy to Production (Vercel)**
+   - Push to your repository and deploy to Vercel
+   - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+   - This applies the migration to your **production Neon database**
 
    **Implementation:**
 
@@ -1939,11 +3723,13 @@ If critical issues arise in production:
 - [x] Phase 0.1: Fix Feedback API Performance ✅ **COMPLETE**
 
 ### Advanced Feedback Features
-- [x] Phase 3.3: "Need More" Modal ✅ **COMPLETE**
-- [x] Phase 3.4: Copy Button with Feedback ✅ **COMPLETE**
-- [ ] Phase 3.5: End-of-Conversation Survey (triggered on copy, not inactivity)
-- [ ] Phase 3.7: UI/UX Improvements (subset)
+- [x] Phase 3.3: "Need More" Modal ✅ **COMPLETE** (Dec 18, 2025)
+- [x] Phase 3.4: Copy Button with Feedback ✅ **COMPLETE** (Dec 18, 2025)
+- [x] Phase 3.5: End-of-Conversation Survey ⚠️ **PARTIALLY IMPLEMENTED** (Different approach - integrated into star rating system during feedback UX update, Dec 19, 2025)
+- [ ] Phase 3.7: UI/UX Improvements (subset) ← **NEXT TO RESUME**
 - [ ] Phase 3.8: Multiple Chatbots Support
+- [ ] Phase 3.9: Chatbot Versioning System
+- [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence
 - [ ] Phase 4.1: Sentiment Analysis Job
@@ -1955,7 +3741,7 @@ If critical issues arise in production:
 - [ ] Phase 7.2: Performance Optimization
 - [ ] Phase 7.3: Documentation (user-facing)
 
-**Total Alpha Tasks:** 10 tasks
+**Total Alpha Tasks:** 12 tasks (added Phase 3.9 and 3.10)
 
 **Timeline:** 6 weeks (Weeks 5-10)
 
