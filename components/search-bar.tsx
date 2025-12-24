@@ -250,7 +250,7 @@ export function SearchBar({
         value={searchQuery}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className={`pl-9 pr-4 h-9 text-sm ${inputClassName}`}
+        className={`pl-9 pr-4 h-9 text-base ${inputClassName}`}
         style={inputStyle}
         suppressHydrationWarning
       />
@@ -291,7 +291,7 @@ export function SearchBar({
             value={searchQuery}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            className={`pl-8 pr-8 h-9 text-sm w-48 ${inputClassName}`}
+            className={`pl-8 pr-8 h-9 text-base w-48 ${inputClassName}`}
             style={inputStyle}
             autoFocus
             suppressHydrationWarning
@@ -364,7 +364,7 @@ export function SearchBar({
                 value={searchQuery}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
-                className={`pl-10 pr-10 h-10 ${inputClassName}`}
+                className={`pl-10 pr-10 h-10 text-base ${inputClassName}`}
                 style={inputStyle}
                 autoFocus
                 suppressHydrationWarning
@@ -421,7 +421,7 @@ export function SearchBar({
               value={searchQuery}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              className={`pl-9 pr-9 h-10 text-sm w-full ${inputClassName}`}
+              className={`pl-9 pr-9 h-10 text-base w-full ${inputClassName}`}
               style={inputStyle}
               autoFocus
               suppressHydrationWarning
