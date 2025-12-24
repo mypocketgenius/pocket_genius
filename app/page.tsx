@@ -1,117 +1,640 @@
 'use client';
 
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// Phase 3.7.4: Homepage Component with Grid Layout
+// Amazon-style homepage with categorized chatbot grids, search, and filters
 
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useAuth } from '@clerk/nextjs';
+import { Search, X, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ChatbotCard } from '@/components/chatbot-card';
+import { useDebounce } from '@/lib/hooks/use-debounce';
+
+// Type definitions matching the API response format
+type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+
+interface Chatbot {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  type: ChatbotType | null;
+  priceCents: number;
+  currency: string;
+  allowAnonymous: boolean;
+  creator: {
+    id: string;
+    slug: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+  rating: {
+    averageRating: number | null;
+    ratingCount: number;
+  } | null;
+  categories: Array<{
+    id: string;
+    type: CategoryType;
+    label: string;
+    slug: string;
+  }>;
+  favoriteCount: number;
+}
+
+interface Category {
+  id: string;
+  type: CategoryType;
+  label: string;
+  slug: string;
+}
+
+interface Creator {
+  id: string;
+  slug: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+interface ChatbotsResponse {
+  chatbots: Chatbot[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    totalItems: number;
+  };
+}
+
+/**
+ * Homepage Component - Amazon-style chatbot browsing
+ * 
+ * Features:
+ * - Hero section with search
+ * - Category filters (ROLE, CHALLENGE, STAGE)
+ * - Creator filter (searchable dropdown)
+ * - Chatbot type filter (checkboxes)
+ * - Categorized grids or filtered grid
+ * - "Load More" pagination
+ * - Loading states, empty states, error handling
+ */
 export default function Home() {
-  const chatbotId = 'chatbot_art_of_war';
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isSignedIn } = useAuth();
+
+  // URL state
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    searchParams.getAll('category')
+  );
+  const [selectedCategoryTypes, setSelectedCategoryTypes] = useState<CategoryType[]>(
+    (searchParams.getAll('categoryType') as CategoryType[]) || []
+  );
+  const [selectedCreator, setSelectedCreator] = useState<string>(
+    searchParams.get('creator') || ''
+  );
+  const [selectedTypes, setSelectedTypes] = useState<ChatbotType[]>(
+    (searchParams.getAll('type') as ChatbotType[]) || []
+  );
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Debounced search
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Data state
+  const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<ChatbotsResponse['pagination'] | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
+  // Fetch categories and creators on mount
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const [categoriesRes, creatorsRes] = await Promise.all([
+          fetch('/api/categories'),
+          fetch('/api/creators'),
+        ]);
+
+        if (categoriesRes.ok) {
+          const categoriesData = await categoriesRes.json();
+          setCategories(categoriesData.categories || []);
+        }
+
+        if (creatorsRes.ok) {
+          const creatorsData = await creatorsRes.json();
+          setCreators(creatorsData.creators || []);
+        }
+      } catch (err) {
+        console.error('Error fetching filters:', err);
+      }
+    };
+
+    fetchFilters();
+  }, []);
+
+  // Fetch chatbots when filters/search change
+  useEffect(() => {
+    fetchChatbots(1, true);
+  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes]);
+
+  // Update URL params when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    selectedCategories.forEach(cat => params.append('category', cat));
+    selectedCategoryTypes.forEach(type => params.append('categoryType', type));
+    if (selectedCreator) params.set('creator', selectedCreator);
+    selectedTypes.forEach(type => params.append('type', type));
+    if (currentPage > 1) params.set('page', currentPage.toString());
+
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [debouncedSearch, selectedCategories, selectedCategoryTypes, selectedCreator, selectedTypes, currentPage, router]);
+
+  // Fetch chatbots from API
+  const fetchChatbots = async (page: number, reset: boolean = false) => {
+    if (reset) {
+      setIsLoading(true);
+      setError(null);
+    } else {
+      setIsLoadingMore(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('page', page.toString());
+      params.set('pageSize', '20');
+      
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      selectedCategories.forEach(cat => params.append('category', cat));
+      selectedCategoryTypes.forEach(type => params.append('categoryType', type));
+      if (selectedCreator) params.set('creator', selectedCreator);
+      selectedTypes.forEach(type => params.append('type', type));
+
+      const response = await fetch(`/api/chatbots/public?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch chatbots');
+      }
+
+      const data: ChatbotsResponse = await response.json();
+
+      if (reset) {
+        setChatbots(data.chatbots);
+      } else {
+        setChatbots(prev => [...prev, ...data.chatbots]);
+      }
+
+      setPagination(data.pagination);
+      setCurrentPage(page);
+    } catch (err) {
+      console.error('Error fetching chatbots:', err);
+      setError('Unable to load chatbots. Please try again.');
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Handle "Load More" button
+  const handleLoadMore = () => {
+    if (pagination && currentPage < pagination.totalPages) {
+      fetchChatbots(currentPage + 1, false);
+    }
+  };
+
+  // Filter handlers
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const toggleCategoryType = (type: CategoryType) => {
+    setSelectedCategoryTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const toggleType = (type: ChatbotType) => {
+    setSelectedTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedCategories([]);
+    setSelectedCategoryTypes([]);
+    setSelectedCreator('');
+    setSelectedTypes([]);
+    setCurrentPage(1);
+  };
+
+  const handleFavoriteToggle = (chatbotId: string, isFavorite: boolean) => {
+    setFavorites(prev => {
+      const newSet = new Set(prev);
+      if (isFavorite) {
+        newSet.add(chatbotId);
+      } else {
+        newSet.delete(chatbotId);
+      }
+      return newSet;
+    });
+  };
+
+  // Group chatbots by category type (for display when no filters active)
+  const groupedChatbots = chatbots.reduce(
+    (acc, chatbot) => {
+      chatbot.categories.forEach(cat => {
+        if (!acc[cat.type]) {
+          acc[cat.type] = [];
+        }
+        // Avoid duplicates by checking if chatbot already exists in this category type
+        if (!acc[cat.type].some(c => c.id === chatbot.id)) {
+          acc[cat.type].push(chatbot);
+        }
+      });
+      // If chatbot has no categories, add to "All" (we'll handle this separately)
+      return acc;
+    },
+    {} as Record<CategoryType, Chatbot[]>
+  );
+
+  // Check if any filters are active
+  const hasActiveFilters =
+    debouncedSearch ||
+    selectedCategories.length > 0 ||
+    selectedCategoryTypes.length > 0 ||
+    selectedCreator ||
+    selectedTypes.length > 0;
+
+  // Render chatbot grid
+  const renderChatbotGrid = (chatbotsToRender: Chatbot[]) => {
+    if (chatbotsToRender.length === 0) return null;
+
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {chatbotsToRender.map(chatbot => (
+          <ChatbotCard
+            key={chatbot.id}
+            chatbot={chatbot}
+            isFavorite={favorites.has(chatbot.id)}
+            onFavoriteToggle={handleFavoriteToggle}
+          />
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm relative">
-        {/* Auth buttons in top right */}
-        <div className="absolute top-4 right-4 flex gap-4 items-center">
-          <SignedOut>
-            <SignInButton mode="modal">
-              <Button variant="default" size="sm">
-                Sign In
-              </Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button variant="secondary" size="sm">
-                Sign Up
-              </Button>
-            </SignUpButton>
-          </SignedOut>
-          <SignedIn>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
+    <main className="min-h-screen bg-background">
+      {/* Header with auth */}
+      <header className="border-b bg-white sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Pocket Genius</h1>
+          <div className="flex gap-4 items-center">
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="default" size="sm">
+                  Sign In
+                </Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button variant="secondary" size="sm">
+                  Sign Up
+                </Button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+          </div>
         </div>
-        
-        <h1 className="text-4xl font-bold text-center mb-4">
-          Pocket Genius
-        </h1>
-        <p className="text-center text-muted-foreground mb-8">
-          Chat with creator content via RAG
-        </p>
-        
-        <SignedIn>
-          <p className="text-center text-green-600 mb-8">
-            ✅ Authentication is working! You are signed in.
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold mb-2">
+            Chat with AI-powered knowledge
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            Explore chatbots built on books, courses, and expert content
           </p>
-        </SignedIn>
-        <SignedOut>
-          <p className="text-center text-muted-foreground mb-8">
-            Sign in to access all features
-          </p>
-        </SignedOut>
 
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          {/* Chat Page */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Chat</CardTitle>
-              <CardDescription>
-                Chat with the Art of War chatbot using RAG
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={`/chat/${chatbotId}`}>
-                <Button className="w-full">Go to Chat</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Dashboard Page */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Dashboard</CardTitle>
-              <CardDescription>
-                View chunk performance and analytics
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={`/dashboard/${chatbotId}`}>
-                <Button className="w-full" variant="outline">Go to Dashboard</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Test Upload Page */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Test Upload</CardTitle>
-              <CardDescription>
-                Upload and test file ingestion
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/test-upload">
-                <Button className="w-full" variant="secondary">Test Upload</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Test Files Page */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Test Files</CardTitle>
-              <CardDescription>
-                View and manage uploaded files
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/test-files">
-                <Button className="w-full" variant="secondary">Test Files</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          {/* Search Bar */}
+          <div className="max-w-2xl mx-auto relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Input
+              type="text"
+              placeholder="Search chatbots..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 h-12 text-lg"
+            />
+          </div>
         </div>
+
+        {/* Filters Section */}
+        <div className="mb-8 space-y-4">
+          {/* Category Type Filters */}
+          <div>
+            <h3 className="text-sm font-medium mb-2">Filter by Category Type</h3>
+            <div className="flex flex-wrap gap-2">
+              {(['ROLE', 'CHALLENGE', 'STAGE'] as CategoryType[]).map(type => (
+                <Button
+                  key={type}
+                  variant={selectedCategoryTypes.includes(type) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleCategoryType(type)}
+                >
+                  {type === 'ROLE' ? 'By Role' : type === 'CHALLENGE' ? 'By Challenge' : 'By Stage'}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category Filters */}
+          {selectedCategoryTypes.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2">Categories</h3>
+              <div className="flex flex-wrap gap-2">
+                {categories
+                  .filter(cat => selectedCategoryTypes.includes(cat.type))
+                  .map(category => (
+                    <Badge
+                      key={category.id}
+                      variant={selectedCategories.includes(category.id) ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => toggleCategory(category.id)}
+                    >
+                      {category.label}
+                    </Badge>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Creator Filter */}
+          <div>
+            <h3 className="text-sm font-medium mb-2">Creator</h3>
+            <select
+              value={selectedCreator}
+              onChange={(e) => setSelectedCreator(e.target.value)}
+              className="w-full md:w-64 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">All Creators</option>
+              {creators.map(creator => (
+                <option key={creator.id} value={creator.id}>
+                  {creator.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Chatbot Type Filters */}
+          <div>
+            <h3 className="text-sm font-medium mb-2">Chatbot Type</h3>
+            <div className="flex flex-wrap gap-4">
+              {(['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
+                <div key={type} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={type}
+                    checked={selectedTypes.includes(type)}
+                    onCheckedChange={() => toggleType(type)}
+                  />
+                  <label
+                    htmlFor={type}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    {type.replace(/_/g, ' ')}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">Active filters:</span>
+              {debouncedSearch && (
+                <Badge variant="secondary" className="gap-1">
+                  Search: {debouncedSearch}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => setSearchQuery('')}
+                  />
+                </Badge>
+              )}
+              {selectedCategories.map(catId => {
+                const cat = categories.find(c => c.id === catId);
+                return cat ? (
+                  <Badge key={catId} variant="secondary" className="gap-1">
+                    {cat.label}
+                    <X
+                      className="h-3 w-3 cursor-pointer"
+                      onClick={() => toggleCategory(catId)}
+                    />
+                  </Badge>
+                ) : null;
+              })}
+              {selectedCategoryTypes.map(type => (
+                <Badge key={type} variant="secondary" className="gap-1">
+                  {type}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => toggleCategoryType(type)}
+                  />
+                </Badge>
+              ))}
+              {selectedCreator && (
+                <Badge variant="secondary" className="gap-1">
+                  Creator: {creators.find(c => c.id === selectedCreator)?.name || selectedCreator}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => setSelectedCreator('')}
+                  />
+                </Badge>
+              )}
+              {selectedTypes.map(type => (
+                <Badge key={type} variant="secondary" className="gap-1">
+                  {type.replace(/_/g, ' ')}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => toggleType(type)}
+                  />
+                </Badge>
+              ))}
+              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+                Clear all
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Error State */}
+        {error && (
+          <Alert variant="destructive" className="mb-8">
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={() => fetchChatbots(1, true)}>
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chatbot Grids */}
+        {!isLoading && !error && (
+          <>
+            {hasActiveFilters ? (
+              // Show filtered results in single grid
+              <div>
+                <h2 className="text-2xl font-bold mb-4">Search Results</h2>
+                {chatbots.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground text-lg">
+                      {debouncedSearch
+                        ? 'No chatbots found matching your search'
+                        : 'No chatbots match your filters'}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {renderChatbotGrid(chatbots)}
+                    {pagination && currentPage < pagination.totalPages && (
+                      <div className="flex justify-center mt-8">
+                        <Button
+                          onClick={handleLoadMore}
+                          disabled={isLoadingMore}
+                          variant="outline"
+                        >
+                          {isLoadingMore ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            'Load More'
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    {pagination && currentPage >= pagination.totalPages && (
+                      <div className="text-center mt-8 text-muted-foreground">
+                        <p>You've reached the end</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              // Show categorized grids
+              <div className="space-y-12">
+                {(['ROLE', 'CHALLENGE', 'STAGE'] as CategoryType[]).map(categoryType => {
+                  const chatbotsInCategory = groupedChatbots[categoryType] || [];
+                  if (chatbotsInCategory.length === 0) return null;
+
+                  return (
+                    <div key={categoryType}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold">
+                          {categoryType === 'ROLE'
+                            ? 'By Role'
+                            : categoryType === 'CHALLENGE'
+                            ? 'By Challenge'
+                            : 'By Stage'}
+                        </h2>
+                        {chatbotsInCategory.length > 6 && (
+                          <Button variant="link" size="sm">
+                            See all
+                          </Button>
+                        )}
+                      </div>
+                      {renderChatbotGrid(
+                        chatbotsInCategory.slice(0, 6)
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* All Chatbots fallback if no categories */}
+                {Object.keys(groupedChatbots).length === 0 && chatbots.length > 0 && (
+                  <div>
+                    <h2 className="text-2xl font-bold mb-4">All Chatbots</h2>
+                    {renderChatbotGrid(chatbots)}
+                    {pagination && currentPage < pagination.totalPages && (
+                      <div className="flex justify-center mt-8">
+                        <Button
+                          onClick={handleLoadMore}
+                          disabled={isLoadingMore}
+                          variant="outline"
+                        >
+                          {isLoadingMore ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            'Load More'
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    {pagination && currentPage >= pagination.totalPages && (
+                      <div className="text-center mt-8 text-muted-foreground">
+                        <p>You've reached the end</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {chatbots.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground text-lg">
+                      No chatbots available yet
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </main>
   );
 }
-

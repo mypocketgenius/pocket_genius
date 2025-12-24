@@ -39,13 +39,13 @@ module.exports = {
       ...baseConfig,
       displayName: 'node',
       testEnvironment: 'node',
-      testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/**/theme-context.test.ts'],
+      testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/**/theme-context.test.ts', '!**/__tests__/**/use-debounce.test.ts'],
     },
     {
       ...baseConfig,
       displayName: 'jsdom',
       testEnvironment: 'jsdom',
-      testMatch: ['**/__tests__/**/theme-context.test.ts'],
+      testMatch: ['**/__tests__/**/theme-context.test.ts', '**/__tests__/**/use-debounce.test.ts'],
     },
   ],
 };
