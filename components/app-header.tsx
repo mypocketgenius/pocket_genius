@@ -7,6 +7,7 @@
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
+import { Heart } from 'lucide-react';
 
 interface AppHeaderProps {
   // Optional: show auth buttons (default: true)
@@ -63,7 +64,15 @@ export function AppHeader({
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
+                  <UserButton afterSignOutUrl="/">
+                    <UserButton.MenuItems>
+                      <UserButton.Link
+                        label="Favorites"
+                        href="/favorites"
+                        labelIcon={<Heart className="w-4 h-4" />}
+                      />
+                    </UserButton.MenuItems>
+                  </UserButton>
                 </SignedIn>
               </>
             ) : null}
