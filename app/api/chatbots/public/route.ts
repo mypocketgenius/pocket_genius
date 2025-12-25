@@ -1,8 +1,10 @@
 // app/api/chatbots/public/route.ts
 // Phase 3.7.2: Public Chatbots API Endpoint
 // Returns public chatbots with filtering, search, and pagination
+// Phase 3.7.6: Includes isFavorite field when user is authenticated
 
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -36,6 +38,7 @@ import { prisma } from '@/lib/prisma';
  *     rating: { averageRating: number | null, ratingCount: number } | null;
  *     categories: Array<{ id, type, label, slug }>;
  *     favoriteCount: number;
+ *     isFavorite?: boolean; // Only included if user is authenticated
  *   }>;
  *   pagination: { page, pageSize, totalPages, totalItems };
  * }
@@ -48,6 +51,18 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(req: Request) {
   try {
+    // Check authentication (optional - don't require it)
+    const { userId: clerkUserId } = await auth();
+    let dbUserId: string | null = null;
+    
+    if (clerkUserId) {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+        select: { id: true },
+      });
+      dbUserId = user?.id || null;
+    }
+
     const { searchParams } = new URL(req.url);
     
     // Parse query parameters
@@ -146,6 +161,49 @@ export async function GET(req: Request) {
     // Calculate pagination
     const skip = (page - 1) * pageSize;
 
+    // Build include object conditionally
+    const includeObj: any = {
+      creator: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          avatarUrl: true,
+        },
+      },
+      ratingsAggregate: {
+        select: {
+          averageRating: true,
+          ratingCount: true,
+        },
+      },
+      categories: {
+        include: {
+          category: {
+            select: {
+              id: true,
+              type: true,
+              label: true,
+              slug: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          favoritedBy: true,
+        },
+      },
+    };
+
+    // Include favoritedBy relation if user is authenticated
+    if (dbUserId) {
+      includeObj.favoritedBy = {
+        where: { userId: dbUserId },
+        select: { id: true },
+      };
+    }
+
     // Fetch chatbots and total count in parallel
     const [chatbots, totalItems] = await Promise.all([
       prisma.chatbot.findMany({
@@ -155,39 +213,7 @@ export async function GET(req: Request) {
         orderBy: {
           createdAt: 'desc', // Most recent first
         },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              slug: true,
-              name: true,
-              avatarUrl: true,
-            },
-          },
-          ratingsAggregate: {
-            select: {
-              averageRating: true,
-              ratingCount: true,
-            },
-          },
-          categories: {
-            include: {
-              category: {
-                select: {
-                  id: true,
-                  type: true,
-                  label: true,
-                  slug: true,
-                },
-              },
-            },
-          },
-          _count: {
-            select: {
-              favoritedBy: true,
-            },
-          },
-        },
+        include: includeObj,
       }),
       prisma.chatbot.count({ where }),
     ]);
@@ -228,6 +254,10 @@ export async function GET(req: Request) {
           slug: cc.category.slug,
         })),
         favoriteCount: chatbot._count.favoritedBy,
+        // Include isFavorite only if user is authenticated
+        ...(dbUserId && 'favoritedBy' in chatbot && Array.isArray(chatbot.favoritedBy) ? {
+          isFavorite: chatbot.favoritedBy.length > 0,
+        } : {}),
       };
     });
 

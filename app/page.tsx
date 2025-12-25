@@ -47,6 +47,7 @@ interface Chatbot {
     slug: string;
   }>;
   favoriteCount: number;
+  isFavorite?: boolean; // Only included if user is authenticated
 }
 
 interface Category {
@@ -184,6 +185,20 @@ function HomeContent() {
       }
 
       const data: ChatbotsResponse = await response.json();
+
+      // Sync favorites from API response
+      const newFavorites = new Set<string>();
+      data.chatbots.forEach(chatbot => {
+        if (chatbot.isFavorite) {
+          newFavorites.add(chatbot.id);
+        }
+      });
+      setFavorites(prev => {
+        // Merge with existing favorites (don't remove favorites that aren't in this page)
+        const merged = new Set(prev);
+        newFavorites.forEach(id => merged.add(id));
+        return merged;
+      });
 
       if (reset) {
         setChatbots(data.chatbots);

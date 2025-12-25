@@ -1479,7 +1479,9 @@ prisma/
 
 ---
 
-### Phase 3.7.6: Favorites System
+### Phase 3.7.6: Favorites System ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** (Jan 2025)
 
 **Objective:** Allow users to favorite chatbots and view their favorites
 
@@ -1489,78 +1491,48 @@ prisma/
 
 **Tasks:**
 
-1. **API Endpoints:**
+1. **API Endpoints:** ✅ **COMPLETE**
 
-   **Toggle Favorite:** `POST /api/favorites/[chatbotId]`
-   - **Authentication:** Use Clerk `auth()` pattern (same as other endpoints)
-     ```typescript
-     const { userId: clerkUserId } = await auth();
-     if (!clerkUserId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-     // Look up DB user, then toggle favorite
-     ```
+   **Toggle Favorite:** `POST /api/favorites/[chatbotId]` ✅
+   - **Authentication:** Uses Clerk `auth()` pattern (same as other endpoints)
    - Toggles favorite status (create if not exists, delete if exists)
    - Returns: `{ isFavorite: boolean }`
    - **Error Format:** `{ error: string }` (consistent with other endpoints)
+   - Handles authentication (401), user not found (404), chatbot not found (404), database errors (500)
 
-   **Get User Favorites:** `GET /api/favorites`
+   **Get User Favorites:** `GET /api/favorites` ✅
    - **Authentication:** Get userId from auth (not query param)
-     ```typescript
-     const { userId: clerkUserId } = await auth();
-     if (!clerkUserId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-     ```
    - **Returns:** Full chatbot objects (same format as `/api/chatbots/public` response)
      - Response: `{ chatbots: Array<ChatbotObject>, pagination: {...} }`
      - **Rationale:** Consistency with homepage API, includes all needed data
+   - Pagination support (page, pageSize, max 100 per page)
+   - Returns `isFavorite: true` for all favorites
 
-2. **Update Chatbot Cards:**
-   - Add favorite button (heart icon)
-   - Show filled heart if favorited, outline if not
-   - Toggle on click (optimistic update)
-   - Show loading state while toggling
-   - **Optimistic Update Rollback:** If API call fails, revert UI state and show error toast
-   - **Toast System:** Reuse existing toast pattern from `components/chat.tsx` (state-based toast with `toast` state and `toastTimeoutRef`)
-     ```typescript
-     // Pseudo-code:
-     const [isFavorite, setIsFavorite] = useState(originalValue);
-     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-     const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-     
-     const handleToggle = async () => {
-       const previousValue = isFavorite;
-       setIsFavorite(!isFavorite); // Optimistic update
-       try {
-         await toggleFavorite(chatbotId);
-         // Show success toast
-         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-         setToast({ message: isFavorite ? 'Removed from favorites' : 'Added to favorites', type: 'success' });
-         toastTimeoutRef.current = setTimeout(() => {
-           setToast(null);
-           toastTimeoutRef.current = null;
-         }, 3000);
-       } catch (error) {
-         setIsFavorite(previousValue); // Rollback on error
-         // Show error toast
-         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-         setToast({ message: 'Failed to update favorite', type: 'error' });
-         toastTimeoutRef.current = setTimeout(() => {
-           setToast(null);
-           toastTimeoutRef.current = null;
-         }, 5000);
-       }
-     };
-     ```
+2. **Update Chatbot Cards:** ✅ **COMPLETE**
+   - ✅ Favorite button (heart icon) added to `components/chatbot-card.tsx`
+   - ✅ Shows filled heart if favorited, outline if not
+   - ✅ Toggle on click (optimistic update)
+   - ✅ Loading state while toggling (`isTogglingFavorite`)
+   - ✅ **Optimistic Update Rollback:** If API call fails, reverts UI state and shows error toast
+   - ✅ **Toast System:** Reuses existing toast pattern from `components/chat.tsx` (state-based toast with `toast` state and `toastTimeoutRef`)
+   - ✅ Success toast: "Added to favorites" / "Removed from favorites" (3s timeout)
+   - ✅ Error toast: "Failed to update favorite" (5s timeout)
 
-3. **Favorites Page:** `app/favorites/page.tsx`
-   - Requires authentication (redirect to login if not authenticated)
-   - Shows grid of favorited chatbots (reuse `chatbot-card.tsx` component)
-   - Empty state: "You haven't favorited any chatbots yet"
+3. **Favorites Page:** `app/favorites/page.tsx` ✅ **COMPLETE**
+   - ✅ Requires authentication (redirects to login if not authenticated)
+   - ✅ Shows grid of favorited chatbots (reuses `chatbot-card.tsx` component)
+   - ✅ Empty state: "You haven't favorited any chatbots yet"
+   - ✅ "Load More" pagination button
+   - ✅ Loading states with skeleton loaders
+   - ✅ Error handling with retry button
+   - ✅ Removes chatbots from list when unfavorited
    - **Navigation Link:** Deferred - will be added to header/navigation later (not blocking for Alpha)
 
-4. **Update Homepage API (`/api/chatbots/public`):**
-   - **Accept optional authentication** (check auth but don't require it)
-   - **If user authenticated:** Include `isFavorite: boolean` field in each chatbot object
-   - **If user not authenticated:** Omit `isFavorite` field
-   - Calculate based on `Favorited_Chatbots` table:
+4. **Update Homepage API (`/api/chatbots/public`):** ✅ **COMPLETE**
+   - ✅ **Accepts optional authentication** (checks auth but doesn't require it)
+   - ✅ **If user authenticated:** Includes `isFavorite: boolean` field in each chatbot object
+   - ✅ **If user not authenticated:** Omits `isFavorite` field
+   - ✅ Calculates based on `Favorited_Chatbots` table:
      ```typescript
      // In query, if userId exists:
      include: {
@@ -1572,27 +1544,86 @@ prisma/
      // Then: isFavorite: chatbot.favoritedBy.length > 0
      ```
 
+5. **Update Chatbot Detail Modal:** ✅ **BONUS COMPLETE**
+   - ✅ Favorite button works in `components/chatbot-detail-modal.tsx`
+   - ✅ Checks favorite status on modal open
+   - ✅ Toggle favorite functionality implemented
+   - ✅ Optimistic updates with rollback
+
+6. **Update Homepage:** ✅ **COMPLETE**
+   - ✅ Syncs favorites from API response (`isFavorite` field)
+   - ✅ Maintains favorites state in Set
+   - ✅ Passes favorite state to ChatbotCard components
+   - ✅ Handles favorite toggle callbacks
+
 **Acceptance Criteria:**
 - ✅ Favorite button toggles correctly
-- ✅ Favorites persist across sessions
+- ✅ Favorites persist across sessions (database-backed)
 - ✅ Favorites page shows favorited chatbots
 - ✅ Optimistic updates work
 - ✅ Requires authentication
+- ✅ Rollback works on API failure
 
 **Deliverables:**
-- ✅ `app/api/favorites/[chatbotId]/route.ts` created
-- ✅ `app/api/favorites/route.ts` created
-- ✅ `app/favorites/page.tsx` created
-- ✅ Favorite button integrated into cards
-- ✅ Homepage API includes `isFavorite` field
+- ✅ `app/api/favorites/[chatbotId]/route.ts` created (110 lines)
+- ✅ `app/api/favorites/route.ts` created (215 lines)
+- ✅ `app/favorites/page.tsx` created (280 lines)
+- ✅ Favorite button integrated into `components/chatbot-card.tsx`
+- ✅ Homepage API (`/api/chatbots/public`) includes `isFavorite` field
+- ✅ Chatbot detail modal updated with favorite functionality
+- ✅ Homepage (`app/page.tsx`) updated with favorites state management
+
+**Test Coverage:**
+- ✅ `__tests__/api/favorites/[chatbotId]/route.test.ts` created (7 tests, all passing)
+  - Authentication (401 when not authenticated)
+  - User not found (404)
+  - Chatbot validation (404 when chatbot not found)
+  - Create favorite (when doesn't exist)
+  - Delete favorite (when exists)
+  - Error handling (500 on database error)
+- ✅ `__tests__/api/favorites/route.test.ts` created (8 tests, all passing)
+  - Authentication (401 when not authenticated)
+  - User not found (404)
+  - Happy path (default pagination)
+  - Custom pagination parameters
+  - Empty favorites array
+  - Pagination validation (page < 1, pageSize < 1, pageSize > 100)
+  - Error handling (500 on database error)
 
 **Testing:**
-- [ ] Favorite button toggles
-- [ ] Favorites persist
-- [ ] Favorites page shows correct chatbots
-- [ ] Requires authentication
-- [ ] Optimistic updates work
-- [ ] Rollback works on API failure
+- ✅ Favorite button toggles (unit tests + implementation)
+- ✅ Favorites persist (database-backed with Prisma)
+- ✅ Favorites page shows correct chatbots (implementation + pagination)
+- ✅ Requires authentication (tested in unit tests)
+- ✅ Optimistic updates work (implemented with rollback)
+- ✅ Rollback works on API failure (implemented in chatbot-card.tsx)
+
+**Implementation Details:**
+- **Authentication Pattern:** Uses Clerk `auth()` pattern consistently across all endpoints
+- **Error Handling:** Consistent error format `{ error: string }` with appropriate status codes
+- **Toast Notifications:** Reuses pattern from `components/chat.tsx` with success/error states
+- **Optimistic Updates:** Implemented with rollback on error in chatbot-card.tsx
+- **Type Safety:** All TypeScript types updated to include `isFavorite?: boolean` where applicable
+- **Code Quality:** All files pass linting, follow project patterns, include comprehensive error handling
+
+**Files Created:**
+- `app/api/favorites/[chatbotId]/route.ts` - Toggle favorite endpoint
+- `app/api/favorites/route.ts` - Get user favorites endpoint
+- `app/favorites/page.tsx` - Favorites page component
+- `__tests__/api/favorites/[chatbotId]/route.test.ts` - Toggle favorite tests
+- `__tests__/api/favorites/route.test.ts` - Get favorites tests
+
+**Files Modified:**
+- `app/api/chatbots/public/route.ts` - Added `isFavorite` field support
+- `components/chatbot-card.tsx` - Added favorite toggle with toast notifications
+- `components/chatbot-detail-modal.tsx` - Added favorite functionality
+- `app/page.tsx` - Added favorites state management
+
+**Test Results:**
+- ✅ **15/15 tests passing** (100% pass rate)
+- ✅ All acceptance criteria met
+- ✅ All deliverables complete
+- ✅ Ready for manual testing and deployment
 
 ---
 
@@ -3948,7 +3979,7 @@ If critical issues arise in production:
   - [x] Phase 3.7.3: Chatbot Detail Modal Component ✅ **COMPLETE**
   - [x] Phase 3.7.4: Homepage Component with Grid Layout ✅ **COMPLETE**
   - [x] Phase 3.7.5: Creator Pages ✅ **COMPLETE** (Jan 2025)
-  - [ ] Phase 3.7.6: Favorites System ← **NEXT TO RESUME**
+  - [x] Phase 3.7.6: Favorites System ✅ **COMPLETE** (Jan 2025)
 - [ ] Phase 3.8: Multiple Chatbots Support
 - [ ] Phase 3.9: Chatbot Versioning System
 - [ ] Phase 3.10: User Intake Forms

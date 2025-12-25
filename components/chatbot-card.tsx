@@ -3,7 +3,7 @@
 // Phase 3.7.4: Chatbot Card Component with Full Design
 // Displays chatbot information in a card format with image, rating, price, and favorite button
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
@@ -75,6 +75,8 @@ export function ChatbotCard({
   const { isSignedIn } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCardClick = () => {
     if (onCardClick) {
@@ -105,12 +107,42 @@ export function ChatbotCard({
     onFavoriteToggle(chatbot.id, !isFavorite);
     
     try {
-      // TODO: This will be implemented in Phase 3.7.6
-      // For now, we'll leave this as a placeholder
-      console.log('Favorite toggle (to be implemented in Phase 3.7.6)');
+      const response = await fetch(`/api/favorites/${chatbot.id}`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to toggle favorite');
+      }
+
+      const data = await response.json();
+      
+      // Show success toast
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      setToast({
+        message: data.isFavorite ? 'Added to favorites' : 'Removed from favorites',
+        type: 'success',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 3000);
     } catch (error) {
       // Rollback on error
       onFavoriteToggle(chatbot.id, previousValue);
+      
+      // Show error toast
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      setToast({
+        message: 'Failed to update favorite',
+        type: 'error',
+      });
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimeoutRef.current = null;
+      }, 5000);
+      
       console.error('Error toggling favorite:', error);
     } finally {
       setIsTogglingFavorite(false);
@@ -271,6 +303,65 @@ export function ChatbotCard({
         onClose={() => setIsModalOpen(false)}
         onStartChat={handleStartChat}
       />
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg text-sm font-medium ${
+            toast.type === 'success'
+              ? 'bg-green-50 border-2 border-green-300 text-green-800'
+              : 'bg-red-50 border-2 border-red-300 text-red-800'
+          }`}
+          style={{
+            animation: 'slideIn 0.3s ease-out',
+          }}
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <svg
+                className="w-5 h-5 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            )}
+            <span className="opacity-80">{toast.message}</span>
+            <button
+              onClick={() => {
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToast(null);
+                toastTimeoutRef.current = null;
+              }}
+              className="ml-2 text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

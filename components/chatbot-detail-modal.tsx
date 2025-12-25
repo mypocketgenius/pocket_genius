@@ -142,14 +142,17 @@ export function ChatbotDetailModal({
     if (!isSignedIn || !clerkUserId) return;
     
     try {
-      // TODO: This will be implemented in Phase 3.7.6
-      // For now, we'll check via the favorites API when it's created
-      // For Phase 3.7.3, we'll leave this as a placeholder
-      setIsFavorite(false);
+      // Check if chatbot is in user's favorites
+      const response = await fetch(`/api/favorites?page=1&pageSize=100`);
+      if (response.ok) {
+        const data = await response.json();
+        const isFavorited = data.chatbots.some((c: any) => c.id === chatbot.id);
+        setIsFavorite(isFavorited);
+      }
     } catch (error) {
       console.error('Error checking favorite status:', error);
     }
-  }, [isSignedIn, clerkUserId]);
+  }, [isSignedIn, clerkUserId, chatbot.id]);
 
   // Fetch reviews when modal opens
   useEffect(() => {
@@ -182,15 +185,17 @@ export function ChatbotDetailModal({
     setIsFavorite(!isFavorite);
     
     try {
-      // TODO: This will be implemented in Phase 3.7.6
-      // For now, we'll leave this as a placeholder
-      // const response = await fetch(`/api/favorites/${chatbot.id}`, {
-      //   method: 'POST',
-      // });
-      // if (!response.ok) throw new Error('Failed to toggle favorite');
+      const response = await fetch(`/api/favorites/${chatbot.id}`, {
+        method: 'POST',
+      });
       
-      // For Phase 3.7.3, we'll just show a console log
-      console.log('Favorite toggle (to be implemented in Phase 3.7.6)');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to toggle favorite');
+      }
+
+      const data = await response.json();
+      setIsFavorite(data.isFavorite);
     } catch (error) {
       // Rollback on error
       setIsFavorite(previousValue);
