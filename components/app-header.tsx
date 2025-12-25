@@ -4,10 +4,12 @@
 // Shows "PG" on mobile, "Pocket Genius" on desktop
 // Search expands on clicking the search icon
 
+import { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
-import { Heart } from 'lucide-react';
+import { SideMenu } from '@/components/side-menu';
+import { Heart, Menu } from 'lucide-react';
 
 interface AppHeaderProps {
   // Optional: show auth buttons (default: true)
@@ -23,6 +25,7 @@ export function AppHeader({
   leftContent,
   rightContent,
 }: AppHeaderProps) {
+  const [sideMenuOpen, setSideMenuOpen] = useState(false);
 
   return (
     <header className="border-b bg-white sticky top-0 z-50">
@@ -64,6 +67,13 @@ export function AppHeader({
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
+                  <button
+                    onClick={() => setSideMenuOpen(true)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    aria-label="Open menu"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
                   <UserButton afterSignOutUrl="/">
                     <UserButton.MenuItems>
                       <UserButton.Link
@@ -79,6 +89,9 @@ export function AppHeader({
           </div>
         </div>
       </div>
+      
+      {/* Side Menu */}
+      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
     </header>
   );
 }

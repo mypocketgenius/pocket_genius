@@ -6,9 +6,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { CopyFeedbackModal } from './copy-feedback-modal';
-import { ThemeSettings } from './theme-settings';
-import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Settings } from 'lucide-react';
+import { SideMenu } from './side-menu';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
@@ -44,6 +45,7 @@ interface ChatProps {
 export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isSignedIn } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +55,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState('');
-  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const [sideMenuOpen, setSideMenuOpen] = useState(false);
   
   // Phase 4: Pill system state
   const [pills, setPills] = useState<PillType[]>([]);
@@ -440,10 +442,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }, 3000);
   };
 
-  // Handle Settings button click - open theme settings modal
-  const handleSettings = () => {
-    setThemeSettingsOpen(true);
-  };
 
   // Phase 4: Handle Save button click
   const handleSave = async (messageId: string) => {
@@ -735,26 +733,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <button
-              onClick={handleSettings}
-              className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors opacity-80 flex-shrink-0"
-              style={{
-                color: chromeTextColor,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
-                  ? 'rgba(0, 0, 0, 0.05)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-              <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
-            </button>
+            <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
           </div>
           
           {/* Phase 4: Star rating in header */}
@@ -766,6 +745,29 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 messageCount={messages.filter(m => m.role === 'user').length}
               />
             </div>
+          )}
+          
+          {/* Side menu button - appears to the right of rating stars */}
+          {isSignedIn && (
+            <button
+              onClick={() => setSideMenuOpen(true)}
+              className="flex-shrink-0 p-2 rounded-lg transition-colors opacity-80"
+              style={{
+                color: chromeTextColor,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
+                  ? 'rgba(0, 0, 0, 0.05)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              aria-label="Open menu"
+              title="Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
           )}
         </div>
         {error && (
@@ -1218,11 +1220,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }}
       />
 
-      {/* Theme Settings Modal */}
-      <ThemeSettings
-        open={themeSettingsOpen}
-        onClose={() => setThemeSettingsOpen(false)}
-      />
+      {/* Side Menu */}
+      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
     </div>
   );
 }

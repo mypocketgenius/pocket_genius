@@ -26,9 +26,12 @@ import { prisma } from '@/lib/prisma';
  */
 export async function POST(
   req: Request,
-  { params }: { params: { chatbotId: string } }
+  { params }: { params: Promise<{ chatbotId: string }> }
 ) {
   try {
+    // Await params in Next.js 15
+    const { chatbotId } = await params;
+    
     // 1. Authenticate user
     const { userId: clerkUserId } = await auth();
     if (!clerkUserId) {
@@ -53,7 +56,7 @@ export async function POST(
 
     // 3. Verify chatbot exists
     const chatbot = await prisma.chatbot.findUnique({
-      where: { id: params.chatbotId },
+      where: { id: chatbotId },
       select: { id: true },
     });
 
@@ -69,7 +72,7 @@ export async function POST(
       where: {
         userId_chatbotId: {
           userId: user.id,
-          chatbotId: params.chatbotId,
+          chatbotId: chatbotId,
         },
       },
     });
@@ -81,7 +84,7 @@ export async function POST(
         where: {
           userId_chatbotId: {
             userId: user.id,
-            chatbotId: params.chatbotId,
+            chatbotId: chatbotId,
           },
         },
       });
@@ -92,7 +95,7 @@ export async function POST(
       await prisma.favorited_Chatbots.create({
         data: {
           userId: user.id,
-          chatbotId: params.chatbotId,
+          chatbotId: chatbotId,
         },
       });
 

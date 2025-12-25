@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth, SignOutButton } from '@clerk/nextjs';
+import { useUser, useAuth, SignOutButton, useClerk } from '@clerk/nextjs';
 import { X, Settings, LogOut } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
-import { Skeleton } from './ui/skeleton';
 import { Button } from './ui/button';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
 import { Chatbot } from '@/lib/types/chatbot';
@@ -55,6 +54,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const router = useRouter();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
+  const clerk = useClerk();
   
   // State management
   const [activeTab, setActiveTab] = useState<'chats' | 'favorites'>('chats');
@@ -74,7 +74,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const edgeThreshold = 20; // Distance from right edge to detect swipe start
   
   // Fetch conversations
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     if (!isSignedIn) return;
     
     setIsLoadingChats(true);
@@ -89,10 +89,10 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     } finally {
       setIsLoadingChats(false);
     }
-  };
+  }, [isSignedIn]);
   
   // Fetch favorites
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     if (!isSignedIn) return;
     
     setIsLoadingFavorites(true);
@@ -107,7 +107,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     } finally {
       setIsLoadingFavorites(false);
     }
-  };
+  }, [isSignedIn]);
   
   // Fetch data when tab changes
   useEffect(() => {
@@ -118,7 +118,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         fetchFavorites();
       }
     }
-  }, [isOpen, activeTab, isSignedIn]);
+  }, [isOpen, activeTab, isSignedIn, fetchConversations, fetchFavorites]);
   
   // Swipe gesture handlers - work when sidebar is open or closed
   useEffect(() => {
@@ -283,7 +283,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <div className="p-4 border-b">
                 <div className="mb-2">
                   <p className="font-semibold text-sm">
-                    {user.firstName || user.lastName || 'User'}
+                    {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.fullName || 'User'}
                   </p>
                   <p className="text-xs text-gray-500">{user.primaryEmailAddress?.emailAddress}</p>
                 </div>
@@ -292,8 +292,9 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      // Open Clerk's account management page
-                      window.location.href = '/user';
+                      // Open Clerk's user profile modal
+                      clerk.openUserProfile();
+                      onClose(); // Close sidebar when opening profile
                     }}
                     className="w-full"
                   >
@@ -346,10 +347,11 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <div className="flex-1 overflow-y-auto">
               {activeTab === 'chats' ? (
                 isLoadingChats ? (
-                  <div className="p-4 space-y-2">
+                  <div className="px-4 py-2 space-y-2">
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="animate-pulse">
-                        <Skeleton className="h-16 w-full" />
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
+                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
                       </div>
                     ))}
                   </div>
@@ -372,10 +374,11 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 )
               ) : (
                 isLoadingFavorites ? (
-                  <div className="p-4 space-y-2">
+                  <div className="px-4 py-2 space-y-2">
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="animate-pulse">
-                        <Skeleton className="h-16 w-full" />
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
+                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
                       </div>
                     ))}
                   </div>

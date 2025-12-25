@@ -219,10 +219,12 @@ export async function GET(req: Request) {
     ]);
 
     // Transform response to match spec
-    const transformedChatbots = chatbots.map((chatbot) => {
+    // TypeScript has trouble inferring types from Prisma's conditional include, so we use type assertion
+    const transformedChatbots = (chatbots as any[]).map((chatbot: any) => {
       // Convert Decimal averageRating to number
-      const averageRating = chatbot.ratingsAggregate?.averageRating
-        ? Number(chatbot.ratingsAggregate.averageRating)
+      const ratingsAggregate = chatbot.ratingsAggregate as { averageRating: any; ratingCount: number } | null;
+      const averageRating = ratingsAggregate?.averageRating
+        ? Number(ratingsAggregate.averageRating)
         : null;
 
       return {
@@ -241,13 +243,13 @@ export async function GET(req: Request) {
           name: chatbot.creator.name,
           avatarUrl: chatbot.creator.avatarUrl,
         },
-        rating: chatbot.ratingsAggregate
+        rating: ratingsAggregate
           ? {
               averageRating,
-              ratingCount: chatbot.ratingsAggregate.ratingCount,
+              ratingCount: ratingsAggregate.ratingCount,
             }
           : null,
-        categories: chatbot.categories.map((cc) => ({
+        categories: chatbot.categories.map((cc: any) => ({
           id: cc.category.id,
           type: cc.category.type,
           label: cc.category.label,

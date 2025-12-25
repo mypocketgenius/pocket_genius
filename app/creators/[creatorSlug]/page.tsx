@@ -22,9 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { AppHeader } from '@/components/app-header';
-
-// Type definitions matching the API response format
-type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+import { Chatbot } from '@/lib/types/chatbot';
 
 interface Creator {
   id: string;
@@ -41,34 +39,6 @@ interface Creator {
     masterclass?: string;
     youtube?: string;
   } | null;
-}
-
-interface Chatbot {
-  id: string;
-  slug: string;
-  title: string;
-  description: string | null;
-  type: ChatbotType | null;
-  priceCents: number;
-  currency: string;
-  allowAnonymous: boolean;
-  creator: {
-    id: string;
-    slug: string;
-    name: string;
-    avatarUrl: string | null;
-  };
-  rating: {
-    averageRating: number | null;
-    ratingCount: number;
-  } | null;
-  categories: Array<{
-    id: string;
-    type: string;
-    label: string;
-    slug: string;
-  }>;
-  favoriteCount: number;
 }
 
 interface ChatbotsResponse {

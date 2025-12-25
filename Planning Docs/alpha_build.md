@@ -804,7 +804,7 @@ prisma/
 
 ### Phase 3.7.2: Public Chatbots API Endpoint ✅ COMPLETE
 
-**Status:** ✅ **COMPLETE** (Jan 2025)
+**Status:** ✅ **COMPLETE**
 
 **Objective:** Create API endpoint to fetch public chatbots with filtering, search, and pagination
 
@@ -941,7 +941,7 @@ prisma/
 
 ### Phase 3.7.3: Chatbot Detail Modal Component ✅ COMPLETE
 
-**Status:** ✅ **COMPLETE** (Jan 2025)
+**Status:** ✅ **COMPLETE**
 
 **Objective:** Create modal component that shows detailed chatbot information when card is clicked
 
@@ -1111,7 +1111,7 @@ prisma/
 
 ### Phase 3.7.4: Homepage Component with Grid Layout ✅ COMPLETE
 
-**Status:** ✅ **COMPLETE** (Jan 2025)
+**Status:** ✅ **COMPLETE**
 
 **Objective:** Create Amazon-style homepage with categorized chatbot grids
 
@@ -1380,7 +1380,7 @@ prisma/
 
 ### Phase 3.7.5: Creator Pages ✅ COMPLETE
 
-**Status:** ✅ **COMPLETE** (Jan 2025)
+**Status:** ✅ **COMPLETE**
 
 **Objective:** Create creator profile pages showing their chatbots
 
@@ -1481,7 +1481,7 @@ prisma/
 
 ### Phase 3.7.6: Favorites System ✅ COMPLETE
 
-**Status:** ✅ **COMPLETE** (Jan 2025)
+**Status:** ✅ **COMPLETE**
 
 **Objective:** Allow users to favorite chatbots and view their favorites
 
@@ -1750,8 +1750,17 @@ prisma/
 - ✅ Phase 3.7.2: Public Chatbots API Endpoint
 - ✅ Phase 3.7.3: Chatbot Detail Modal Component
 - ✅ Phase 3.7.4: Homepage Component with Grid Layout
-- ✅ Phase 3.7.5: Creator Pages ✅ **COMPLETE** (Jan 2025)
+- ✅ Phase 3.7.5: Creator Pages ✅ **COMPLETE**
 - ✅ Phase 3.7.6: Favorites System
+
+**Side Quest After Phase 3.7:**
+- ✅ Side Menu Button with Account & Chat/Favorites List ✅ **COMPLETE**
+  - Created side menu button in header and chat page
+  - Implemented sidebar with account info, theme settings, chats/favorites toggle
+  - Moved theme settings from chat header to sidebar
+  - Added conversations API endpoint
+  - Full swipe gesture support and responsive design
+  - See `Planning Docs/12-25_side-menu-button.md` for full details
 
 **Defer to Beta:**
 - Advanced dashboard visualizations (Recharts)
@@ -1789,6 +1798,101 @@ The following models/features from `database_schema.md` have been assigned to Al
 - **Conversation_Source_Usage** - Source usage tracking (Phase 8) - Revenue attribution
 - **Creator_Revenue_Summary** - Revenue aggregation (Phase 8) - Revenue dashboards
 - **Revenue_per_Conversation** - Revenue attribution (Phase 8) - Revenue tracking
+
+---
+
+### Side Quest: Side Menu Button with Account & Chat/Favorites List ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE**
+
+**Objective:** Add a side menu button in the top right of the header that opens a right-side sidebar menu. The sidebar displays account information, theme settings, a toggle between "Your Chats" and "Your Favorites", and lists of conversations or favorited chatbots.
+
+**Why:** After completing Phase 3.7 (UI/UX improvements), we identified a need for better navigation and account management. The side menu consolidates user account info, theme settings (moved from chat header), and quick access to chats and favorites in one accessible location.
+
+**Prerequisites:**
+- ✅ Phase 3.7.6 complete (Favorites System)
+- ✅ User authentication working
+- ✅ Conversations API endpoint needed
+
+**What Was Done:**
+
+1. **Created Conversations API Endpoint:**
+   - Created `app/api/conversations/route.ts` - GET endpoint to fetch all user conversations
+   - Returns conversations with chatbot and creator details
+   - Orders by `updatedAt DESC` (most recent first)
+   - Includes comprehensive error handling and test coverage (9 tests passing)
+
+2. **Created Side Menu Component:**
+   - Created `components/side-menu.tsx` (~446 lines) - Main sidebar component
+   - Created `components/side-menu-item.tsx` (~55 lines) - List item component
+   - Features implemented:
+     - Account section displaying user full name and email from Clerk
+     - "Manage Account" button opens Clerk's user profile modal (`clerk.openUserProfile()`)
+     - Theme settings button (opens ThemeSettings modal) - moved from chat header
+     - Toggle between "Your Chats" and "Your Favorites"
+     - List of conversations or favorited chatbots with chatbot name, type badge, and creator name
+     - Sign out button using Clerk's SignOutButton
+     - Slide-in animation from right with CSS transitions
+     - Backdrop overlay with click-to-close functionality
+     - Swipe gesture support (swipe-to-close when sidebar is open)
+     - Keyboard support (ESC key closes sidebar)
+     - Skeleton loading states matching search dropdown pattern
+     - Empty state messages ("FIND CHATS ON THE HOMESCREEN")
+     - Navigation: chat items → `/chat/[chatbotId]`, favorites → ChatbotDetailModal
+     - Prevents body scroll when sidebar is open
+
+3. **Integrated Side Menu into Headers:**
+   - Updated `components/app-header.tsx` - Added menu button alongside UserButton (only shows when signed in)
+   - Updated `components/chat.tsx` - Added menu button to chat header (to the right of StarRating), removed theme settings button
+   - Menu button appears on all pages (homepage via AppHeader, chat page via Chat component header)
+
+**Key Features:**
+- ✅ Side menu button appears in header alongside UserButton (when signed in)
+- ✅ Side menu button appears in chat header to the right of rating stars (when signed in)
+- ✅ Sidebar slides in from right with smooth animation
+- ✅ Swipe gesture support (swipe-to-close when sidebar is open)
+- ✅ Account information display (full name, email, manage account)
+- ✅ Theme settings moved from chat header to sidebar
+- ✅ Toggle between chats and favorites
+- ✅ Lists display conversations or favorited chatbots with proper styling
+- ✅ Navigation to chat pages or chatbot detail modal
+- ✅ Responsive design (full-width on mobile, max 600px on desktop)
+- ✅ Keyboard support (ESC to close)
+- ✅ Loading states and empty states
+
+**Files Created:**
+- `components/side-menu.tsx` - Main sidebar component (~446 lines)
+- `components/side-menu-item.tsx` - List item component (~55 lines)
+- `app/api/conversations/route.ts` - API endpoint (~145 lines)
+- `__tests__/api/conversations/route.test.ts` - Test suite (9 tests passing)
+
+**Files Modified:**
+- `components/app-header.tsx` - Added menu button and SideMenu integration
+- `components/chat.tsx` - Added menu button, removed theme settings button and related code
+- `app/api/chatbots/public/route.ts` - Fixed TypeScript type inference issues
+- `app/creators/[creatorSlug]/page.tsx` - Fixed CategoryType mismatch by using shared Chatbot type
+
+**Post-Implementation Fixes:**
+- Fixed "Manage Account" button: Changed from broken `/user` route to Clerk's `clerk.openUserProfile()` method
+- Fixed name display: Updated to show full name (firstName + lastName) instead of just first name
+- Fixed chunk loading timeout: Cleared .next cache to resolve development server issues
+
+**Testing:**
+- ✅ Conversations API endpoint fully tested (9 tests passing)
+- ✅ All acceptance criteria met
+- ✅ Build successful (all TypeScript errors resolved)
+- ✅ Manual testing: Menu button appears on all pages
+- ✅ Manual testing: Sidebar opens/closes correctly
+- ✅ Manual testing: Navigation works for chats and favorites
+- ✅ Manual testing: Theme settings accessible from sidebar
+- ✅ Manual testing: Account management opens Clerk modal
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/12-25_side-menu-button.md`
+- All tasks completed and documented
+- Post-implementation fixes documented
+
+**Note:** This side quest improved user experience by consolidating account management, theme settings, and quick navigation to chats/favorites in one accessible sidebar menu. The implementation follows React best practices with proper component composition, state management, and responsive design patterns.
 
 ---
 
@@ -3978,8 +4082,9 @@ If critical issues arise in production:
   - [x] Phase 3.7.2: Public Chatbots API Endpoint ✅ **COMPLETE**
   - [x] Phase 3.7.3: Chatbot Detail Modal Component ✅ **COMPLETE**
   - [x] Phase 3.7.4: Homepage Component with Grid Layout ✅ **COMPLETE**
-  - [x] Phase 3.7.5: Creator Pages ✅ **COMPLETE** (Jan 2025)
-  - [x] Phase 3.7.6: Favorites System ✅ **COMPLETE** (Jan 2025)
+  - [x] Phase 3.7.5: Creator Pages ✅ **COMPLETE**
+  - [x] Phase 3.7.6: Favorites System ✅ **COMPLETE**
+- [x] Side Quest: Side Menu Button with Account & Chat/Favorites List ✅ **COMPLETE**
 - [ ] Phase 3.8: Multiple Chatbots Support
 - [ ] Phase 3.9: Chatbot Versioning System
 - [ ] Phase 3.10: User Intake Forms
