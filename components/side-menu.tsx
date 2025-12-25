@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, SignOutButton, useClerk } from '@clerk/nextjs';
-import { X, Palette, LogOut, User } from 'lucide-react';
+import { X, Palette, LogOut, User, MessageSquare, Heart } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
@@ -12,6 +12,7 @@ import { Chatbot } from '@/lib/types/chatbot';
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpen: () => void;
 }
 
 interface Conversation {
@@ -49,7 +50,7 @@ interface Conversation {
  * - Skeleton loading states
  * - Empty state messages
  */
-export function SideMenu({ isOpen, onClose }: SideMenuProps) {
+export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
   const router = useRouter();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
@@ -67,8 +68,12 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   
   // Swipe gesture state
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const isSwiping = useRef(false);
+  const swipeJustEnded = useRef(false);
+  const [isSwipeActive, setIsSwipeActive] = useState(false);
   const swipeThreshold = 50; // Minimum swipe distance to trigger open/close
   const edgeThreshold = 20; // Distance from right edge to detect swipe start
   
@@ -131,6 +136,11 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       if (screenWidth - touchX <= edgeThreshold) {
         touchStartX.current = touchX;
         touchStartY.current = touchY;
+        isSwiping.current = false;
+        // Make sidebar visible immediately when touch starts near edge (for swipe-to-open)
+        if (!isOpen) {
+          setIsSwipeActive(true);
+        }
       }
     };
     
@@ -146,16 +156,39 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         // Vertical movement detected, cancel swipe
         touchStartX.current = null;
         touchStartY.current = null;
+        isSwiping.current = false;
+        setIsSwipeActive(false);
+        if (sidebarRef.current) {
+          sidebarRef.current.style.transform = '';
+          sidebarRef.current.style.transition = '';
+        }
         return;
       }
       
-      // Update sidebar position to follow finger (only if sidebar is open)
-      if (isOpen && sidebarRef.current) {
-        const sidebarWidth = sidebarRef.current.offsetWidth;
-        // When sidebar is open: swiping right (positive deltaX) closes it
+      // Mark as swiping if we've moved horizontally
+      if (Math.abs(deltaX) > 5) {
+        isSwiping.current = true;
+        setIsSwipeActive(true);
+        e.preventDefault(); // Prevent scrolling during swipe
+      }
+      
+      if (!sidebarRef.current) return;
+      
+      const sidebarWidth = sidebarRef.current.offsetWidth;
+      
+      if (isOpen) {
+        // Sidebar is open: swiping right (positive deltaX) closes it
         // translateX should be positive (moves sidebar right/off-screen)
         const translateX = Math.min(Math.max(deltaX, 0), sidebarWidth);
+        sidebarRef.current.style.transition = 'none'; // Disable transition during swipe
         sidebarRef.current.style.transform = `translateX(${translateX}px)`;
+      } else {
+        // Sidebar is closed: swiping left (negative deltaX) opens it
+        // Start from off-screen (100%) and move left (negative translateX)
+        // translateX should be negative (moves sidebar left/on-screen)
+        const translateX = Math.max(Math.min(deltaX, 0), -sidebarWidth);
+        sidebarRef.current.style.transition = 'none'; // Disable transition during swipe
+        sidebarRef.current.style.transform = `translateX(calc(100% + ${translateX}px))`;
       }
     };
     
@@ -165,25 +198,52 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       const touch = e.changedTouches[0];
       const deltaX = touch.clientX - touchStartX.current;
       
-      // Reset sidebar position (only if sidebar is open and ref exists)
-      if (isOpen && sidebarRef.current) {
-        sidebarRef.current.style.transform = '';
+      if (!sidebarRef.current) {
+        touchStartX.current = null;
+        touchStartY.current = null;
+        isSwiping.current = false;
+        return;
       }
       
+      // Mark that a swipe just ended to prevent backdrop clicks
+      swipeJustEnded.current = true;
+      setTimeout(() => {
+        swipeJustEnded.current = false;
+      }, 300); // Prevent backdrop clicks for 300ms after swipe ends
+      
+      // Re-enable transition for smooth snap
+      sidebarRef.current.style.transition = '';
+      
       // Determine if swipe threshold was met
-      if (Math.abs(deltaX) > swipeThreshold) {
+      // Only proceed if we actually detected a swipe gesture
+      if (isSwiping.current && Math.abs(deltaX) > swipeThreshold) {
         if (isOpen) {
           // Sidebar is open: swiping right (positive deltaX) closes it
-          if (deltaX > 0) {
+          if (deltaX > swipeThreshold) {
             onClose();
+          } else {
+            // Swiped but not enough in closing direction, snap back to open
+            sidebarRef.current.style.transform = '';
+          }
+        } else {
+          // Sidebar is closed: swiping left (negative deltaX) opens it
+          if (deltaX < -swipeThreshold) {
+            onOpen();
+          } else {
+            // Swiped but not enough in opening direction, snap back to closed
+            sidebarRef.current.style.transform = '';
           }
         }
-        // Note: Swipe-to-open when sidebar is closed would require an onOpen callback
-        // For now, swipe-to-open is handled via button click in parent components
+      } else {
+        // Didn't meet threshold or wasn't a valid swipe, snap back to current state
+        // This ensures sidebar stays open if it was open, stays closed if it was closed
+        sidebarRef.current.style.transform = '';
       }
       
       touchStartX.current = null;
       touchStartY.current = null;
+      isSwiping.current = false;
+      setIsSwipeActive(false);
     };
     
     // Add event listeners
@@ -196,8 +256,14 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
+      // Reset transform on cleanup
+      if (sidebarRef.current) {
+        sidebarRef.current.style.transform = '';
+        sidebarRef.current.style.transition = '';
+      }
+      setIsSwipeActive(false);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onOpen]);
   
   // Handle ESC key to close
   useEffect(() => {
@@ -245,14 +311,39 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     router.push(`/chat/${chatbotId}`);
   };
   
-  if (!isOpen) return null;
-  
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-        onClick={onClose}
+        ref={backdropRef}
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={(e) => {
+          // Prevent backdrop click if a swipe gesture just ended or is in progress
+          if (swipeJustEnded.current || touchStartX.current !== null || isSwiping.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          onClose();
+        }}
+        onTouchStart={(e) => {
+          // Prevent backdrop touch if we're in the middle of a swipe
+          if (touchStartX.current !== null || isSwiping.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }}
+        onTouchEnd={(e) => {
+          // Prevent backdrop touch end from triggering click if swipe just ended
+          if (swipeJustEnded.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }}
         aria-hidden="true"
       />
       
@@ -260,7 +351,10 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       <div
         ref={sidebarRef}
         className="fixed top-0 right-0 h-full w-full max-w-[600px] bg-white z-50 shadow-xl transform transition-transform duration-300 ease-out"
-        style={{ transform: isOpen ? 'translateX(0)' : 'translateX(100%)' }}
+        style={{ 
+          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+          visibility: isOpen || isSwipeActive ? 'visible' : 'hidden'
+        }}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -321,22 +415,24 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <div className="flex gap-2">
                 <button
                   onClick={() => setActiveTab('chats')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                     activeTab === 'chats'
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
+                  <MessageSquare className={`w-4 h-4 ${activeTab === 'chats' ? 'text-white' : 'text-gray-600'}`} />
                   Your Chats
                 </button>
                 <button
                   onClick={() => setActiveTab('favorites')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                     activeTab === 'favorites'
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
+                  <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'text-white' : 'text-gray-600'}`} />
                   Your Favorites
                 </button>
               </div>

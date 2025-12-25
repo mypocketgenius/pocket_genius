@@ -1221,7 +1221,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       />
 
       {/* Side Menu */}
-      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
+      <SideMenu 
+        isOpen={sideMenuOpen} 
+        onClose={() => setSideMenuOpen(false)}
+        onOpen={() => setSideMenuOpen(true)}
+      />
     </div>
   );
 }

@@ -1896,88 +1896,33 @@ The following models/features from `database_schema.md` have been assigned to Al
 
 ---
 
-#### Phase 3.8: Multiple Chatbots Support ✅ ALPHA
+#### Phase 3.8: Multiple Chatbots Support ❌ REDUNDANT - CANCELLED
 
-**Objective:** Support multiple chatbot instances (Art of War, other public domain works)
+**Status:** ❌ **REDUNDANT** - Functionality already implemented in Phase 3.7.4 and Side Menu
 
-**Why needed for Alpha:** Essential for offering multiple public domain books/works
+**Why Cancelled:**
+Phase 3.8 is redundant because the required functionality is already fully implemented:
 
-**Prerequisites:**
-- ✅ Creator can own multiple chatbots (schema supports this)
-- ✅ Homepage/dashboard navigation working
+1. **Homepage (Phase 3.7.4)** ✅ **COMPLETE**:
+   - Homepage displays all public chatbots in a searchable, filterable grid
+   - Users can browse, search, and select any chatbot
+   - Clicking a chatbot card opens detail modal with "Start Chat" button
+   - This already enables users to discover and start chatting with multiple chatbots
 
-**Tasks:**
+2. **Side Menu (Side Quest)** ✅ **COMPLETE**:
+   - Sidebar shows "Your Chats" toggle with list of all user conversations
+   - Users can click any conversation to navigate to that chat
+   - This already enables users to switch between their chats across different chatbots
 
-1. **Create chatbot selection page:**
+**Original Objective:** Support multiple chatbot instances (Art of War, other public domain works)
 
-   **`app/chatbots/page.tsx`:**
-   ```typescript
-   import { auth } from '@clerk/nextjs/server';
-   import { prisma } from '@/lib/prisma';
-   import Link from 'next/link';
-   import { Card } from '@/components/ui/card';
-   
-   export default async function ChatbotsPage() {
-     const { userId } = auth();
-     
-     if (!userId) {
-       return <div>Please sign in</div>;
-     }
-     
-     // Get user's chatbots
-     const user = await prisma.user.findUnique({
-       where: { clerkId: userId },
-       include: {
-         creators: {
-           include: {
-             creator: {
-               include: {
-                 chatbots: true,
-               },
-             },
-           },
-         },
-       },
-     });
-     
-     const chatbots = user?.creators.flatMap(cu => cu.creator.chatbots) || [];
-     
-     return (
-       <div className="container mx-auto py-8">
-         <h1 className="text-3xl font-bold mb-8">Your Chatbots</h1>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           {chatbots.map((chatbot) => (
-             <Link key={chatbot.id} href={`/chat/${chatbot.id}`}>
-               <Card className="p-6 hover:shadow-lg transition-shadow">
-                 <h2 className="text-xl font-semibold mb-2">{chatbot.title}</h2>
-                 <p className="text-gray-600">{chatbot.description}</p>
-               </Card>
-             </Link>
-           ))}
-         </div>
-       </div>
-     );
-   }
-   ```
+**Original Tasks:**
+1. Create chatbot selection page (`/chatbots`) - **NOT NEEDED**: Homepage already serves this purpose
+2. Add chatbot switcher to navigation - **NOT NEEDED**: Side menu already provides chat switching
+3. Update homepage to show chatbot list - **ALREADY DONE**: Phase 3.7.4 implemented full homepage with chatbot grid
 
-2. **Add chatbot switcher to navigation:**
-
-   Update navigation component to show chatbot dropdown/switcher
-
-3. **Update homepage to show chatbot list:**
-
-   Allow users to browse and select chatbots
-
-**Deliverables:**
-- ✅ Chatbot selection page
-- ✅ Navigation with chatbot switcher
-- ✅ Homepage shows available chatbots
-- ✅ Multi-chatbot support working
-
-**Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+**Conclusion:**
+The core requirement (users can select and switch between multiple chatbots) is fully satisfied by existing implementations. No additional work needed.
 
 ---
 
@@ -1990,12 +1935,74 @@ The following models/features from `database_schema.md` have been assigned to Al
 **Prerequisites:**
 - ✅ Chatbot model exists
 - ✅ Need to track system prompt, config, and RAG settings changes
+- ⚠️ **IMPORTANT:** Chatbot model must have versioning fields before implementing (see Task 1)
+
+**Design Decision:**
+- `configJson`, `ragSettingsJson`, and `ingestionRunIds` are stored in **both** Chatbot (current state) and Chatbot_Version (historical snapshots)
+- Rationale: Fast access to current config (Chatbot) + historical tracking (Chatbot_Version)
+- Chatbot = live configuration used by chat API
+- Chatbot_Version = immutable snapshots for analytics/debugging/rollback
 
 **Tasks:**
 
-1. **Add Chatbot_Version model to schema:**
+1. **Add missing fields to Chatbot model and create Chatbot_Version model:**
 
    **`prisma/schema.prisma`:**
+   
+   **First, update Chatbot model** (add missing versioning fields):
+   ```prisma
+   model Chatbot {
+     id                String  @id @default(cuid())
+     title             String
+     creatorId         String
+     creator           Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+     
+     // Phase 3.7.1: Homepage browsing fields
+     slug              String?      @unique
+     description       String?
+     isPublic          Boolean      @default(false)
+     allowAnonymous    Boolean      @default(false)
+     type              ChatbotType?
+     priceCents        Int          @default(0)
+     currency          String       @default("USD")
+     isActive          Boolean      @default(true)
+     
+     // Phase 3.9: Versioning fields (current/live configuration)
+     systemPrompt      String?      // Current system prompt
+     modelProvider     String?      // e.g., "openai"
+     modelName         String?      // e.g., "gpt-4o"
+     pineconeNs        String?      // Pinecone namespace
+     vectorNamespace   String?      // Vector namespace
+     configJson        Json?        // Current config (temperature, etc.)
+     ragSettingsJson   Json?        // Current RAG settings (topK, etc.)
+     ingestionRunIds   String[]      @default([]) // Current ingestion runs
+     
+     // Phase 3.9: Versioning relations
+     currentVersionId  String?
+     currentVersion    Chatbot_Version? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+     versions          Chatbot_Version[]
+     
+     createdAt         DateTime @default(now())
+     
+     // ... existing relations ...
+     conversations     Conversation[]
+     sources           Source[]
+     chunkPerformances Chunk_Performance[]
+     pills             Pill[]
+     pillUsages        Pill_Usage[]
+     bookmarks         Bookmark[]
+     ratingsAggregate  Chatbot_Ratings_Aggregate?
+     categories        Chatbot_Category[]
+     favoritedBy       Favorited_Chatbots[]
+     
+     @@index([slug])
+     @@index([isPublic])
+     @@index([isActive])
+     @@index([type])
+   }
+   ```
+   
+   **Then, add Chatbot_Version model:**
    ```prisma
    model Chatbot_Version {
      id                String   @id @default(cuid())
@@ -2033,16 +2040,87 @@ The following models/features from `database_schema.md` have been assigned to Al
      @@index([chatbotId])
      @@index([activatedAt])
    }
+   ```
    
-   // Update Chatbot model
-   model Chatbot {
+   **Update User model** (add relation):
+   ```prisma
+   model User {
      // ... existing fields ...
-     currentVersionId  String?
-     currentVersion    Chatbot_Version? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
-     versions          Chatbot_Version[]
+     createdChatbotVersions Chatbot_Version[] @relation("ChatbotVersionCreator")
+   }
+   ```
+   
+   **Update Conversation model** (add version reference):
+   ```prisma
+   model Conversation {
+     // ... existing fields ...
+     chatbotVersionId   String
+     chatbotVersion    Chatbot_Version @relation(fields: [chatbotVersionId], references: [id], onDelete: Cascade)
    }
    ```
 
+   **Migration Strategy for Existing Data:**
+   
+   **IMPORTANT:** Before running migration, create a data migration script to:
+   1. Create version 1 for all existing chatbots (using current values or defaults)
+   2. Assign all existing conversations to version 1
+   
+   **Create migration script:** `prisma/migrations/add_chatbot_versioning_data.ts`
+   ```typescript
+   import { PrismaClient } from '@prisma/client';
+   const prisma = new PrismaClient();
+   
+   async function migrateExistingData() {
+     // Get all existing chatbots
+     const chatbots = await prisma.chatbot.findMany({
+       include: { conversations: true },
+     });
+     
+     for (const chatbot of chatbots) {
+       // Create version 1 for this chatbot
+       // Use current values from chatbot or defaults
+       const version1 = await prisma.chatbot_Version.create({
+         data: {
+           chatbotId: chatbot.id,
+           versionNumber: 1,
+           title: chatbot.title,
+           description: chatbot.description || null,
+           systemPrompt: chatbot.systemPrompt || 'You are a helpful assistant.',
+           modelProvider: chatbot.modelProvider || 'openai',
+           modelName: chatbot.modelName || 'gpt-4o',
+           pineconeNs: chatbot.pineconeNs || '',
+           vectorNamespace: chatbot.vectorNamespace || '',
+           configJson: chatbot.configJson || null,
+           ragSettingsJson: chatbot.ragSettingsJson || null,
+           ingestionRunIds: chatbot.ingestionRunIds || [],
+           allowAnonymous: chatbot.allowAnonymous,
+           priceCents: chatbot.priceCents,
+           currency: chatbot.currency,
+           type: chatbot.type || 'DEEP_DIVE',
+           createdByUserId: chatbot.creatorId, // Use creator as fallback
+           activatedAt: new Date(),
+         },
+       });
+       
+       // Update chatbot to point to version 1
+       await prisma.chatbot.update({
+         where: { id: chatbot.id },
+         data: { currentVersionId: version1.id },
+       });
+       
+       // Assign all existing conversations to version 1
+       await prisma.conversation.updateMany({
+         where: { chatbotId: chatbot.id },
+         data: { chatbotVersionId: version1.id },
+       });
+     }
+   }
+   
+   migrateExistingData()
+     .catch(console.error)
+     .finally(() => prisma.$disconnect());
+   ```
+   
    **Run migration:**
    
    **Step 1a: Update Development Database (Local)**
@@ -2051,6 +2129,10 @@ The following models/features from `database_schema.md` have been assigned to Al
      ```bash
      npx prisma migrate dev --name add_chatbot_versioning
      npx prisma generate
+     ```
+   - **After migration, run data migration script:**
+     ```bash
+     npx tsx prisma/migrations/add_chatbot_versioning_data.ts
      ```
    - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
    
@@ -2064,6 +2146,9 @@ The following models/features from `database_schema.md` have been assigned to Al
    **Step 1c: Deploy to Production (Vercel)**
    - Push to your repository and deploy to Vercel
    - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+   - **After deployment, run data migration script on production:**
+     - Set production `DATABASE_URL` temporarily
+     - Run: `DATABASE_URL="your-production-url" npx tsx prisma/migrations/add_chatbot_versioning_data.ts`
    - This applies the migration to your **production Neon database**
 
 2. **Create version creation utility:**
@@ -2090,6 +2175,11 @@ The following models/features from `database_schema.md` have been assigned to Al
      
      if (!chatbot) throw new Error('Chatbot not found');
      
+     // Validate required fields exist
+     if (!chatbot.systemPrompt || !chatbot.modelProvider || !chatbot.modelName) {
+       throw new Error('Chatbot missing required versioning fields');
+     }
+     
      const nextVersionNumber = chatbot.versions[0]?.versionNumber 
        ? chatbot.versions[0].versionNumber + 1 
        : 1;
@@ -2102,25 +2192,25 @@ The following models/features from `database_schema.md` have been assigned to Al
        });
      }
      
-     // Create new version
+     // Create new version (snapshot current state + changes)
      const newVersion = await prisma.chatbot_Version.create({
        data: {
          chatbotId,
          versionNumber: nextVersionNumber,
          title: chatbot.title,
          description: chatbot.description,
-         systemPrompt: changes.systemPrompt || chatbot.systemPrompt,
+         systemPrompt: changes.systemPrompt ?? chatbot.systemPrompt,
          modelProvider: chatbot.modelProvider,
          modelName: chatbot.modelName,
-         pineconeNs: chatbot.pineconeNs,
-         vectorNamespace: chatbot.vectorNamespace,
-         configJson: changes.configJson || chatbot.configJson,
-         ragSettingsJson: changes.ragSettingsJson || chatbot.ragSettingsJson,
+         pineconeNs: chatbot.pineconeNs || '',
+         vectorNamespace: chatbot.vectorNamespace || '',
+         configJson: changes.configJson ?? chatbot.configJson,
+         ragSettingsJson: changes.ragSettingsJson ?? chatbot.ragSettingsJson,
          ingestionRunIds: chatbot.ingestionRunIds || [],
          allowAnonymous: chatbot.allowAnonymous,
          priceCents: chatbot.priceCents,
          currency: chatbot.currency,
-         type: chatbot.type,
+         type: chatbot.type || 'DEEP_DIVE',
          notes: changes.notes,
          changelog: changes.changelog,
          createdByUserId: userId,
@@ -2128,77 +2218,236 @@ The following models/features from `database_schema.md` have been assigned to Al
        },
      });
      
-     // Update chatbot to point to new version
+     // Update chatbot to point to new version AND update current fields
      await prisma.chatbot.update({
        where: { id: chatbotId },
-       data: { currentVersionId: newVersion.id },
+       data: {
+         currentVersionId: newVersion.id,
+         // Update current fields if changed
+         ...(changes.systemPrompt && { systemPrompt: changes.systemPrompt }),
+         ...(changes.configJson && { configJson: changes.configJson }),
+         ...(changes.ragSettingsJson && { ragSettingsJson: changes.ragSettingsJson }),
+       },
      });
      
      return newVersion;
    }
    ```
 
-3. **Update chatbot update API to create versions:**
+3. **Create chatbot update API route:**
 
    **`app/api/chatbots/[chatbotId]/route.ts`:**
    ```typescript
-   // When updating chatbot config, create new version
-   if (req.method === 'PATCH') {
-     const { systemPrompt, configJson, ragSettingsJson, notes, changelog } = await req.json();
-     
-     await createChatbotVersion(chatbotId, userId, {
-       systemPrompt,
-       configJson,
-       ragSettingsJson,
-       notes,
-       changelog,
-     });
-     
-     // Update chatbot fields that aren't versioned
-     await prisma.chatbot.update({
-       where: { id: chatbotId },
-       data: { /* non-versioned fields */ },
-     });
+   import { NextResponse } from 'next/server';
+   import { auth } from '@clerk/nextjs/server';
+   import { prisma } from '@/lib/prisma';
+   import { createChatbotVersion } from '@/lib/chatbot/versioning';
+   
+   /**
+    * PATCH /api/chatbots/[chatbotId]
+    * 
+    * Updates chatbot configuration and creates a new version snapshot.
+    * Requires authentication and chatbot ownership.
+    * 
+    * Request body:
+    * - systemPrompt?: string
+    * - configJson?: any
+    * - ragSettingsJson?: any
+    * - notes?: string
+    * - changelog?: string
+    * - title?: string (non-versioned)
+    * - description?: string (non-versioned)
+    * - isPublic?: boolean (non-versioned)
+    * 
+    * Response: { success: true, version: Chatbot_Version }
+    */
+   export async function PATCH(
+     req: Request,
+     { params }: { params: Promise<{ chatbotId: string }> }
+   ) {
+     try {
+       // 1. Authenticate user
+       const { userId: clerkUserId } = await auth();
+       if (!clerkUserId) {
+         return NextResponse.json(
+           { error: 'Authentication required' },
+           { status: 401 }
+         );
+       }
+       
+       // 2. Get database user
+       const user = await prisma.user.findUnique({
+         where: { clerkId: clerkUserId },
+         select: { id: true },
+       });
+       
+       if (!user) {
+         return NextResponse.json(
+           { error: 'User not found' },
+           { status: 404 }
+         );
+       }
+       
+       // 3. Get chatbot ID from params
+       const { chatbotId } = await params;
+       
+       // 4. Verify chatbot exists and user has permission
+       const chatbot = await prisma.chatbot.findUnique({
+         where: { id: chatbotId },
+         include: { creator: true },
+       });
+       
+       if (!chatbot) {
+         return NextResponse.json(
+           { error: 'Chatbot not found' },
+           { status: 404 }
+         );
+       }
+       
+       // TODO: Add ownership check (user must be creator or have permission)
+       // For now, allow if user is the creator
+       // In future, check Chatbot_Creator table for multi-creator support
+       
+       // 5. Parse request body
+       const body = await req.json();
+       const {
+         systemPrompt,
+         configJson,
+         ragSettingsJson,
+         notes,
+         changelog,
+         // Non-versioned fields
+         title,
+         description,
+         isPublic,
+       } = body;
+       
+       // 6. Create new version if versioned fields changed
+       const hasVersionedChanges = systemPrompt || configJson || ragSettingsJson;
+       let newVersion = null;
+       
+       if (hasVersionedChanges) {
+         newVersion = await createChatbotVersion(chatbotId, user.id, {
+           systemPrompt,
+           configJson,
+           ragSettingsJson,
+           notes,
+           changelog,
+         });
+       }
+       
+       // 7. Update non-versioned fields
+       const nonVersionedUpdates: any = {};
+       if (title !== undefined) nonVersionedUpdates.title = title;
+       if (description !== undefined) nonVersionedUpdates.description = description;
+       if (isPublic !== undefined) nonVersionedUpdates.isPublic = isPublic;
+       
+       if (Object.keys(nonVersionedUpdates).length > 0) {
+         await prisma.chatbot.update({
+           where: { id: chatbotId },
+           data: nonVersionedUpdates,
+         });
+       }
+       
+       return NextResponse.json({
+         success: true,
+         version: newVersion,
+       });
+     } catch (error) {
+       console.error('Error updating chatbot:', error);
+       return NextResponse.json(
+         { error: 'Failed to update chatbot' },
+         { status: 500 }
+       );
+     }
    }
    ```
 
-4. **Update Conversation model to reference version:**
+4. **Update chat API to use chatbot version:**
 
-   **`prisma/schema.prisma`:**
-   ```prisma
-   model Conversation {
-     // ... existing fields ...
-     chatbotVersionId   String
-     chatbotVersion      Chatbot_Version @relation(fields: [chatbotVersionId], references: [id])
-   }
+   **`app/api/chat/route.ts`:**
+   - Update conversation creation to set `chatbotVersionId`:
+   ```typescript
+   // When creating conversation, use current version
+   const conversation = await prisma.conversation.create({
+     data: {
+       chatbotId,
+       chatbotVersionId: chatbot.currentVersionId || chatbot.versions[0]?.id, // Fallback to first version if no current
+       userId: dbUserId,
+       // ... other fields
+     },
+   });
    ```
 
 5. **Create version history view (optional for Alpha):**
 
    **`components/dashboard/version-history.tsx`:**
    ```typescript
+   import { prisma } from '@/lib/prisma';
+   import { Card } from '@/components/ui/card';
+   import { Badge } from '@/components/ui/badge';
+   
    export async function VersionHistory({ chatbotId }: { chatbotId: string }) {
      const versions = await prisma.chatbot_Version.findMany({
        where: { chatbotId },
        orderBy: { versionNumber: 'desc' },
-       include: { createdBy: { select: { firstName: true, lastName: true } } },
+       include: {
+         createdBy: {
+           select: {
+             firstName: true,
+             lastName: true,
+           },
+         },
+       },
      });
+     
+     if (versions.length === 0) {
+       return (
+         <div className="text-center py-8 text-gray-600">
+           No versions yet. Create a version by updating the chatbot configuration.
+         </div>
+       );
+     }
      
      return (
        <div className="space-y-4">
          {versions.map((version) => (
-           <Card key={version.id}>
-             <div className="flex justify-between">
-               <div>
-                 <h3>Version {version.versionNumber}</h3>
-                 <p className="text-sm text-gray-600">
-                   Created {version.createdAt.toLocaleDateString()}
+           <Card key={version.id} className="p-6">
+             <div className="flex justify-between items-start">
+               <div className="flex-1">
+                 <div className="flex items-center gap-2 mb-2">
+                   <h3 className="text-lg font-semibold">
+                     Version {version.versionNumber}
+                   </h3>
+                   {version.activatedAt && !version.deactivatedAt && (
+                     <Badge variant="default">Current</Badge>
+                   )}
+                 </div>
+                 <p className="text-sm text-gray-600 mb-2">
+                   Created {version.createdAt.toLocaleDateString()} by{' '}
+                   {version.createdBy.firstName} {version.createdBy.lastName}
                  </p>
-                 {version.changelog && <p>{version.changelog}</p>}
+                 {version.changelog && (
+                   <p className="text-sm mt-2">{version.changelog}</p>
+                 )}
+                 {version.notes && (
+                   <p className="text-xs text-gray-500 mt-1 italic">
+                     Notes: {version.notes}
+                   </p>
+                 )}
                </div>
-               {version.activatedAt && (
-                 <Badge>Current</Badge>
-               )}
+               <div className="text-right text-sm text-gray-600">
+                 {version.activatedAt && (
+                   <div>
+                     Activated: {version.activatedAt.toLocaleDateString()}
+                   </div>
+                 )}
+                 {version.deactivatedAt && (
+                   <div>
+                     Deactivated: {version.deactivatedAt.toLocaleDateString()}
+                   </div>
+                 )}
+               </div>
              </div>
            </Card>
          ))}
@@ -2208,18 +2457,25 @@ The following models/features from `database_schema.md` have been assigned to Al
    ```
 
 **Deliverables:**
+- ✅ Chatbot model updated with versioning fields (systemPrompt, modelProvider, etc.)
 - ✅ Chatbot_Version model added to schema
-- ✅ Version creation utility
-- ✅ Automatic versioning on chatbot updates
-- ✅ Conversations reference chatbot versions
-- ✅ Version history tracking
+- ✅ User relation added for ChatbotVersionCreator
+- ✅ Conversation model updated to reference chatbotVersionId
+- ✅ Data migration script for existing chatbots/conversations
+- ✅ Version creation utility (`lib/chatbot/versioning.ts`)
+- ✅ Chatbot update API route (`app/api/chatbots/[chatbotId]/route.ts`)
+- ✅ Chat API updated to use chatbot versions
 - ✅ Optional version history UI component
 
 **Testing:**
+- [ ] Migration runs successfully
+- [ ] Data migration creates version 1 for all existing chatbots
+- [ ] Existing conversations assigned to version 1
 - [ ] Creating chatbot creates version 1
 - [ ] Updating chatbot creates new version
 - [ ] Conversations reference correct version
 - [ ] Version history displays correctly
+- [ ] Chat API uses current version correctly
 - [ ] Can rollback to previous version (if implemented)
 
 ---
@@ -4085,7 +4341,7 @@ If critical issues arise in production:
   - [x] Phase 3.7.5: Creator Pages ✅ **COMPLETE**
   - [x] Phase 3.7.6: Favorites System ✅ **COMPLETE**
 - [x] Side Quest: Side Menu Button with Account & Chat/Favorites List ✅ **COMPLETE**
-- [ ] Phase 3.8: Multiple Chatbots Support
+- [x] Phase 3.8: Multiple Chatbots Support ❌ **REDUNDANT** (functionality already in Phase 3.7.4 + Side Menu)
 - [ ] Phase 3.9: Chatbot Versioning System
 - [ ] Phase 3.10: User Intake Forms
 
@@ -4099,7 +4355,7 @@ If critical issues arise in production:
 - [ ] Phase 7.2: Performance Optimization
 - [ ] Phase 7.3: Documentation (user-facing)
 
-**Total Alpha Tasks:** 12 tasks (added Phase 3.9 and 3.10)
+**Total Alpha Tasks:** 11 tasks (Phase 3.8 cancelled as redundant, Phase 3.9 and 3.10 added)
 
 **Timeline:** 6 weeks (Weeks 5-10)
 

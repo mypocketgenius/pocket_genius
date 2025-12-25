@@ -131,6 +131,12 @@ function HomeContent() {
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<ChatbotsResponse['pagination'] | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(false);
+
+  // Track client-side mount to avoid hydration mismatches
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch categories and creators on mount
   useEffect(() => {
@@ -342,7 +348,7 @@ function HomeContent() {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Turn any expert into your advisor
+            Turn Any Expert Into Your Advisor
           </h2>
           <p className="text-muted-foreground mb-6">
             AI trained on their work. Personalized to your situation.
@@ -350,7 +356,7 @@ function HomeContent() {
         </div>
 
         {/* Filters Section */}
-        <div className="mb-8 space-y-4" suppressHydrationWarning>
+        <div className="mb-8 space-y-4">
           {/* Category Type Filters */}
           <div>
             <h3 className="text-sm font-medium mb-2">Filter by Category Type</h3>
@@ -396,7 +402,6 @@ function HomeContent() {
               value={selectedCreator}
               onChange={(e) => setSelectedCreator(e.target.value)}
               className="w-full md:w-64 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              suppressHydrationWarning
             >
               <option value="">All Creators</option>
               {creators.map(creator => (
@@ -411,22 +416,33 @@ function HomeContent() {
           <div>
             <h3 className="text-sm font-medium mb-2">Chatbot Type</h3>
             <div className="flex flex-wrap gap-4">
-              {(['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
-                <div key={type} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={type}
-                    checked={selectedTypes.includes(type)}
-                    onCheckedChange={() => toggleType(type)}
-                    suppressHydrationWarning
-                  />
-                  <label
-                    htmlFor={type}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    {type.replace(/_/g, ' ')}
-                  </label>
-                </div>
-              ))}
+              {mounted ? (
+                (['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
+                  <div key={type} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={type}
+                      checked={selectedTypes.includes(type)}
+                      onCheckedChange={() => toggleType(type)}
+                    />
+                    <label
+                      htmlFor={type}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {type.replace(/_/g, ' ')}
+                    </label>
+                  </div>
+                ))
+              ) : (
+                // Render placeholder during SSR to maintain layout
+                (['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
+                  <div key={type} className="flex items-center space-x-2">
+                    <div className="h-4 w-4 rounded-sm border border-primary" />
+                    <label className="text-sm font-medium leading-none">
+                      {type.replace(/_/g, ' ')}
+                    </label>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

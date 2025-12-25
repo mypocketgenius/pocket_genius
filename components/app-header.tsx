@@ -91,7 +91,11 @@ export function AppHeader({
       </div>
       
       {/* Side Menu */}
-      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
+      <SideMenu 
+        isOpen={sideMenuOpen} 
+        onClose={() => setSideMenuOpen(false)}
+        onOpen={() => setSideMenuOpen(true)}
+      />
     </header>
   );
 }
