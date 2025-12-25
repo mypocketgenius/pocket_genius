@@ -15,7 +15,6 @@ import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
-import { SearchBar } from '@/components/search-bar';
 
 interface Message {
   id: string;
@@ -757,17 +756,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
             </button>
           </div>
-          
-          {/* Search bar */}
-          <SearchBar
-            variant="inline"
-            inputStyle={{
-              backgroundColor: timeTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-              borderColor: chromeColors.border,
-              color: chromeTextColor,
-            }}
-            inputClassName="opacity-80"
-          />
           
           {/* Phase 4: Star rating in header */}
           {conversationId && (

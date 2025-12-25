@@ -1284,6 +1284,100 @@ prisma/
 
 ---
 
+### Side Quest: Header Search Refactor ✅ COMPLETE (Dec 29, 2024)
+
+**Status:** ✅ **COMPLETE** (Dec 29, 2024)
+
+**Objective:** Refactor search functionality to be available in the header across all pages, with mobile-responsive expandable search and dropdown results
+
+**Why:** After completing Phase 3.7.4, search was only available on the homepage hero section. This side quest moved search to the header for better accessibility and consistency across all pages.
+
+**Prerequisites:**
+- ✅ Phase 3.7.4 complete (Homepage with search)
+- ✅ Search API endpoint working (`/api/chatbots/public`)
+
+**What Was Done:**
+
+1. **Created Reusable SearchBar Component:**
+   - Created `components/search-bar.tsx` - Single source of truth for search functionality
+   - Supports two variants: `header` (for AppHeader) and `inline` (for Chat/Dashboard)
+   - Mobile-responsive: Expands below header on mobile, always visible on desktop
+   - Eliminated ~240 lines of duplicate code across components
+
+2. **Implemented Dropdown Search Results:**
+   - Created `components/search-dropdown.tsx` - Dropdown container with loading/empty/results states
+   - Created `components/search-result-item.tsx` - Individual chatbot result item
+   - Created `lib/types/chatbot.ts` - Shared type definitions
+   - Dropdown shows inline results (no navigation away from page)
+   - Clicking a chatbot in dropdown navigates to `/chat/${chatbotId}`
+   - Keyboard navigation (Arrow keys, Enter, Escape)
+   - Click-outside detection to close dropdown
+
+3. **Refactored Components:**
+   - **AppHeader** (`components/app-header.tsx`): Simplified from ~190 lines to ~87 lines, uses SearchBar
+   - **Homepage** (`app/page.tsx`): Removed search from hero section, integrated header search
+   - **Chat** (`components/chat.tsx`): Removed duplicate search, uses SearchBar with dropdown
+   - **Dashboard** (`components/dashboard-content.tsx`): Removed duplicate search, uses SearchBar with dropdown
+
+4. **Key Features Implemented:**
+   - ✅ Mobile-responsive branding ("PG" on mobile, "Pocket Genius" on desktop)
+   - ✅ Expandable search on mobile (icon expands to show search bar)
+   - ✅ Dropdown with search results (up to 10 results)
+   - ✅ Keyboard navigation (ArrowUp, ArrowDown, Enter, Escape)
+   - ✅ Click-outside detection
+   - ✅ Loading states (skeleton items)
+   - ✅ Empty states ("No chatbots found")
+   - ✅ "See all results" link (navigates to homepage with search query)
+   - ✅ Request cancellation (AbortController for rapid typing)
+   - ✅ Debounced API calls (300ms)
+   - ✅ Scroll selected item into view during keyboard navigation
+
+**Deliverables:**
+- ✅ `components/search-bar.tsx` - Reusable search component (439 lines, down from 479 after cleanup)
+- ✅ `components/search-dropdown.tsx` - Dropdown component with all states
+- ✅ `components/search-result-item.tsx` - Individual result item component
+- ✅ `lib/types/chatbot.ts` - Shared type definitions
+- ✅ Refactored `components/app-header.tsx` - Simplified, uses SearchBar
+- ✅ Updated `app/page.tsx` - Header search integrated, hero search removed
+- ✅ Updated `components/chat.tsx` - Uses SearchBar with dropdown
+- ✅ Updated `components/dashboard-content.tsx` - Uses SearchBar with dropdown
+- ✅ ~240 lines of duplicate code eliminated
+- ✅ Consistent debouncing (300ms) across all search implementations
+- ✅ Mobile-responsive design (expandable search, full-width dropdown)
+
+**Implementation Details:**
+- Search available on all pages (homepage, chat, dashboard)
+- Dropdown shows results inline without navigating away
+- Homepage grid filtering still works independently of dropdown
+- All deprecated props removed (`navigateOnSearch`, `onSearchChange`)
+- Clean API with 7 props (down from 9)
+
+**Code Quality Improvements:**
+- **Before:** Search logic duplicated in 3 components, inconsistent debouncing, ~240 lines of duplicate code
+- **After:** Single source of truth (`SearchBar` component), consistent debouncing everywhere, easier to maintain and extend
+
+**Testing:**
+- ✅ Dropdown appears after typing 2+ characters
+- ✅ Loading state shows while fetching
+- ✅ Results display correctly
+- ✅ Empty state shows when no results
+- ✅ Keyboard navigation works (ArrowUp, ArrowDown, Enter, Escape)
+- ✅ Click outside closes dropdown
+- ✅ Click on result navigates to `/chat/${chatbotId}`
+- ✅ Works consistently on homepage, chat, and dashboard pages
+- ✅ Mobile responsive (dropdown appears below expanded search)
+- ✅ Rapid typing cancels previous requests (AbortController)
+- ✅ API errors handled gracefully
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/12-29_header-search-refactor.md`
+- Comprehensive test results and verification completed
+- All edge cases handled and documented
+
+**Note:** This refactoring improved code maintainability and user experience by making search consistently available across all pages with a modern dropdown interface. The implementation follows React best practices with proper component composition, debouncing, and responsive design patterns.
+
+---
+
 ### Phase 3.7.5: Creator Pages
 
 **Objective:** Create creator profile pages showing their chatbots
