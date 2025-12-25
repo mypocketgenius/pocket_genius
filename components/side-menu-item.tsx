@@ -29,7 +29,7 @@ export function SideMenuItem({
   return (
     <button
       onClick={onClick}
-      className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+      className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
       aria-label={`Select ${title} by ${creatorName}`}
     >
       <div className="flex items-start justify-between gap-2">

@@ -3,10 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, SignOutButton, useClerk } from '@clerk/nextjs';
-import { X, Settings, LogOut } from 'lucide-react';
+import { X, Palette, LogOut, User } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
-import { Button } from './ui/button';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
 import { Chatbot } from '@/lib/types/chatbot';
 
@@ -265,8 +264,17 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold">Menu</h2>
+          <div className="flex items-center justify-between p-4">
+            {isSignedIn && user ? (
+              <div>
+                <p className="font-semibold text-sm">
+                  {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.fullName || 'User'}
+                </p>
+                <p className="text-xs text-gray-500">{user.primaryEmailAddress?.emailAddress}</p>
+              </div>
+            ) : (
+              <div></div>
+            )}
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -280,45 +288,36 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           <div className="flex-1 overflow-y-auto">
             {/* Account Section */}
             {isSignedIn && user && (
-              <div className="p-4 border-b">
-                <div className="mb-2">
-                  <p className="font-semibold text-sm">
-                    {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.fullName || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500">{user.primaryEmailAddress?.emailAddress}</p>
-                </div>
-                <div className="mt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // Open Clerk's user profile modal
-                      clerk.openUserProfile();
-                      onClose(); // Close sidebar when opening profile
-                    }}
-                    className="w-full"
-                  >
-                    Manage Account
-                  </Button>
-                </div>
+              <div className="px-4 pt-4 pb-2">
+                <button
+                  onClick={() => {
+                    // Open Clerk's user profile modal
+                    clerk.openUserProfile();
+                    onClose(); // Close sidebar when opening profile
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                >
+                  <User className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm font-medium">Manage Account</span>
+                </button>
               </div>
             )}
             
-            {/* Theme Settings Button */}
-            <div className="p-4 border-b">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setThemeSettingsOpen(true)}
-                className="w-full justify-start"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Theme Settings
-              </Button>
-            </div>
+            {/* Theme Button */}
+            {isSignedIn && (
+              <div className="px-4 pt-2 pb-4">
+                <button
+                  onClick={() => setThemeSettingsOpen(true)}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                >
+                  <Palette className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm font-medium">Theme</span>
+                </button>
+              </div>
+            )}
             
             {/* Toggle */}
-            <div className="p-4 border-b">
+            <div className="p-4">
               <div className="flex gap-2">
                 <button
                   onClick={() => setActiveTab('chats')}
@@ -405,16 +404,12 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           
           {/* Footer - Sign Out */}
           {isSignedIn && (
-            <div className="p-4 border-t">
+            <div className="p-4">
               <SignOutButton>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
-                </Button>
+                <button className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-red-50 transition-colors rounded-md text-red-600 hover:text-red-700">
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
               </SignOutButton>
             </div>
           )}
