@@ -1518,17 +1518,34 @@ prisma/
    - Toggle on click (optimistic update)
    - Show loading state while toggling
    - **Optimistic Update Rollback:** If API call fails, revert UI state and show error toast
+   - **Toast System:** Reuse existing toast pattern from `components/chat.tsx` (state-based toast with `toast` state and `toastTimeoutRef`)
      ```typescript
      // Pseudo-code:
      const [isFavorite, setIsFavorite] = useState(originalValue);
+     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+     const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+     
      const handleToggle = async () => {
        const previousValue = isFavorite;
        setIsFavorite(!isFavorite); // Optimistic update
        try {
          await toggleFavorite(chatbotId);
+         // Show success toast
+         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+         setToast({ message: isFavorite ? 'Removed from favorites' : 'Added to favorites', type: 'success' });
+         toastTimeoutRef.current = setTimeout(() => {
+           setToast(null);
+           toastTimeoutRef.current = null;
+         }, 3000);
        } catch (error) {
          setIsFavorite(previousValue); // Rollback on error
-         toast.error('Failed to update favorite');
+         // Show error toast
+         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+         setToast({ message: 'Failed to update favorite', type: 'error' });
+         toastTimeoutRef.current = setTimeout(() => {
+           setToast(null);
+           toastTimeoutRef.current = null;
+         }, 5000);
        }
      };
      ```
@@ -1537,7 +1554,7 @@ prisma/
    - Requires authentication (redirect to login if not authenticated)
    - Shows grid of favorited chatbots (reuse `chatbot-card.tsx` component)
    - Empty state: "You haven't favorited any chatbots yet"
-   - Link in navigation/header (if navigation exists)
+   - **Navigation Link:** Deferred - will be added to header/navigation later (not blocking for Alpha)
 
 4. **Update Homepage API (`/api/chatbots/public`):**
    - **Accept optional authentication** (check auth but don't require it)
