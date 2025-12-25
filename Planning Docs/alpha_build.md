@@ -1926,6 +1926,93 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
+### Side Quest: Homepage Creator Cards ✅ COMPLETE (Dec 26, 2024)
+
+**Status:** ✅ **COMPLETE** (Dec 26, 2024)
+
+**Objective:** Add creator cards to the homepage in a separate section displayed before the chatbot cards. Creator cards show avatar, name, bio snippet, and chatbot count, matching the chatbot card design and grid layout.
+
+**Why:** After completing Phase 3.7.4 (Homepage Component), we identified a need to showcase creators prominently on the homepage. This helps users discover creators and their chatbots, improving the browsing experience.
+
+**Prerequisites:**
+- ✅ Phase 3.7.4 complete (Homepage with chatbot grid)
+- ✅ Creators API endpoint exists (`/api/creators`)
+
+**What Was Done:**
+
+1. **Updated Creators API Endpoint:**
+   - Updated `app/api/creators/route.ts` to include `bio` and `chatbotCount` fields
+   - Added `_count.chatbots` aggregation filtered to public + active chatbots
+   - Transformed response to include `bio` and `chatbotCount` fields
+   - Updated JSDoc comments to reflect new response format
+
+2. **Created CreatorCard Component:**
+   - Created `components/creator-card.tsx` (~95 lines)
+   - Matches ChatbotCard design with avatar, name, bio snippet, chatbot count
+   - Avatar display with fallback to initial letter
+   - Bio truncation (~100 chars, matching ChatbotCard description truncation)
+   - Click handler navigates to `/creators/[slug]`
+   - Responsive grid compatible (2/4/6 columns)
+
+3. **Updated Homepage:**
+   - Updated `app/page.tsx` to include creators section before chatbot section
+   - Added creators section with "Creators" heading
+   - Implemented responsive grid layout (`grid-cols-2 md:grid-cols-4 lg:grid-cols-6`)
+   - Added loading skeleton (reused pattern from chatbot loading)
+   - Added empty state ("Error returning creators")
+   - Creators section always visible (not affected by chatbot filters/search)
+   - Updated Creator interface to include `bio` and `chatbotCount`
+
+4. **Testing & Verification:**
+   - Updated existing API tests (`__tests__/api/creators/route.test.ts`)
+   - All 5 API tests passing ✅
+   - Verified creator cards render correctly
+   - Verified navigation works
+   - Verified responsive grid layout
+
+**Key Features:**
+- ✅ Creator cards appear in dedicated section above chatbot cards
+- ✅ Always visible (not affected by chatbot filters/search)
+- ✅ Displays avatar, name, bio snippet (truncated), chatbot count
+- ✅ Matches chatbot card design and responsive grid (2/4/6 columns)
+- ✅ Links to `/creators/[creatorSlug]` page when clicked
+- ✅ Creators sorted alphabetically by name
+- ✅ API includes `bio` and `chatbotCount` fields
+- ✅ Loading states and empty states handled appropriately
+
+**Deliverables:**
+- ✅ Updated `app/api/creators/route.ts` - Includes bio and chatbotCount
+- ✅ Created `components/creator-card.tsx` - Creator card component
+- ✅ Updated `app/page.tsx` - Creators section added to homepage
+- ✅ Updated `__tests__/api/creators/route.test.ts` - Tests updated and passing
+- ✅ All acceptance criteria met
+
+**Files Created:**
+- `components/creator-card.tsx` - Creator card component (~95 lines)
+
+**Files Modified:**
+- `app/api/creators/route.ts` - Added bio and chatbotCount fields (~79 lines)
+- `app/page.tsx` - Added creators section (~723 lines total)
+- `__tests__/api/creators/route.test.ts` - Updated tests for new fields (~167 lines)
+
+**Test Results:**
+- ✅ **5/5 API tests passing** (100% pass rate)
+- ✅ All acceptance criteria met
+- ✅ Code review verification complete
+- ✅ Ready for production
+
+**Implementation Details:**
+- Creators section appears before chatbot section (after filters, before chatbot grids)
+- Grid layout matches chatbot card grid exactly (same responsive breakpoints)
+- Loading skeleton reuses existing pattern from homepage chatbot loading
+- Bio truncation logic matches ChatbotCard description truncation pattern
+- API filters creators to only those with public, active chatbots
+- ChatbotCount only counts public, active chatbots
+
+**Note:** This side quest improved homepage discoverability by showcasing creators prominently. Users can now easily discover creators and their chatbots directly from the homepage, improving the overall browsing experience.
+
+---
+
 #### Phase 3.9: Chatbot Versioning System ✅ ALPHA
 
 **Objective:** Implement versioning system to track chatbot configuration changes
@@ -4342,6 +4429,7 @@ If critical issues arise in production:
   - [x] Phase 3.7.6: Favorites System ✅ **COMPLETE**
 - [x] Side Quest: Side Menu Button with Account & Chat/Favorites List ✅ **COMPLETE**
 - [x] Phase 3.8: Multiple Chatbots Support ❌ **REDUNDANT** (functionality already in Phase 3.7.4 + Side Menu)
+- [x] Side Quest: Homepage Creator Cards ✅ **COMPLETE** (Dec 26, 2024)
 - [ ] Phase 3.9: Chatbot Versioning System
 - [ ] Phase 3.10: User Intake Forms
 

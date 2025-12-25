@@ -25,12 +25,20 @@ describe('GET /api/creators', () => {
       slug: 'sun-tzu',
       name: 'Sun Tzu',
       avatarUrl: 'https://example.com/avatar1.jpg',
+      bio: 'Ancient Chinese military strategist and philosopher.',
+      _count: {
+        chatbots: 5,
+      },
     },
     {
       id: 'creator-2',
       slug: 'machiavelli',
       name: 'Niccolò Machiavelli',
       avatarUrl: null,
+      bio: null,
+      _count: {
+        chatbots: 3,
+      },
     },
   ];
 
@@ -43,7 +51,24 @@ describe('GET /api/creators', () => {
 
       expect(response.status).toBe(200);
       expect(data.creators).toHaveLength(2);
-      expect(data.creators).toEqual(mockCreators);
+      
+      // Verify transformed response includes bio and chatbotCount
+      expect(data.creators[0]).toEqual({
+        id: 'creator-1',
+        slug: 'sun-tzu',
+        name: 'Sun Tzu',
+        avatarUrl: 'https://example.com/avatar1.jpg',
+        bio: 'Ancient Chinese military strategist and philosopher.',
+        chatbotCount: 5,
+      });
+      expect(data.creators[1]).toEqual({
+        id: 'creator-2',
+        slug: 'machiavelli',
+        name: 'Niccolò Machiavelli',
+        avatarUrl: null,
+        bio: null,
+        chatbotCount: 3,
+      });
 
       // Verify Prisma was called with correct filters and orderBy
       expect(prisma.creator.findMany).toHaveBeenCalledWith({
@@ -63,6 +88,17 @@ describe('GET /api/creators', () => {
           slug: true,
           name: true,
           avatarUrl: true,
+          bio: true,
+          _count: {
+            select: {
+              chatbots: {
+                where: {
+                  isPublic: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
         },
       });
     });
@@ -77,6 +113,18 @@ describe('GET /api/creators', () => {
       expect(data.creators).toEqual([]);
     });
 
+    it('should include bio and chatbotCount in response', async () => {
+      (prisma.creator.findMany as jest.Mock).mockResolvedValue([mockCreators[0]]);
+
+      const response = await GET();
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.creators[0]).toHaveProperty('bio');
+      expect(data.creators[0]).toHaveProperty('chatbotCount');
+      expect(data.creators[0].chatbotCount).toBe(5);
+    });
+
     it('should only return creators with public and active chatbots', async () => {
       (prisma.creator.findMany as jest.Mock).mockResolvedValue([mockCreators[0]]);
 
@@ -89,6 +137,13 @@ describe('GET /api/creators', () => {
       // Verify the filter includes both isPublic and isActive
       const callArgs = (prisma.creator.findMany as jest.Mock).mock.calls[0][0];
       expect(callArgs.where.chatbots.some).toEqual({
+        isPublic: true,
+        isActive: true,
+      });
+      
+      // Verify chatbotCount only counts public and active chatbots
+      const countCallArgs = callArgs.select._count.select.chatbots.where;
+      expect(countCallArgs).toEqual({
         isPublic: true,
         isActive: true,
       });

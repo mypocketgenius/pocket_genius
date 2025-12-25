@@ -18,6 +18,8 @@ import { prisma } from '@/lib/prisma';
  *     slug: string;
  *     name: string;
  *     avatarUrl: string | null;
+ *     bio: string | null;
+ *     chatbotCount: number;
  *   }>;
  * }
  */
@@ -40,10 +42,31 @@ export async function GET() {
         slug: true,
         name: true,
         avatarUrl: true,
+        bio: true,
+        _count: {
+          select: {
+            chatbots: {
+              where: {
+                isPublic: true,
+                isActive: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    return NextResponse.json({ creators });
+    // Transform response to include chatbotCount
+    const transformedCreators = creators.map(creator => ({
+      id: creator.id,
+      slug: creator.slug,
+      name: creator.name,
+      avatarUrl: creator.avatarUrl,
+      bio: creator.bio,
+      chatbotCount: creator._count.chatbots,
+    }));
+
+    return NextResponse.json({ creators: transformedCreators });
   } catch (error) {
     console.error('Error fetching creators:', error);
     return NextResponse.json(

@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
+import { CreatorCard } from '@/components/creator-card';
 import { useDebounce } from '@/lib/hooks/use-debounce';
 import { AppHeader } from '@/components/app-header';
 import Image from 'next/image';
@@ -62,6 +63,8 @@ interface Creator {
   slug: string;
   name: string;
   avatarUrl: string | null;
+  bio: string | null;
+  chatbotCount: number;
 }
 
 interface ChatbotsResponse {
@@ -128,6 +131,7 @@ function HomeContent() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoadingCreators, setIsLoadingCreators] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<ChatbotsResponse['pagination'] | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -141,6 +145,7 @@ function HomeContent() {
   // Fetch categories and creators on mount
   useEffect(() => {
     const fetchFilters = async () => {
+      setIsLoadingCreators(true);
       try {
         const [categoriesRes, creatorsRes] = await Promise.all([
           fetch('/api/categories'),
@@ -158,6 +163,8 @@ function HomeContent() {
         }
       } catch (err) {
         console.error('Error fetching filters:', err);
+      } finally {
+        setIsLoadingCreators(false);
       }
     };
 
@@ -502,6 +509,43 @@ function HomeContent() {
                 Clear all
               </Button>
             </div>
+          )}
+        </div>
+
+        {/* Creators Section */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-4">Creators</h2>
+          
+          {/* Loading State for Creators */}
+          {isLoadingCreators && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-48 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Creators Grid */}
+          {!isLoadingCreators && (
+            <>
+              {creators.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground text-lg">
+                    Error returning creators
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {creators.map(creator => (
+                    <CreatorCard key={creator.id} creator={creator} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
