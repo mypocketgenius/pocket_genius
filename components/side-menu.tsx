@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, SignOutButton, useClerk } from '@clerk/nextjs';
-import { X, Palette, LogOut, User, MessageSquare, Heart } from 'lucide-react';
+import { X, Palette, LogOut, User, MessageSquare, Heart, BarChart, FileText, Upload } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
@@ -380,9 +380,25 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
           
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
+            {/* Creator Dashboard */}
+            {isSignedIn && (
+              <div className="px-4 pt-4 pb-0">
+                <button
+                  onClick={() => {
+                    router.push('/dashboard');
+                    onClose();
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                >
+                  <BarChart className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm font-medium">Creator Dashboard</span>
+                </button>
+              </div>
+            )}
+            
             {/* Account Section */}
             {isSignedIn && user && (
-              <div className="px-4 pt-4 pb-2">
+              <div className="px-4 pt-2 pb-0">
                 <button
                   onClick={() => {
                     // Open Clerk's user profile modal
@@ -407,6 +423,34 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                   <Palette className="w-5 h-5 text-gray-600" />
                   <span className="text-sm font-medium">Theme</span>
                 </button>
+              </div>
+            )}
+            
+            {/* Test Pages */}
+            {isSignedIn && (
+              <div className="px-4 pt-2 pb-4 border-t border-gray-200 mt-2">
+                <div className="pt-2 space-y-1">
+                  <button
+                    onClick={() => {
+                      router.push('/test-files');
+                      onClose();
+                    }}
+                    className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                  >
+                    <FileText className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm font-medium">Test Files</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/test-upload');
+                      onClose();
+                    }}
+                    className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                  >
+                    <Upload className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm font-medium">Test Upload</span>
+                  </button>
+                </div>
               </div>
             )}
             
