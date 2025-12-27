@@ -22,6 +22,7 @@ interface Chatbot {
   slug: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   type: ChatbotType | null;
   priceCents: number;
   currency: string;

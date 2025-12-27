@@ -24,6 +24,7 @@ interface ChatbotCardProps {
     slug: string;
     title: string;
     description: string | null;
+    imageUrl: string | null;
     type: ChatbotType | null;
     priceCents: number;
     currency: string;
@@ -219,12 +220,12 @@ export function ChatbotCard({
           </Button>
         )}
 
-        {/* Image placeholder or creator avatar */}
+        {/* Image or initial letter fallback */}
         <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden relative">
-          {chatbot.creator.avatarUrl ? (
+          {chatbot.imageUrl ? (
             <Image
-              src={chatbot.creator.avatarUrl}
-              alt={chatbot.creator.name}
+              src={chatbot.imageUrl}
+              alt={chatbot.title}
               fill
               className="object-cover"
               unoptimized

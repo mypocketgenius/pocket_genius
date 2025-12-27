@@ -88,6 +88,7 @@ model Chatbot {
   // Phase 3.7.1: Homepage browsing fields
   slug           String?      @unique
   description    String?
+  imageUrl       String?
   isPublic       Boolean      @default(false)
   allowAnonymous Boolean      @default(false)
   type           ChatbotType?

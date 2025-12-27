@@ -36,6 +36,7 @@ describe('GET /api/chatbots/public', () => {
     slug: 'art-of-war',
     title: 'The Art of War',
     description: 'A classic text on strategy',
+    imageUrl: null,
     type: 'DEEP_DIVE',
     priceCents: 0,
     currency: 'USD',
@@ -82,6 +83,7 @@ describe('GET /api/chatbots/public', () => {
         slug: 'art-of-war',
         title: 'The Art of War',
         description: 'A classic text on strategy',
+        imageUrl: null,
         type: 'DEEP_DIVE',
         priceCents: 0,
         currency: 'USD',
@@ -141,6 +143,7 @@ describe('GET /api/chatbots/public', () => {
       expect(chatbot).toHaveProperty('slug');
       expect(chatbot).toHaveProperty('title');
       expect(chatbot).toHaveProperty('description');
+      expect(chatbot).toHaveProperty('imageUrl');
       expect(chatbot).toHaveProperty('type');
       expect(chatbot).toHaveProperty('priceCents');
       expect(chatbot).toHaveProperty('currency');
