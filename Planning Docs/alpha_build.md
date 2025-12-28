@@ -2013,6 +2013,105 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
+### Side Quest: Add Chatbot imageUrl Field ✅ COMPLETE (Dec 27, 2024)
+
+**Status:** ✅ **COMPLETE** (Dec 27, 2024)
+
+**Objective:** Add `imageUrl` field to Chatbot model and update ChatbotCard component to use it as the primary image source, with fallback to creator's initial letter (removing creator avatarUrl fallback).
+
+**Why:** After completing Phase 3.7.4 (Homepage Component), we identified that chatbot cards were using creator avatars as images. This side quest adds dedicated image support for each chatbot, allowing creators to set custom images for their chatbots that can be used across multiple contexts (cards, detail modals, etc.).
+
+**Prerequisites:**
+- ✅ Phase 3.7.4 complete (Homepage with chatbot cards)
+- ✅ ChatbotCard component exists
+
+**What Was Done:**
+
+1. **Database Schema Update:**
+   - Added `imageUrl String?` field to Chatbot model in `prisma/schema.prisma`
+   - Generated and applied migration `20251227213217_add_chatbot_image_url`
+   - Migration adds nullable `imageUrl` column to Chatbot table
+
+2. **API Endpoint Updates:**
+   - Updated `/api/chatbots/public` to include `imageUrl` in response
+   - Updated `/api/favorites` to include `imageUrl` in response
+   - Updated JSDoc comments to document new field
+
+3. **TypeScript Type Updates:**
+   - Updated `Chatbot` interface in `lib/types/chatbot.ts`
+   - Updated `Chatbot` interface in `app/page.tsx`
+   - Updated `Chatbot` interface in `app/favorites/page.tsx`
+   - Updated `ChatbotCardProps` interface in `components/chatbot-card.tsx`
+   - Updated `ChatbotDetailModalProps` interface in `components/chatbot-detail-modal.tsx`
+
+4. **ChatbotCard Component Update:**
+   - Changed image rendering logic to use `chatbot.imageUrl` as primary source
+   - Removed creator `avatarUrl` fallback entirely
+   - Kept initial letter fallback (creator's first initial) when `imageUrl` is null
+   - Updated alt text to use chatbot title instead of creator name
+
+5. **Test Updates:**
+   - Updated `__tests__/api/chatbots/public/route.test.ts` to include `imageUrl` in mock data and expectations
+   - Updated `__tests__/api/favorites/route.test.ts` to include `imageUrl` in mock data and expectations
+
+6. **Build Process Enhancement:**
+   - Added `prisma migrate deploy` to build script in `package.json`
+   - Ensures migrations run automatically on Vercel deployments
+
+**Key Features:**
+- ✅ `imageUrl` field added to Chatbot model (nullable)
+- ✅ Database migration created and applied
+- ✅ API endpoints return `imageUrl` in chatbot responses
+- ✅ TypeScript types updated across all files
+- ✅ ChatbotCard uses `imageUrl` as primary, falls back to initial letter only
+- ✅ No breaking changes (field is nullable, existing chatbots work with fallback)
+- ✅ Migration runs automatically on Vercel deployments
+
+**Deliverables:**
+- ✅ Updated `prisma/schema.prisma` - Added imageUrl field
+- ✅ Migration file `20251227213217_add_chatbot_image_url/migration.sql` created
+- ✅ Updated `app/api/chatbots/public/route.ts` - Includes imageUrl in response
+- ✅ Updated `app/api/favorites/route.ts` - Includes imageUrl in response
+- ✅ Updated all TypeScript interfaces (5 files)
+- ✅ Updated `components/chatbot-card.tsx` - Uses imageUrl with initial letter fallback
+- ✅ Updated test files to include imageUrl
+- ✅ Updated `package.json` - Added migration to build script
+
+**Files Created:**
+- `prisma/migrations/20251227213217_add_chatbot_image_url/migration.sql` - Database migration
+
+**Files Modified:**
+- `prisma/schema.prisma` - Added imageUrl field to Chatbot model
+- `app/api/chatbots/public/route.ts` - Added imageUrl to response
+- `app/api/favorites/route.ts` - Added imageUrl to response
+- `lib/types/chatbot.ts` - Added imageUrl to Chatbot interface
+- `app/page.tsx` - Added imageUrl to Chatbot interface
+- `app/favorites/page.tsx` - Added imageUrl to Chatbot interface
+- `components/chatbot-card.tsx` - Updated image rendering logic
+- `components/chatbot-detail-modal.tsx` - Added imageUrl to interface
+- `__tests__/api/chatbots/public/route.test.ts` - Updated test expectations
+- `__tests__/api/favorites/route.test.ts` - Updated test expectations
+- `package.json` - Added migration to build script
+
+**Implementation Details:**
+- Image rendering priority: `chatbot.imageUrl` → creator's initial letter (removed creator avatarUrl fallback)
+- Field is nullable, so existing chatbots gracefully fall back to initial letter
+- Migration applied to both development and production databases
+- Prisma Client regenerated to include new field in TypeScript types
+
+**Testing:**
+- ✅ Migration applied successfully
+- ✅ API responses include imageUrl field
+- ✅ ChatbotCard displays imageUrl when present
+- ✅ ChatbotCard falls back to initial letter when imageUrl is null
+- ✅ No breaking changes (all existing functionality preserved)
+- ✅ TypeScript compilation successful
+- ✅ Build process includes migration deployment
+
+**Note:** This side quest enables each chatbot to have its own custom image, improving visual distinction between chatbots and allowing for more branded card designs. The implementation follows existing patterns and maintains backward compatibility through nullable fields and graceful fallbacks.
+
+---
+
 #### Phase 3.9: Chatbot Versioning System ✅ ALPHA
 
 **Objective:** Implement versioning system to track chatbot configuration changes
@@ -4430,6 +4529,7 @@ If critical issues arise in production:
 - [x] Side Quest: Side Menu Button with Account & Chat/Favorites List ✅ **COMPLETE**
 - [x] Phase 3.8: Multiple Chatbots Support ❌ **REDUNDANT** (functionality already in Phase 3.7.4 + Side Menu)
 - [x] Side Quest: Homepage Creator Cards ✅ **COMPLETE** (Dec 26, 2024)
+- [x] Side Quest: Add Chatbot imageUrl Field ✅ **COMPLETE** (Dec 27, 2024)
 - [ ] Phase 3.9: Chatbot Versioning System
 - [ ] Phase 3.10: User Intake Forms
 
