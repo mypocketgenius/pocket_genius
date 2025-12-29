@@ -197,11 +197,23 @@ Homepage Structure:
   - **Note**: These errors are expected as those files will be updated in Subtasks -1.4 and -1.5 per the plan
 - **Status**: Shared TypeScript types updated successfully. Components using shared types (`chatbot-card.tsx`, `chatbot-detail-modal.tsx`) updated. Remaining files will be updated in Subtasks -1.4 and -1.5. Next step: Update API route validation (Subtask -1.4)
 
-**Subtask -1.4** — Update API route validation
+**Subtask -1.4** — Update API route validation ✅ **COMPLETED**
 - Visible output: `app/api/chatbots/public/route.ts` updated
-- Change: Update validation to accept `BODY_OF_WORK` instead of `CREATOR`
-- Update error messages: Change `"type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"` to `"type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"`
-- Update JSDoc documentation comments (line 22): Change `(CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)` to `(BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)`
+- Change: Update validation to accept `BODY_OF_WORK` instead of `CREATOR` ✅
+  - **Result**: Validation array updated: `['BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD']`
+- Update error messages ✅
+  - Change: `"type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"` → `"type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"`
+  - **Result**: Error message updated successfully
+- Update JSDoc documentation comments ✅
+  - Change: Line 22: `(CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)` → `(BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)`
+  - **Result**: JSDoc comment updated successfully
+- **Verification**: 
+  - ✅ No remaining `CREATOR` references in API route file
+  - ✅ Validation array updated
+  - ✅ Error message updated
+  - ✅ JSDoc documentation updated
+  - ✅ No linting errors
+- **Status**: API route validation updated successfully. API now accepts `BODY_OF_WORK` and rejects `CREATOR`. Next step: Update all component type definitions (Subtask -1.5)
 
 **Subtask -1.5** — Update all component type definitions
 - Visible output: All files using ChatbotType updated

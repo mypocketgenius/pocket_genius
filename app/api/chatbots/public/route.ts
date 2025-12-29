@@ -19,7 +19,7 @@ import { prisma } from '@/lib/prisma';
  * - category: Category ID to filter by
  * - categoryType: CategoryType enum (ROLE, CHALLENGE, STAGE)
  * - creator: Creator ID to filter by
- * - type: ChatbotType enum (CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)
+ * - type: ChatbotType enum (BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)
  * - search: Search query (searches title, description, creator name)
  * 
  * Response Format:
@@ -98,9 +98,9 @@ export async function GET(req: Request) {
       );
     }
 
-    if (type && !['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'].includes(type)) {
+    if (type && !['BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'].includes(type)) {
       return NextResponse.json(
-        { error: "type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'" },
+        { error: "type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'" },
         { status: 400 }
       );
     }
