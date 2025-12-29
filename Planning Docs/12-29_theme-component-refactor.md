@@ -181,21 +181,22 @@ interface ThemedHeaderProps {
 
 ---
 
-### Task 3: Create ThemedContainer Component (Optional)
+### Task 3: Create ThemedContainer Component ✅ COMPLETE
 **Purpose**: Extract container-level theme application for content areas
 
-**Subtask 3.1** — Create `components/themed-container.tsx`  
-**Visible output**: New file at `components/themed-container.tsx` with ThemedContainer component
+**Subtask 3.1** — Create `components/themed-container.tsx` ✅  
+**Visible output**: ✅ New file at `components/themed-container.tsx` with ThemedContainer component
 
 **Requirements**:
-- Accepts `children` and optional `className`
-- Supports variants: 'default' | 'card' | 'input'
-- Applies appropriate background colors:
+- ✅ Accepts `children` and optional `className`
+- ✅ Supports variants: 'default' | 'card' | 'input'
+- ✅ Applies appropriate background colors:
   - default: transparent
-  - card: `theme.chrome.card` (if exists) or derived from gradient
+  - card: derived from gradient (uses `theme.gradient.end`)
   - input: `theme.chrome.input`
-- Applies text color: `theme.textColor`
-- Applies border color: `theme.chrome.border`
+- ✅ Applies text color: `theme.textColor`
+- ✅ Applies border color: `theme.chrome.border`
+- ✅ Includes CSS transitions for smooth theme changes (2s ease)
 
 **Component Interface**:
 ```typescript
@@ -206,7 +207,33 @@ interface ThemedContainerProps {
 }
 ```
 
-**Test**: Component renders with correct colors for each variant
+**Implementation Details**:
+- ✅ Uses `useTheme()` hook to access theme values
+- ✅ Applies styles via inline `style` prop
+- ✅ Card variant uses `theme.gradient.end` (since `theme.chrome.card` doesn't exist)
+- ✅ Input variant uses `theme.chrome.input`
+- ✅ Default variant uses transparent background
+- ✅ All variants apply theme text color and border color
+- ✅ Includes smooth 2s CSS transitions for theme changes
+
+**Tests**: ✅ All tests passing (15 tests)
+- ✅ Component renders with correct colors for each variant
+- ✅ Component applies transparent background for default variant
+- ✅ Component applies gradient end color for card variant
+- ✅ Component applies chrome.input color for input variant
+- ✅ Component applies correct text colors for light and dark themes
+- ✅ Component applies border color from theme
+- ✅ Component includes CSS transitions for smooth theme changes
+- ✅ Component accepts and applies className prop
+- ✅ Component throws error when used outside ThemeProvider
+
+**Implementation Summary**:
+- Created `components/themed-container.tsx` with ThemedContainer component
+- Component uses `useTheme()` hook to access theme values
+- Supports three variants: default (transparent), card (gradient-derived), input (chrome.input)
+- Applies theme text color and border color to all variants
+- Includes smooth 2s CSS transitions for theme changes
+- Created comprehensive test suite at `__tests__/components/themed-container.test.tsx` (15 tests, all passing)
 
 ---
 
