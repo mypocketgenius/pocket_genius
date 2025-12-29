@@ -17,6 +17,7 @@ import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
 import { ThemedPage } from './themed-page';
+import { ChatHeader } from './chat-header';
 
 interface Message {
   id: string;
@@ -705,78 +706,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   return (
     <div className="flex flex-col h-dvh w-full" style={{ backgroundColor: chromeColors.header }}>
       {/* Header */}
-      <div 
-        className="app-header border-b px-4 py-2.5"
-        style={{
-          backgroundColor: chromeColors.header,
-          borderColor: chromeColors.border,
-          color: chromeTextColor,
-        }}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center justify-center w-8 h-8 rounded-full transition-colors opacity-80 flex-shrink-0"
-              style={{
-                color: chromeTextColor,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
-                  ? 'rgba(0, 0, 0, 0.05)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-              aria-label="Go back"
-              title="Go back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
-          </div>
-          
-          {/* Phase 4: Star rating in header */}
-          {conversationId && (
-            <div className="flex-shrink-0">
-              <StarRating
-                chatbotId={chatbotId}
-                sessionId={conversationId}
-                messageCount={messages.filter(m => m.role === 'user').length}
-              />
-            </div>
-          )}
-          
-          {/* Side menu button - appears to the right of rating stars */}
-          {isSignedIn && (
-            <button
-              onClick={() => setSideMenuOpen(true)}
-              className="flex-shrink-0 p-2 rounded-lg transition-colors opacity-80"
-              style={{
-                color: chromeTextColor,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = timeTheme === 'light' 
-                  ? 'rgba(0, 0, 0, 0.05)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-              aria-label="Open menu"
-              title="Menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-        {error && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm opacity-80">
-            {error}
-          </div>
-        )}
-      </div>
+      <ChatHeader
+        chatbotTitle={chatbotTitle}
+        conversationId={conversationId}
+        chatbotId={chatbotId}
+        messages={messages}
+        error={error}
+        onBack={() => router.back()}
+        onMenuClick={() => setSideMenuOpen(true)}
+        isSignedIn={isSignedIn}
+      />
 
       {/* Toast notification for feedback - Fixed position with animation */}
       {toast && (

@@ -4,12 +4,13 @@
 // Shows "PG" on mobile, "Pocket Genius" on desktop
 // Search expands on clicking the search icon
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
 import { SideMenu } from '@/components/side-menu';
 import { Heart, Menu } from 'lucide-react';
+import { useTheme } from '../lib/theme/theme-context';
 
 interface AppHeaderProps {
   // Optional: show auth buttons (default: true)
@@ -26,9 +27,23 @@ export function AppHeader({
   rightContent,
 }: AppHeaderProps) {
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const theme = useTheme();
+
+  // Theme-aware hover colors
+  const hoverBgColor = theme.theme === 'light' 
+    ? 'rgba(0, 0, 0, 0.05)' 
+    : 'rgba(255, 255, 255, 0.1)';
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50">
+    <header 
+      className="border-b sticky top-0 z-50"
+      style={{
+        backgroundColor: theme.chrome.header,
+        borderColor: theme.chrome.border,
+        color: theme.textColor,
+        transition: 'background-color 2s ease, border-color 2s ease, color 2s ease',
+      }}
+    >
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           {/* Left side: Logo/Title or custom content */}
@@ -69,7 +84,16 @@ export function AppHeader({
                 <SignedIn>
                   <button
                     onClick={() => setSideMenuOpen(true)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className="p-2 rounded-full transition-colors"
+                    style={{
+                      color: theme.textColor,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                     aria-label="Open menu"
                   >
                     <Menu className="w-5 h-5" />

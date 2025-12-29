@@ -313,63 +313,110 @@ interface ThemedContainerProps {
 
 ---
 
-### Task 5: Refactor Chat Header to Use ThemedHeader
-**Purpose**: Replace inline header styles in chat.tsx with ThemedHeader component
+### Task 5: Refactor Chat Header to Use ChatHeader Component ✅ COMPLETE
+**Purpose**: Replace inline header styles in chat.tsx with ChatHeader component
 
-**Subtask 5.1** — Extract chat header into separate component  
-**Visible output**: New file at `components/chat-header.tsx` with ChatHeader component
-
-**Implementation Details**:
-- Chat header is custom (has back button, chatbot title, star rating, menu button)
-- **Create separate file**: `components/chat-header.tsx` (for reusability and separation of concerns)
-- ChatHeader component should:
-  - Accept props: `chatbotTitle`, `conversationId`, `chatbotId`, `messages`, `error`, `onBack`, `onMenuClick`
-  - Use `useTheme()` hook internally
-  - Apply chrome colors: `theme.chrome.header`, `theme.chrome.border`, `theme.textColor`
-  - Handle hover states with theme-aware colors
-  - Render back button, title, star rating, menu button
-
-**Subtask 5.2** — Replace chat header with ChatHeader component  
-**Visible output**: Header JSX replaced with `<ChatHeader />` component
+**Subtask 5.1** — Extract chat header into separate component ✅  
+**Visible output**: ✅ New file at `components/chat-header.tsx` with ChatHeader component
 
 **Implementation Details**:
-- Import ChatHeader component: `import { ChatHeader } from '@/components/chat-header'`
-- Replace current header JSX with `<ChatHeader />` component
-- Pass required props to ChatHeader
-- Remove inline chrome color styles (now handled by ChatHeader internally)
-- Preserve all interactive elements (back button, star rating, menu button)
-- Preserve hover states (now handled by ChatHeader)
+- ✅ Chat header is custom (has back button, chatbot title, star rating, menu button)
+- ✅ **Created separate file**: `components/chat-header.tsx` (for reusability and separation of concerns)
+- ✅ ChatHeader component:
+  - ✅ Accepts props: `chatbotTitle`, `conversationId`, `chatbotId`, `messages`, `error`, `onBack`, `onMenuClick`, `isSignedIn`
+  - ✅ Uses `useTheme()` hook internally
+  - ✅ Applies chrome colors: `theme.chrome.header`, `theme.chrome.border`, `theme.textColor`
+  - ✅ Handles hover states with theme-aware colors
+  - ✅ Renders back button, title, star rating, menu button, error display
 
-**Subtask 5.3** — Verify header theme works correctly  
-**Visible output**: Header adapts to theme changes
+**Subtask 5.2** — Replace chat header with ChatHeader component ✅  
+**Visible output**: ✅ Header JSX replaced with `<ChatHeader />` component
 
-**Test**: Header colors adapt to theme correctly
+**Implementation Details**:
+- ✅ Imported ChatHeader component: `import { ChatHeader } from './chat-header'`
+- ✅ Replaced current header JSX with `<ChatHeader />` component
+- ✅ Passed required props to ChatHeader
+- ✅ Removed inline chrome color styles (now handled by ChatHeader internally)
+- ✅ Preserved all interactive elements (back button, star rating, menu button)
+- ✅ Preserved hover states (now handled by ChatHeader)
 
-**Test**: Hover states work correctly with theme
+**Subtask 5.3** — Verify header theme works correctly ✅  
+**Visible output**: ✅ Header adapts to theme changes, all tests passing
+
+**Tests**: ✅ All tests passing (34 tests total)
+- ✅ Component renders correctly with all elements
+- ✅ Theme colors apply correctly for light and dark themes
+- ✅ CSS transitions included for smooth theme changes
+- ✅ Interactive elements work correctly (back button, menu button)
+- ✅ Hover states work correctly with theme
+- ✅ Star rating renders conditionally based on conversationId
+- ✅ Menu button renders conditionally based on isSignedIn
+- ✅ Error message displays correctly
+- ✅ Message count calculation works correctly
+- ✅ Refactor verification tests pass (imports, usage, code removal, structure)
+
+**Implementation Summary**:
+- ✅ Created `components/chat-header.tsx` with ChatHeader component
+- ✅ Component uses `useTheme()` hook to access theme values
+- ✅ Applies chrome colors (header background, border, text) via inline styles
+- ✅ Supports theme-aware hover states for interactive elements
+- ✅ Includes smooth 2s CSS transitions for theme changes
+- ✅ Conditionally renders star rating (when conversationId exists)
+- ✅ Conditionally renders menu button (when isSignedIn is true)
+- ✅ Displays error messages when provided
+- ✅ Updated `components/chat.tsx` to import and use ChatHeader component
+- ✅ Removed inline chrome color styles from chat.tsx header
+- ✅ Created comprehensive test suite at `__tests__/components/chat-header.test.tsx` (25 tests, all passing)
+- ✅ Created refactor verification tests at `__tests__/components/chat-header-refactor.test.tsx` (9 tests, all passing)
+- ✅ Tests verify component functionality, theme application, interactions, and refactor correctness
 
 ---
 
-### Task 6: Update AppHeader to Use Theme
+### Task 6: Update AppHeader to Use Theme ✅ COMPLETE
 **Purpose**: Make AppHeader theme-aware for use on other pages
 
-**Subtask 6.1** — Update AppHeader to use useTheme() hook  
-**Visible output**: AppHeader imports and uses useTheme()
+**Subtask 6.1** — Update AppHeader to use useTheme() hook ✅  
+**Visible output**: ✅ AppHeader imports and uses useTheme()
 
-**Subtask 6.2** — Replace hardcoded bg-white with theme.chrome.header  
-**Visible output**: `bg-white` replaced with theme-aware background
+**Subtask 6.2** — Replace hardcoded bg-white with theme.chrome.header ✅  
+**Visible output**: ✅ `bg-white` replaced with theme-aware background via inline styles
 
-**Subtask 6.3** — Apply theme.chrome.border for border color  
-**Visible output**: Border uses theme color
+**Subtask 6.3** — Apply theme.chrome.border for border color ✅  
+**Visible output**: ✅ Border uses theme color via inline styles
 
-**Subtask 6.4** — Apply theme.textColor for text  
-**Visible output**: Text uses theme color
+**Subtask 6.4** — Apply theme.textColor for text ✅  
+**Visible output**: ✅ Text uses theme color via inline styles
 
-**Subtask 6.5** — Update hover states to be theme-aware  
-**Visible output**: Hover states adapt to light/dark theme
+**Subtask 6.5** — Update hover states to be theme-aware ✅  
+**Visible output**: ✅ Hover states adapt to light/dark theme using onMouseEnter/onMouseLeave handlers
 
-**Test**: AppHeader adapts to theme changes
+**Tests**: ✅ All tests passing (21 tests)
+- ✅ Component renders correctly with all elements
+- ✅ Theme colors apply correctly for light and dark themes
+- ✅ CSS transitions included for smooth theme changes (2s ease)
+- ✅ bg-white class removed and replaced with theme.chrome.header
+- ✅ Border color uses theme.chrome.border
+- ✅ Text color uses theme.textColor
+- ✅ Hover states work correctly with theme-aware colors
+- ✅ Component adapts to theme changes
+- ✅ Sticky positioning maintained
+- ✅ Auth buttons work correctly
+- ✅ Side menu renders correctly
+- ✅ Component throws error when used outside ThemeProvider
+- ✅ Component works correctly on homepage
 
-**Test**: AppHeader works correctly on homepage
+**Implementation Summary**:
+- ✅ Updated `components/app-header.tsx` to import and use `useTheme()` hook
+- ✅ Replaced `bg-white` class with `theme.chrome.header` background color via inline styles
+- ✅ Applied `theme.chrome.border` for border color via inline styles
+- ✅ Applied `theme.textColor` for text color via inline styles
+- ✅ Updated menu button hover state from `hover:bg-gray-100` to theme-aware hover colors:
+  - Light theme: `rgba(0, 0, 0, 0.05)`
+  - Dark theme: `rgba(255, 255, 255, 0.1)`
+- ✅ Added CSS transitions for smooth theme changes: `transition: 'background-color 2s ease, border-color 2s ease, color 2s ease'`
+- ✅ Added React import (required for React.ReactNode type and Jest tests)
+- ✅ Created comprehensive test suite at `__tests__/components/app-header.test.tsx` (21 tests, all passing)
+- ✅ Tests verify theme application, color correctness, hover states, and integration
 
 ---
 
