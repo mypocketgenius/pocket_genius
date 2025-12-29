@@ -215,36 +215,39 @@ Homepage Structure:
   - ✅ No linting errors
 - **Status**: API route validation updated successfully. API now accepts `BODY_OF_WORK` and rejects `CREATOR`. Next step: Update all component type definitions (Subtask -1.5)
 
-**Subtask -1.5** — Update all component type definitions
+**Subtask -1.5** — Update all component type definitions ✅ **COMPLETED**
 - Visible output: All files using ChatbotType updated
-- **Part 1: Replace local type definitions with shared imports**
-  - **Step 1: Search codebase for all local ChatbotType definitions**
+- **Part 1: Replace local type definitions with shared imports** ✅
+  - **Step 1: Search codebase for all local ChatbotType definitions** ✅
     - Command: `grep -r "type ChatbotType" app/ components/`
-    - Expected files found:
-      - `app/page.tsx` (line 22) - **Note**: Will be replaced in Task 1, but must be updated for consistency
-      - `components/chatbot-card.tsx` (line 18)
-      - `components/chatbot-detail-modal.tsx` (line 23)
-      - `app/favorites/page.tsx` (line 17)
-    - **Note**: If additional files are found, add them to this list
-  - **Step 2: Update each file**
-    - Remove local `type ChatbotType = 'CREATOR' | ...` definition
-    - Add `import { ChatbotType } from '@/lib/types/chatbot'` at top of file
-    - Update any `'CREATOR'` string literals to `'BODY_OF_WORK'` in type contexts
-  - **Verification step** (CRITICAL):
+    - **Files found and updated**:
+      - `app/page.tsx` (line 22) ✅ - Replaced local type with import, updated `'CREATOR'` arrays to `'BODY_OF_WORK'`
+      - `components/chatbot-card.tsx` (line 18) ✅ - Already updated in Subtask -1.3
+      - `components/chatbot-detail-modal.tsx` (line 23) ✅ - Already updated in Subtask -1.3
+      - `app/favorites/page.tsx` (line 17) ✅ - Replaced local type with import
+  - **Step 2: Update each file** ✅
+    - Removed local `type ChatbotType = 'CREATOR' | ...` definitions
+    - Added `import { ChatbotType, CategoryType } from '@/lib/types/chatbot'` imports
+    - Updated `'CREATOR'` string literals to `'BODY_OF_WORK'` in type contexts
+    - **app/page.tsx**: Updated 2 array literals from `'CREATOR'` to `'BODY_OF_WORK'`
+  - **Verification step** (CRITICAL): ✅
     - Run: `grep -r "type ChatbotType" app/ components/`
-    - Expected: 0 results (all files now use shared import)
-    - If results found: Add missing files to update list and repeat
+    - **Result**: 0 results (all files now use shared import)
+    - ✅ All local type definitions successfully replaced with shared imports
   - **Rationale**: Ensures type consistency and single source of truth
-- **Part 2: Update any remaining CREATOR references**
+- **Part 2: Update any remaining CREATOR references** ✅
   - Search codebase for remaining `'CREATOR'` string literals in type contexts
-  - Command: `grep -r "'CREATOR'" app/ components/ --include="*.ts" --include="*.tsx"`
-  - Replace with `'BODY_OF_WORK'` where applicable
-  - **Note**: Focus on type contexts (not comments or strings)
-- **Part 3: Update seed scripts (if applicable)**
+  - Command: `grep -r "'CREATOR'" app/ components/ __tests__/ --include="*.ts" --include="*.tsx"`
+  - **Result**: No `'CREATOR'` references found in app/, components/, or __tests__/ (except migration files which are historical)
+  - ✅ All `'CREATOR'` references updated to `'BODY_OF_WORK'`
+- **Part 3: Update seed scripts (if applicable)** ✅
   - Check: `prisma/seed.ts`, `prisma/seed-pills.ts`, `prisma/seed-suggested-pills.ts`
-  - Command: `grep -r "'CREATOR'" prisma/seed*.ts` - check if any seed scripts reference chatbot types
-  - Update: Replace any `'CREATOR'` references with `'BODY_OF_WORK'` in seed data
-  - **Note**: If seed scripts don't reference chatbot types, skip this step (no changes needed)
+  - Command: `grep -r "'CREATOR'" prisma/seed*.ts`
+  - **Result**: No `'CREATOR'` references found in seed scripts
+  - ✅ Seed scripts don't reference chatbot types - no changes needed
+- **Additional updates**:
+  - ✅ Updated test file: `__tests__/api/chatbots/public/route.test.ts` - Updated error message assertion to match new API error message
+- **Status**: All component type definitions updated successfully. All files now use shared types from `@/lib/types/chatbot`. No local `ChatbotType` definitions remain. Next step: Verify migration success (Subtask -1.6)
 
 **Subtask -1.6** — Verify migration success
 - Visible output: All tests pass, no references to `'CREATOR'` chatbot type remain

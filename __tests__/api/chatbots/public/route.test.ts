@@ -376,7 +376,7 @@ describe('GET /api/chatbots/public', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toContain("type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'");
+      expect(data.error).toContain("type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'");
     });
   });
 

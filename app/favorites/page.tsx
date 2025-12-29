@@ -12,10 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { AppHeader } from '@/components/app-header';
-
-// Type definitions matching the API response format
-type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
-type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
 
 interface Chatbot {
   id: string;

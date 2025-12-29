@@ -17,10 +17,7 @@ import { CreatorCard } from '@/components/creator-card';
 import { useDebounce } from '@/lib/hooks/use-debounce';
 import { AppHeader } from '@/components/app-header';
 import Image from 'next/image';
-
-// Type definitions matching the API response format
-type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
-type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
 
 interface Chatbot {
   id: string;
@@ -425,7 +422,7 @@ function HomeContent() {
             <h3 className="text-sm font-medium mb-2">Chatbot Type</h3>
             <div className="flex flex-wrap gap-4">
               {mounted ? (
-                (['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
+                (['BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
                   <div key={type} className="flex items-center space-x-2">
                     <Checkbox
                       id={type}
@@ -442,7 +439,7 @@ function HomeContent() {
                 ))
               ) : (
                 // Render placeholder during SSR to maintain layout
-                (['CREATOR', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
+                (['BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', 'ADVISOR_BOARD'] as ChatbotType[]).map(type => (
                   <div key={type} className="flex items-center space-x-2">
                     <div className="h-4 w-4 rounded-sm border border-primary" />
                     <label className="text-sm font-medium leading-none">
