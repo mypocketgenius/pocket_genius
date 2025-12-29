@@ -69,21 +69,21 @@ export function CreatorCard({ creator }: CreatorCardProps) {
       </div>
 
       {/* Card content */}
-      <div className="p-4 space-y-2">
+      <div className="p-3 space-y-1.5">
         {/* Name - truncated to 2 lines */}
-        <h3 className="font-semibold text-lg line-clamp-2 min-h-[3.5rem]">
+        <h3 className="font-semibold text-lg line-clamp-2">
           {creator.name}
         </h3>
 
         {/* Bio snippet - truncated to ~100 chars */}
         {creator.bio && (
-          <p className="text-sm text-gray-600 line-clamp-2">
+          <p className="text-sm text-gray-600 line-clamp-2 -mt-0.5">
             {truncateBio(creator.bio)}
           </p>
         )}
 
         {/* Chatbot count badge */}
-        <div className="pt-2">
+        <div className="pt-0.5">
           <Badge variant="secondary" className="text-xs">
             {creator.chatbotCount} {creator.chatbotCount === 1 ? 'chatbot' : 'chatbots'}
           </Badge>

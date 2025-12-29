@@ -54,12 +54,12 @@ interface ChatbotCardProps {
  * 
  * Features:
  * - Image placeholder (or creator avatar)
+ * - Free indicator badge (bottom right corner of image)
  * - Title (truncated to 2 lines)
+ * - Creator name (directly underneath title, clickable link to creator page)
  * - Description (truncated to ~100 chars)
- * - Creator name (clickable, links to creator page)
- * - Chatbot type badge
  * - Rating display (stars + count, or "No ratings yet")
- * - Price indicator ("Free" or formatted price)
+ * - Start Chat CTA button (prominent button at bottom of card)
  * - Favorite button (heart icon, top-right corner) - only if authenticated
  * - Hover effect (slight elevation/shadow)
  */
@@ -234,41 +234,45 @@ export function ChatbotCard({
               </span>
             </div>
           )}
+          {/* Free indicator - bottom right corner of image */}
+          {chatbot.priceCents === 0 && (
+            <Badge
+              variant="default"
+              className="absolute bottom-2 right-2 text-xs bg-green-600 hover:bg-green-600"
+            >
+              Free
+            </Badge>
+          )}
         </div>
 
         {/* Card content */}
-        <div className="p-4 space-y-2">
+        <div className="p-3 space-y-1.5">
           {/* Title - truncated to 2 lines */}
-          <h3 className="font-semibold text-lg line-clamp-2 min-h-[3.5rem]">
+          <h3 className="font-semibold text-lg line-clamp-2">
             {chatbot.title}
           </h3>
 
-          {/* Description - truncated to ~100 chars */}
+          {/* Creator name - directly underneath title */}
+          <div className="text-sm -mt-1">
+            <span className="text-gray-500">by </span>
+            <Link
+              href={`/creators/${chatbot.creator.slug}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-600 hover:underline font-medium"
+            >
+              {chatbot.creator.name}
+            </Link>
+          </div>
+
+          {/* Description - truncated to 3 lines */}
           {chatbot.description && (
-            <p className="text-sm text-gray-600 line-clamp-2">
+            <p className="text-sm text-gray-600 line-clamp-3">
               {truncateDescription(chatbot.description)}
             </p>
           )}
 
-          {/* Creator name - clickable link */}
-          <Link
-            href={`/creators/${chatbot.creator.slug}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-sm text-blue-600 hover:underline font-medium"
-          >
-            {chatbot.creator.name}
-          </Link>
-
-          {/* Chatbot type badge */}
-          {chatbot.type && (
-            <Badge variant="secondary" className="text-xs">
-              {formatChatbotType(chatbot.type)}
-            </Badge>
-          )}
-
-          {/* Rating and price row */}
-          <div className="flex items-center justify-between pt-2">
-            {/* Rating display */}
+          {/* Rating display */}
+          <div className="flex items-center pt-0.5">
             {chatbot.rating && chatbot.rating.ratingCount > 0 ? (
               <div className="flex items-center gap-1.5">
                 {renderStars(chatbot.rating.averageRating)}
@@ -282,15 +286,19 @@ export function ChatbotCard({
             ) : (
               <span className="text-sm text-gray-500">No ratings yet</span>
             )}
-
-            {/* Price indicator */}
-            <Badge
-              variant={chatbot.priceCents === 0 ? 'default' : 'secondary'}
-              className="text-xs"
-            >
-              {formatPrice()}
-            </Badge>
           </div>
+
+          {/* Start Chat CTA button */}
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartChat(chatbot.id);
+            }}
+            size="sm"
+            className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2"
+          >
+            Start Chat
+          </Button>
         </div>
       </Card>
 
