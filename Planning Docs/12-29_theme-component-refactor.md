@@ -420,28 +420,42 @@ interface ThemedContainerProps {
 
 ---
 
-### Task 7: Migrate Homepage to Use Theme
+### Task 7: Migrate Homepage to Use Theme ✅ COMPLETE
 **Purpose**: Apply theme system to homepage
 
-**Subtask 7.1** — Wrap homepage content with ThemedPage  
-**Visible output**: Homepage uses ThemedPage wrapper
+**Subtask 7.1** — Wrap homepage content with ThemedPage ✅  
+**Visible output**: ✅ Homepage uses ThemedPage wrapper
 
-**Subtask 7.2** — Remove bg-background class  
-**Visible output**: `bg-background` removed from main element
+**Subtask 7.2** — Remove bg-background class ✅  
+**Visible output**: ✅ `bg-background` removed from main element
 
-**Subtask 7.3** — Update AppHeader usage (already theme-aware from Task 6)  
-**Visible output**: AppHeader displays with theme colors
+**Subtask 7.3** — Update AppHeader usage (already theme-aware from Task 6) ✅  
+**Visible output**: ✅ AppHeader displays with theme colors
 
-**Subtask 7.4** — Verify theme applies correctly  
-**Visible output**: Homepage uses theme gradient and colors
+**Subtask 7.4** — Verify theme applies correctly ✅  
+**Visible output**: ✅ Homepage uses theme gradient and colors
 
-**Test**: Homepage displays theme gradient
+**Tests**: ✅ All tests passing (15 tests)
+- ✅ ThemedPage component is imported and used
+- ✅ bg-background class is removed
+- ✅ AppHeader is rendered (already theme-aware)
+- ✅ Theme gradient applies correctly to homepage
+- ✅ Text colors apply correctly for light and dark themes
+- ✅ CSS transitions included for smooth theme changes
+- ✅ Theme adapts to changes based on time
+- ✅ User theme settings apply to homepage
+- ✅ Text is readable with correct contrast
+- ✅ Homepage content renders correctly
 
-**Test**: Theme changes based on time work on homepage
-
-**Test**: User theme settings apply to homepage
-
-**Test**: Text is readable (correct contrast)
+**Implementation Summary**:
+- ✅ Updated `app/page.tsx` to import ThemedPage component
+- ✅ Wrapped homepage content with ThemedPage component (replaced `<main>` element)
+- ✅ Removed `bg-background` class from main element
+- ✅ Applied `min-h-screen` className to ThemedPage
+- ✅ Added React import (required for React.ReactNode type and Jest tests)
+- ✅ AppHeader is already theme-aware from Task 6, so it automatically displays with theme colors
+- ✅ Created comprehensive test suite at `__tests__/components/homepage-theme.test.tsx` (15 tests, all passing)
+- ✅ Tests verify code structure, imports, theme application, and functionality
 
 ---
 

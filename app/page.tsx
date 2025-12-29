@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppHeader } from '@/components/app-header';
+import { ThemedPage } from '@/components/themed-page';
 import { HomepageCreatorsSection } from '@/components/homepage-creators-section';
 import { HomepageGridSection } from '@/components/homepage-grid-section';
 import { useChatbotGrid } from '@/lib/hooks/use-chatbot-grid';
@@ -50,7 +51,7 @@ function HomeContent() {
   };
 
   return (
-    <main className="min-h-screen bg-background">
+    <ThemedPage className="min-h-screen">
       <AppHeader />
       
       <div className="container mx-auto px-4 py-8">
@@ -128,7 +129,7 @@ function HomeContent() {
           onFavoriteToggle={handleFavoriteToggle}
         />
       </div>
-    </main>
+    </ThemedPage>
   );
 }
 
