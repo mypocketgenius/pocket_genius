@@ -15,6 +15,14 @@ function HomeContent() {
   const bodyOfWorkGrid = useChatbotGrid('BODY_OF_WORK');
   const advisorBoardsGrid = useChatbotGrid('ADVISOR_BOARD');
 
+  // Debug logging
+  console.log('[HomeContent] Render:', {
+    frameworks: { count: frameworksGrid.chatbots.length, isLoading: frameworksGrid.isLoading, error: frameworksGrid.error },
+    deepDives: { count: deepDivesGrid.chatbots.length, isLoading: deepDivesGrid.isLoading, error: deepDivesGrid.error },
+    bodyOfWork: { count: bodyOfWorkGrid.chatbots.length, isLoading: bodyOfWorkGrid.isLoading, error: bodyOfWorkGrid.error },
+    advisorBoards: { count: advisorBoardsGrid.chatbots.length, isLoading: advisorBoardsGrid.isLoading, error: advisorBoardsGrid.error },
+  });
+
   // Sync favorites from all grids when any grid's chatbots change
   // This merges favorites from API responses (isFavorite field) with existing favorites
   // Note: This effect runs when chatbot arrays change. The functional update pattern (prev => ...)

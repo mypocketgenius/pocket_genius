@@ -19,6 +19,9 @@ import { Button } from '@/components/ui/button';
 export function HomepageCreatorsSection() {
   const { creators, isLoading, error, refetch } = useCreators();
 
+  // Debug logging
+  console.log('[HomepageCreatorsSection] Render:', { creators: creators.length, isLoading, error });
+
   return (
     <section className="mb-12">
       <div className="mb-6">
