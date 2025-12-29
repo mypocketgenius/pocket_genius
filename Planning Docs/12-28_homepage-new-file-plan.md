@@ -325,19 +325,37 @@ Homepage Structure:
 
 **If any verification fails**: Do NOT proceed. Fix Task -1 issues first.
 
-### Task 0: Create Supporting Files (Foundation)
+### Task 0: Create Supporting Files (Foundation) ✅ **COMPLETED**
 
-**Subtask 0.1** — Create `lib/types/creator.ts` (consistency improvement)
+**Summary**: All supporting files created successfully. Foundation is ready for Task 1 (homepage implementation).
+
+**Files Created**:
+- ✅ `lib/types/creator.ts` - Shared Creator type definition
+- ✅ `lib/hooks/use-chatbot-grid.ts` - Generic chatbot grid hook with pagination
+- ✅ `components/homepage-grid-section.tsx` - Reusable chatbot grid section component
+- ✅ `lib/hooks/use-creators.ts` - Creators fetching hook
+- ✅ `components/homepage-creators-section.tsx` - Creators grid section component
+
+**Verification**:
+- ✅ All files compile without errors (linter check passed)
+- ✅ All files follow architectural limits (≤120 lines, ≤5 functions per file)
+- ✅ Types imported from shared locations (`@/lib/types/chatbot`, `@/lib/types/creator`)
+- ✅ Components use existing UI components (Button, Alert, Skeleton, ChatbotCard, CreatorCard)
+- ✅ Hooks follow React best practices (useCallback, useEffect dependencies correct)
+- ✅ Error handling implemented with user-friendly messages and retry functionality
+
+**Subtask 0.1** — Create `lib/types/creator.ts` (consistency improvement) ✅ **COMPLETED**
 - Visible output: Type file created with `Creator` interface exported
-- **Step 1: Check if Creator type already exists**
+- **Step 1: Check if Creator type already exists** ✅
   - Search: `grep -r "interface Creator\|type Creator\|export.*Creator" app/ lib/ components/`
-  - **Note**: Creator type may exist in `app/page.tsx` or `app/creators/[creatorSlug]/page.tsx`
-  - **If exists**: Extract to shared file instead of creating new
-  - **If doesn't exist**: Create new file
-- **Step 2: Create or update type file**
+  - **Result**: Found Creator interfaces in `app/page.tsx` and `app/creators/[creatorSlug]/page.tsx` (local definitions)
+  - **Action**: Created shared type file to match API response format
+- **Step 2: Create or update type file** ✅
   - Matches API response format from `/api/creators`
   - Exports `Creator` interface: `{ id, slug, name, avatarUrl, bio, chatbotCount }`
+  - **Result**: File created at `lib/types/creator.ts` with complete type definition and documentation
 - **Rationale**: Consistency with how `Chatbot` type is handled in `lib/types/chatbot.ts`
+- **Status**: Type file created successfully. Ready for use in components.
 - **Code**:
   ```typescript
   /**
@@ -357,45 +375,69 @@ Homepage Structure:
   }
   ```
 
-**Subtask 0.2** — Create `lib/hooks/use-chatbot-grid.ts`
+**Subtask 0.2** — Create `lib/hooks/use-chatbot-grid.ts` ✅ **COMPLETED**
 - Visible output: Hook file created with `useChatbotGrid` function
-- Implements generic `fetchChatbotsByType` function
-- Manages: chatbots, pagination, loading states, error states
-- Returns: `{ chatbots, page, pagination, isLoading, isLoadingMore, error, loadMore, retry, syncFavorites }`
-- **TypeScript types**: 
-  - Imports `Chatbot`, `ChatbotType` from `@/lib/types/chatbot`
-  - Defines `Pagination` interface locally (matches API response format)
+- Implements generic `fetchChatbotsByType` function ✅
+- Manages: chatbots, pagination, loading states, error states ✅
+- Returns: `{ chatbots, page, pagination, isLoading, isLoadingMore, error, loadMore, retry, syncFavorites }` ✅
+- **TypeScript types**: ✅
+  - Imports `Chatbot`, `ChatbotType` from `@/lib/types/chatbot` ✅
+  - Defines `Pagination` interface locally (matches API response format) ✅
   - **Note**: `Pagination` is defined locally in both this hook and `HomepageGridSection` component. This is intentional - each file defines it locally to match the exact API response format without creating a shared dependency. If API format changes, only the affected file needs updating.
-  - Defines `ChatbotWithFavorite` interface extending `Chatbot` with optional `isFavorite?: boolean`
-- **Code**: See pseudo-code section below
+  - **Note**: Using `Chatbot` type directly (includes `isFavorite?: boolean` from Task -1.3) - no need for separate `ChatbotWithFavorite` type
+- **Implementation details**:
+  - Hook auto-fetches on mount (each instance fires independently)
+  - `fetchChatbotsByType` uses `useCallback` with `[type]` dependency
+  - `loadMore` appends items correctly (doesn't replace)
+  - `retry` resets to page 1
+  - `syncFavorites` merges favorites from API responses without removing existing ones
+- **Status**: Hook file created successfully. All functionality implemented per plan. Ready for use in homepage component.
 
-**Subtask 0.3** — Create `components/homepage-grid-section.tsx`
+**Subtask 0.3** — Create `components/homepage-grid-section.tsx` ✅ **COMPLETED**
 - Visible output: Component file created with `HomepageGridSection` component
-- Handles: skeleton loading, error state, empty state, grid rendering, Load More button
-- Uses existing `renderChatbotGrid` pattern internally
-- Accepts all necessary props for grid display
-- **TypeScript types**: 
-  - Uses existing `Chatbot` type from `@/lib/types/chatbot`
-  - Defines `Pagination` interface locally (matches API response format)
+- Handles: skeleton loading, error state, empty state, grid rendering, Load More button ✅
+- Uses existing `renderChatbotGrid` pattern internally ✅
+- Accepts all necessary props for grid display ✅
+- **TypeScript types**: ✅
+  - Uses existing `Chatbot` type from `@/lib/types/chatbot` ✅
+  - Defines `Pagination` interface locally (matches API response format) ✅
   - **Note**: `Pagination` defined locally here as well - see note in Subtask 0.2 for rationale
-  - Creates `HomepageGridSectionProps` interface
-- **Code**: See pseudo-code section below
+  - Creates `HomepageGridSectionProps` interface ✅
+- **Implementation details**:
+  - Component renders title and description
+  - Loading state: 6-item skeleton grid
+  - Error state: Alert with retry button
+  - Empty state: Centered message
+  - Grid: Uses `ChatbotCard` component with favorites support
+  - Load More: Button with loading spinner, only shows when more pages available
+- **Status**: Component file created successfully. All states handled correctly. Ready for use in homepage.
 
-**Subtask 0.4** — Create `lib/hooks/use-creators.ts` (file size optimization)
+**Subtask 0.4** — Create `lib/hooks/use-creators.ts` (file size optimization) ✅ **COMPLETED**
 - Visible output: Hook file created with `useCreators` function
-- Extracts creators fetching logic from homepage component
-- Manages: creators, loading state, error state
-- Returns: `{ creators, isLoading, error, refetch }`
+- Extracts creators fetching logic from homepage component ✅
+- Manages: creators, loading state, error state ✅
+- Returns: `{ creators, isLoading, error, refetch }` ✅
+- **Implementation details**:
+  - Hook auto-fetches on mount
+  - `fetchCreators` uses `useCallback` with empty dependency array
+  - Error handling with user-friendly messages
+  - `refetch` function provided for retry functionality
 - **Rationale**: Keeps `app/page-new.tsx` within architectural limits (≤120 lines)
-- **Code**: See pseudo-code section below
+- **Status**: Hook file created successfully. All functionality implemented. Ready for use in `HomepageCreatorsSection` component.
 
-**Subtask 0.5** — Create `components/homepage-creators-section.tsx` (file size optimization)
+**Subtask 0.5** — Create `components/homepage-creators-section.tsx` (file size optimization) ✅ **COMPLETED**
 - Visible output: Component file created with `HomepageCreatorsSection` component
-- Extracts creators grid JSX from homepage component
-- Handles: skeleton loading, error state, empty state, grid rendering
-- Uses `useCreators` hook internally
+- Extracts creators grid JSX from homepage component ✅
+- Handles: skeleton loading, error state, empty state, grid rendering ✅
+- Uses `useCreators` hook internally ✅
+- **Implementation details**:
+  - Component renders title "Creators" and description "Discover experts and thought leaders"
+  - Loading state: 6-item skeleton grid matching chatbot grid pattern
+  - Error state: Alert with retry button (calls `refetch` from hook)
+  - Empty state: Centered message "No creators available yet"
+  - Grid: Uses `CreatorCard` component in responsive grid (2 cols mobile, 4 cols tablet, 6 cols desktop)
 - **Rationale**: Keeps `app/page-new.tsx` within architectural limits (≤120 lines)
-- **Code**: See pseudo-code section below
+- **Status**: Component file created successfully. All states handled correctly. Ready for use in homepage.
 
 ### Task 1: Create New Homepage File
 
