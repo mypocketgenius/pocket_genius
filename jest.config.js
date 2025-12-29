@@ -39,13 +39,13 @@ module.exports = {
       ...baseConfig,
       displayName: 'node',
       testEnvironment: 'node',
-      testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/**/theme-context.test.ts', '!**/__tests__/**/use-debounce.test.ts'],
+      testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/**/theme-context.test.ts', '!**/__tests__/**/use-debounce.test.ts', '!**/__tests__/**/use-chatbot-grid.test.ts', '!**/__tests__/**/use-creators.test.ts'],
     },
     {
       ...baseConfig,
       displayName: 'jsdom',
       testEnvironment: 'jsdom',
-      testMatch: ['**/__tests__/**/theme-context.test.ts', '**/__tests__/**/use-debounce.test.ts'],
+      testMatch: ['**/__tests__/**/theme-context.test.ts', '**/__tests__/**/use-debounce.test.ts', '**/__tests__/**/use-chatbot-grid.test.ts', '**/__tests__/**/use-creators.test.ts'],
     },
   ],
 };
