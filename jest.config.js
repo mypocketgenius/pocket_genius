@@ -45,7 +45,7 @@ module.exports = {
       ...baseConfig,
       displayName: 'jsdom',
       testEnvironment: 'jsdom',
-      testMatch: ['**/__tests__/**/theme-context.test.ts', '**/__tests__/**/use-debounce.test.ts', '**/__tests__/**/use-chatbot-grid.test.ts', '**/__tests__/**/use-creators.test.ts'],
+      testMatch: ['**/__tests__/**/theme-context.test.ts', '**/__tests__/**/use-debounce.test.ts', '**/__tests__/**/use-chatbot-grid.test.ts', '**/__tests__/**/use-creators.test.ts', '**/__tests__/**/*.test.tsx'],
     },
   ],
 };
