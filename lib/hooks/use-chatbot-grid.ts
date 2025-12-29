@@ -51,18 +51,13 @@ export function useChatbotGrid(type: ChatbotType): UseChatbotGridReturn {
     }
     
     try {
-      const url = `/api/chatbots/public?type=${type}&pageSize=6&page=${pageNum}`;
-      console.log(`[useChatbotGrid] Fetching ${type}:`, url);
-      const res = await fetch(url);
-      
-      console.log(`[useChatbotGrid] Response for ${type}:`, res.status, res.ok);
+      const res = await fetch(`/api/chatbots/public?type=${type}&pageSize=6&page=${pageNum}`);
       
       if (!res.ok) {
         throw new Error(`Failed to fetch ${type} chatbots`);
       }
       
       const data = await res.json();
-      console.log(`[useChatbotGrid] Data for ${type}:`, data);
       
       if (reset) {
         setChatbots(data.chatbots);
@@ -77,7 +72,6 @@ export function useChatbotGrid(type: ChatbotType): UseChatbotGridReturn {
       console.error(`Error fetching ${type}:`, err);
       setError(`Unable to load ${type.toLowerCase()}. Please try again.`);
     } finally {
-      console.log(`[useChatbotGrid] Setting isLoading=false for ${type}`);
       setIsLoading(false);
       setIsLoadingMore(false);
     }

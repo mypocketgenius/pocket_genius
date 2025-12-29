@@ -27,18 +27,14 @@ export function useCreators(): UseCreatorsReturn {
     setIsLoading(true);
     setError(null);
     try {
-      console.log('[useCreators] Fetching creators...');
       const res = await fetch('/api/creators');
-      console.log('[useCreators] Response:', res.status, res.ok);
       if (!res.ok) throw new Error('Failed to fetch creators');
       const data = await res.json();
-      console.log('[useCreators] Data:', data);
       setCreators(data.creators || []);
     } catch (err) {
       console.error('Error fetching creators:', err);
       setError('Unable to load creators. Please try again.');
     } finally {
-      console.log('[useCreators] Setting isLoading=false');
       setIsLoading(false);
     }
   }, []);
