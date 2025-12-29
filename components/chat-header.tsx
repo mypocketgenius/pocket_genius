@@ -105,26 +105,24 @@ export function ChatHeader({
           </div>
         )}
         
-        {/* Side menu button - appears to the right of rating stars */}
-        {isSignedIn && (
-          <button
-            onClick={onMenuClick}
-            className="flex-shrink-0 p-2 rounded-lg transition-colors opacity-80"
-            style={{
-              color: theme.textColor,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = hoverBgColor;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-            aria-label="Open menu"
-            title="Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        )}
+        {/* Side menu button - always visible */}
+        <button
+          onClick={onMenuClick}
+          className="flex-shrink-0 p-2 rounded-lg transition-colors opacity-80"
+          style={{
+            color: theme.textColor,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = hoverBgColor;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          aria-label="Open menu"
+          title="Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
       </div>
       {error && (
         <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm opacity-80">

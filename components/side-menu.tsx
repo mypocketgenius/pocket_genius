@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth, SignOutButton, useClerk } from '@clerk/nextjs';
+import { useUser, useAuth, SignOutButton, SignInButton, useClerk } from '@clerk/nextjs';
 import { X, Palette, LogOut, User, MessageSquare, Heart, BarChart, FileText, Upload } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
@@ -398,28 +398,41 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
           
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
-            {/* Creator Dashboard */}
-            {isSignedIn && (
-              <div className="px-4 pt-4 pb-0">
-                <button
-                  onClick={() => {
-                    router.push('/dashboard');
-                    onClose();
-                  }}
-                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
-                  style={{ color: theme.textColor }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = hoverBgColor;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <BarChart className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
-                  <span className="text-sm font-medium">Creator Dashboard</span>
-                </button>
+            {/* Sign In Button - shown when not signed in */}
+            {!isSignedIn && (
+              <div className="px-4 pt-4 pb-4">
+                <SignInButton mode="modal">
+                  <button
+                    className="w-full px-4 py-3 flex items-center justify-center gap-3 transition-colors rounded-md bg-blue-500 text-white hover:bg-blue-600"
+                    onClick={() => onClose()}
+                  >
+                    <User className="w-5 h-5" />
+                    <span className="text-sm font-medium">Sign In</span>
+                  </button>
+                </SignInButton>
               </div>
             )}
+            
+            {/* Creator Dashboard */}
+            <div className="px-4 pt-4 pb-0">
+              <button
+                onClick={() => {
+                  router.push('/dashboard');
+                  onClose();
+                }}
+                className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                style={{ color: theme.textColor }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = hoverBgColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <BarChart className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
+                <span className="text-sm font-medium">Creator Dashboard</span>
+              </button>
+            </div>
             
             {/* Account Section */}
             {isSignedIn && user && (
@@ -445,25 +458,23 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
               </div>
             )}
             
-            {/* Theme Button */}
-            {isSignedIn && (
-              <div className="px-4 pt-2 pb-4">
-                <button
-                  onClick={() => setThemeSettingsOpen(true)}
-                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
-                  style={{ color: theme.textColor }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = hoverBgColor;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <Palette className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
-                  <span className="text-sm font-medium">Theme</span>
-                </button>
-              </div>
-            )}
+            {/* Theme Button - available to everyone */}
+            <div className="px-4 pt-2 pb-4">
+              <button
+                onClick={() => setThemeSettingsOpen(true)}
+                className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                style={{ color: theme.textColor }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = hoverBgColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <Palette className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
+                <span className="text-sm font-medium">Theme</span>
+              </button>
+            </div>
             
             {/* Test Pages */}
             {isSignedIn && (

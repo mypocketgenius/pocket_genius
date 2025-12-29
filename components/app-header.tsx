@@ -5,7 +5,7 @@
 // Search expands on clicking the search icon
 
 import React, { useState } from 'react';
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
 import { SideMenu } from '@/components/side-menu';
@@ -58,46 +58,49 @@ export function AppHeader({
             )}
           </div>
 
+          {/* Auth buttons - moved to left of search */}
+          {showAuth && (
+            <div className="flex gap-2 items-center flex-shrink-0">
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button variant="default" size="sm">
+                    Sign In
+                  </Button>
+                </SignInButton>
+              </SignedOut>
+            </div>
+          )}
+
           {/* Search bar */}
           <SearchBar
             variant="header"
           />
 
-          {/* Right side: Auth buttons or custom content */}
+          {/* Right side: Side menu button (always visible) and UserButton (when signed in) */}
           <div className="flex gap-4 items-center flex-shrink-0">
             {rightContent ? (
               rightContent
-            ) : showAuth ? (
+            ) : (
               <>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button variant="default" size="sm">
-                      Sign In
-                    </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
-                    <Button variant="secondary" size="sm">
-                      Sign Up
-                    </Button>
-                  </SignUpButton>
-                </SignedOut>
+                {/* Side menu button - always visible */}
+                <button
+                  onClick={() => setSideMenuOpen(true)}
+                  className="p-2 rounded-full transition-colors"
+                  style={{
+                    color: theme.textColor,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  aria-label="Open menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                {/* UserButton - only when signed in */}
                 <SignedIn>
-                  <button
-                    onClick={() => setSideMenuOpen(true)}
-                    className="p-2 rounded-full transition-colors"
-                    style={{
-                      color: theme.textColor,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = hoverBgColor;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                    aria-label="Open menu"
-                  >
-                    <Menu className="w-5 h-5" />
-                  </button>
                   <UserButton afterSignOutUrl="/">
                     <UserButton.MenuItems>
                       <UserButton.Link
@@ -109,7 +112,7 @@ export function AppHeader({
                   </UserButton>
                 </SignedIn>
               </>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
