@@ -43,12 +43,11 @@ describe('Chat Component Refactor - Task 4', () => {
       expect(chatFileContent).toContain('className="flex-1 overflow-y-auto p-4 space-y-4 sky-gradient-transition"');
     });
 
-    it('should preserve iOS-specific scrolling styles', () => {
-      // Verify iOS-specific styles are still present
-      expect(chatFileContent).toContain('WebkitOverflowScrolling');
-      expect(chatFileContent).toContain('overscrollBehavior');
-      expect(chatFileContent).toContain("'touch'");
-      expect(chatFileContent).toContain("'none'");
+    it('should preserve iOS-specific scrolling styles via scrollable prop', () => {
+      // Verify scrollable prop is used (explicit intent for iOS scrolling)
+      expect(chatFileContent).toContain('scrollable');
+      // Verify it's used on ThemedPage component
+      expect(chatFileContent).toMatch(/<ThemedPage[^>]*scrollable/);
     });
   });
 

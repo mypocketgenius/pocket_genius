@@ -459,25 +459,38 @@ interface ThemedContainerProps {
 
 ---
 
-### Task 8: Migrate Favorites Page to Use Theme
+### Task 8: Migrate Favorites Page to Use Theme ✅ COMPLETE
 **Purpose**: Apply theme system to favorites page
 
-**Subtask 8.1** — Wrap favorites content with ThemedPage  
-**Visible output**: Favorites page uses ThemedPage wrapper
+**Subtask 8.1** — Wrap favorites content with ThemedPage ✅  
+**Visible output**: ✅ Favorites page uses ThemedPage wrapper
 
-**Subtask 8.2** — Remove bg-background class  
-**Visible output**: `bg-background` removed from main element
+**Subtask 8.2** — Remove bg-background class ✅  
+**Visible output**: ✅ `bg-background` removed from main element
 
-**Subtask 8.3** — Verify theme applies correctly  
-**Visible output**: Favorites page uses theme gradient and colors
+**Subtask 8.3** — Verify theme applies correctly ✅  
+**Visible output**: ✅ Favorites page uses theme gradient and colors
 
-**Test**: Favorites page displays theme gradient
+**Tests**: ✅ All tests passing (16 tests)
+- ✅ ThemedPage component is imported and used
+- ✅ bg-background class is removed
+- ✅ AppHeader is rendered (already theme-aware from Task 6)
+- ✅ Theme gradient applies correctly to favorites page
+- ✅ Text colors apply correctly for light and dark themes
+- ✅ CSS transitions included for smooth theme changes
+- ✅ Theme adapts to changes based on time
+- ✅ User theme settings apply to favorites page
+- ✅ Text is readable with correct contrast
+- ✅ Favorites page content renders correctly
 
-**Test**: Theme changes based on time work on favorites page
-
-**Test**: User theme settings apply to favorites page
-
-**Test**: Text is readable (correct contrast)
+**Implementation Summary**:
+- ✅ Updated `app/favorites/page.tsx` to import ThemedPage component and React
+- ✅ Wrapped favorites page content with ThemedPage component (replaced `<main>` element)
+- ✅ Removed `bg-background` class from main element
+- ✅ Applied `min-h-screen` className to ThemedPage
+- ✅ AppHeader is already theme-aware from Task 6, so it automatically displays with theme colors
+- ✅ Created comprehensive test suite at `__tests__/components/favorites-theme.test.tsx` (16 tests, all passing)
+- ✅ Tests verify code structure, imports, theme application, and functionality
 
 ---
 

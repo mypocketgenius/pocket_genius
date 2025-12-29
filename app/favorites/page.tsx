@@ -3,7 +3,7 @@
 // Phase 3.7.6: Favorites Page
 // Displays user's favorited chatbots in a grid layout
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { AppHeader } from '@/components/app-header';
+import { ThemedPage } from '@/components/themed-page';
 import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
 
 interface Chatbot {
@@ -171,7 +172,7 @@ export default function FavoritesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <ThemedPage className="min-h-screen">
       {/* Header */}
       <AppHeader />
 
@@ -266,7 +267,7 @@ export default function FavoritesPage() {
           </>
         )}
       </div>
-    </main>
+    </ThemedPage>
   );
 }
 

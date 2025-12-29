@@ -797,10 +797,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       {/* Messages container */}
       <ThemedPage 
         className="flex-1 overflow-y-auto p-4 space-y-4 sky-gradient-transition"
-        style={{
-          WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
-          overscrollBehavior: 'none', // Prevent scroll overhangs on iOS Safari/Chrome
-        }}
+        scrollable
       >
         {isLoadingMessages && (
           <div 

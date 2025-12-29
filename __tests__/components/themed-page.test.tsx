@@ -204,6 +204,54 @@ describe('ThemedPage', () => {
     });
   });
 
+  describe('scrollable prop', () => {
+    it('should not apply iOS scrolling styles when scrollable is not provided', () => {
+      const { container } = render(
+        <ThemedPage>
+          <div>Test Content</div>
+        </ThemedPage>,
+        { wrapper }
+      );
+
+      const themedDiv = container.firstChild as HTMLElement;
+      expect(themedDiv.style.WebkitOverflowScrolling).toBe('');
+      expect(themedDiv.style.overscrollBehavior).toBe('');
+    });
+
+    it('should apply iOS scrolling styles when scrollable is true', () => {
+      const { container } = render(
+        <ThemedPage scrollable>
+          <div>Test Content</div>
+        </ThemedPage>,
+        { wrapper }
+      );
+
+      const themedDiv = container.firstChild as HTMLElement;
+      expect(themedDiv.style.WebkitOverflowScrolling).toBe('touch');
+      expect(themedDiv.style.overscrollBehavior).toBe('none');
+    });
+
+    it('should preserve theme styles when scrollable is enabled', () => {
+      mockDate(12, 0); // noon (light theme)
+      
+      const { container } = render(
+        <ThemedPage scrollable>
+          <div>Test Content</div>
+        </ThemedPage>,
+        { wrapper }
+      );
+
+      const themedDiv = container.firstChild as HTMLElement;
+      // Theme styles should still be applied
+      expect(themedDiv.style.background).toContain('linear-gradient');
+      expect(themedDiv.style.color).toBe('rgb(26, 26, 26)');
+      expect(themedDiv.style.transition).toBe('background 2s ease');
+      // iOS scrolling styles should also be applied
+      expect(themedDiv.style.WebkitOverflowScrolling).toBe('touch');
+      expect(themedDiv.style.overscrollBehavior).toBe('none');
+    });
+  });
+
   describe('error handling', () => {
     it('should throw error when used outside ThemeProvider', () => {
       // Suppress console.error for this test
