@@ -34,14 +34,15 @@ model User {
   createdAt DateTime @default(now())
 
   // Relations
-  creatorMemberships    Creator_User[]
-  conversations         Conversation[]
-  messages              Message[]
-  pillUsages            Pill_Usage[]
-  events                Event[]
-  bookmarks             Bookmark[]
-  conversationFeedbacks Conversation_Feedback[]
-  favoritedChatbots     Favorited_Chatbots[]
+  creatorMemberships     Creator_User[]
+  conversations          Conversation[]
+  messages               Message[]
+  pillUsages             Pill_Usage[]
+  events                 Event[]
+  bookmarks              Bookmark[]
+  conversationFeedbacks  Conversation_Feedback[]
+  favoritedChatbots      Favorited_Chatbots[]
+  createdChatbotVersions Chatbot_Version[]       @relation("ChatbotVersionCreator")
 }
 
 // Creator model - AI creator profile
@@ -95,6 +96,21 @@ model Chatbot {
   priceCents     Int          @default(0)
   currency       String       @default("USD")
   isActive       Boolean      @default(true)
+
+  // Phase 3.9: Versioning fields (current/live configuration)
+  systemPrompt    String? // Current system prompt
+  modelProvider   String? // e.g., "openai"
+  modelName       String? // e.g., "gpt-4o"
+  pineconeNs      String? // Pinecone namespace
+  vectorNamespace String? // Vector namespace
+  configJson      Json? // Current config (temperature, etc.)
+  ragSettingsJson Json? // Current RAG settings (topK, etc.)
+  ingestionRunIds String[] @default([]) // Current ingestion runs
+
+  // Phase 3.9: Versioning relations
+  currentVersionId String?           @unique
+  currentVersion   Chatbot_Version?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  versions         Chatbot_Version[]
 
   createdAt DateTime @default(now())
 
@@ -198,15 +214,17 @@ model File {
 
 // Conversation model - Chat sessions
 model Conversation {
-  id           String   @id @default(cuid())
-  chatbotId    String
-  chatbot      Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status       String   @default("active") // 'active' | 'completed'
-  messageCount Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String          @id @default(cuid())
+  chatbotId        String
+  chatbot          Chatbot         @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  chatbotVersionId String
+  chatbotVersion   Chatbot_Version @relation(fields: [chatbotVersionId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           String          @default("active") // 'active' | 'completed'
+  messageCount     Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   // Relations
   messages             Message[]
@@ -214,6 +232,7 @@ model Conversation {
 
   @@index([chatbotId, status])
   @@index([userId])
+  @@index([chatbotVersionId])
 }
 
 // Message model - Individual messages in conversations
@@ -397,4 +416,43 @@ model Chatbot_Ratings_Aggregate {
   ratingCount        Int      @default(0)
   ratingDistribution Json? // {"1": 5, "2": 10, "3": 25, ...}
   updatedAt          DateTime @updatedAt
+}
+
+// Phase 3.9: Chatbot_Version model - Immutable snapshots of chatbot configuration
+model Chatbot_Version {
+  id              String      @id @default(cuid())
+  chatbotId       String
+  chatbot         Chatbot     @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  currentChatbot  Chatbot?    @relation("CurrentVersion")
+  versionNumber   Int
+  title           String
+  description     String?
+  systemPrompt    String
+  modelProvider   String
+  modelName       String
+  pineconeNs      String
+  vectorNamespace String
+  configJson      Json?
+  ragSettingsJson Json?
+  ingestionRunIds String[]
+  allowAnonymous  Boolean     @default(false)
+  priceCents      Int
+  currency        String
+  type            ChatbotType
+  notes           String?
+  changelog       String?
+  createdByUserId String
+  createdBy       User        @relation("ChatbotVersionCreator", fields: [createdByUserId], references: [id])
+
+  activatedAt   DateTime? // When it became current
+  deactivatedAt DateTime? // When it was replaced
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+
+  @@unique([chatbotId, versionNumber])
+  @@index([chatbotId])
+  @@index([activatedAt])
 }

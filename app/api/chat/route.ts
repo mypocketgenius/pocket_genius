@@ -99,6 +99,16 @@ export async function POST(req: Request) {
     // 3. Verify chatbot exists
     const chatbot = await prisma.chatbot.findUnique({
       where: { id: chatbotId },
+      include: {
+        creator: {
+          include: {
+            users: {
+              where: { role: 'OWNER' },
+              take: 1,
+            },
+          },
+        },
+      },
     });
 
     if (!chatbot) {
@@ -138,9 +148,44 @@ export async function POST(req: Request) {
     // 5. Get or create conversation
     let conversationId = providedConversationId;
     if (!conversationId) {
+      // Get chatbot version ID (use current version or first version as fallback)
+      let chatbotVersionId: string;
+      if (chatbot.currentVersionId) {
+        chatbotVersionId = chatbot.currentVersionId;
+      } else {
+        // Fallback: get first version or create version 1 if none exists
+        const versions = await prisma.chatbot_Version.findMany({
+          where: { chatbotId },
+          orderBy: { versionNumber: 'asc' },
+          take: 1,
+        });
+        
+        if (versions.length > 0) {
+          chatbotVersionId = versions[0].id;
+        } else {
+          // Create version 1 for existing chatbot (data migration scenario)
+          // This should rarely happen, but handles edge case
+          const creatorUserId = chatbot.creator.users[0]?.userId;
+          if (!creatorUserId) {
+            // Fallback: use system user or throw error
+            throw new Error('Cannot create version: chatbot creator has no associated user');
+          }
+          
+          const { createChatbotVersion } = await import('@/lib/chatbot/versioning');
+          const version1 = await createChatbotVersion(chatbotId, creatorUserId, {
+            systemPrompt: chatbot.systemPrompt || 'You are a helpful assistant.',
+            configJson: chatbot.configJson,
+            ragSettingsJson: chatbot.ragSettingsJson,
+            notes: 'Auto-created version 1 for existing chatbot',
+          });
+          chatbotVersionId = version1.id;
+        }
+      }
+      
       const conversation = await prisma.conversation.create({
         data: {
           chatbotId,
+          chatbotVersionId,
           userId: dbUserId || undefined,
           status: 'active',
           messageCount: 0,
