@@ -11,7 +11,7 @@ datasource db {
 
 // Phase 3.7.1: Enums for homepage browsing
 enum ChatbotType {
-  CREATOR
+  BODY_OF_WORK
   FRAMEWORK
   DEEP_DIVE
   ADVISOR_BOARD

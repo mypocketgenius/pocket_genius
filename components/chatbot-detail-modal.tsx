@@ -18,10 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Type definitions matching the API response format
-type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
-type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
 
 interface ChatbotDetailModalProps {
   chatbot: {

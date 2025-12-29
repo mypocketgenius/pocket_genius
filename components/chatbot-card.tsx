@@ -13,10 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
-
-// Type definitions matching the API response format
-type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
-type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
+import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
 
 interface ChatbotCardProps {
   chatbot: {

@@ -5,7 +5,7 @@
  * Used across components to ensure type consistency
  */
 
-export type ChatbotType = 'CREATOR' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+export type ChatbotType = 'BODY_OF_WORK' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
 
 export type CategoryType = 'ROLE' | 'CHALLENGE' | 'STAGE';
 
@@ -36,5 +36,6 @@ export interface Chatbot {
     slug: string;
   }>;
   favoriteCount: number;
+  isFavorite?: boolean; // Only present when user is authenticated
 }
 

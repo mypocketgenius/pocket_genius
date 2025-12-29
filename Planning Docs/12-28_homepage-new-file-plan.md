@@ -107,17 +107,23 @@ Homepage Structure:
 4. Update TypeScript types and code (Subtasks -1.3 through -1.5)
 5. Verify everything works (Subtask -1.6)
 
-**Subtask -1.1** — Update Prisma schema
+**Subtask -1.1** — Update Prisma schema ✅ **COMPLETED**
 - Visible output: `prisma/schema.prisma` updated with `BODY_OF_WORK` in ChatbotType enum
-- **Step 1: Verify current schema state**
+- **Step 1: Verify current schema state** ✅
   - Check current enum value: `grep -A 5 "enum ChatbotType" prisma/schema.prisma`
   - Expected: Should show `CREATOR` (if it shows `BODY_OF_WORK`, migration already done - skip Task -1)
+  - **Result**: Verified schema showed `CREATOR` enum value (migration needed)
   - Verify database state: Check if any chatbots have `type = 'CREATOR'` in database
-- **Step 2: Update schema**
+  - **Note**: Database state verification will be done in Subtask -1.2 before migration
+- **Step 2: Update schema** ✅
   - Change: `enum ChatbotType { CREATOR → BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD }`
+  - **Result**: Schema updated successfully - `BODY_OF_WORK` now replaces `CREATOR` in enum
+  - **Verification**: `grep` confirms enum now shows `BODY_OF_WORK` as first value
+  - **Linting**: No linting errors introduced
 - **Note**: This change requires a custom migration SQL script (see Subtask -1.2)
+- **Status**: Schema file updated. Next step: Create migration file (Subtask -1.2)
 
-**Subtask -1.1.5** — Create data migration script (CRITICAL)
+**Subtask -1.1.5** — Create data migration script (CRITICAL) ✅ **COMPLETED**
 - Visible output: SQL script to update existing `CREATOR` records to `BODY_OF_WORK` before enum change
 - **Rationale**: PostgreSQL enum changes require updating existing data BEFORE altering the enum type
 - **Action**: The data update SQL will be added to the migration file in Subtask -1.2. This subtask documents the required SQL:
@@ -125,53 +131,71 @@ Homepage Structure:
   -- Update existing records BEFORE changing enum (must be first in migration)
   UPDATE "Chatbot" SET type = 'BODY_OF_WORK' WHERE type = 'CREATOR';
   ```
+- **Result**: Created SQL script file at `scripts/migrate-creator-to-body-of-work.sql`
+  - Contains the UPDATE statement to migrate existing `CREATOR` records to `BODY_OF_WORK`
+  - Includes documentation explaining the critical order requirement
+  - Includes verification queries for post-migration confirmation
+  - Ready to be incorporated into Prisma migration file in Subtask -1.2
 - **Note**: This SQL must run BEFORE the enum alteration in the migration file
+- **Status**: SQL script created and documented. Next step: Create migration file (Subtask -1.2)
 
-**Subtask -1.2** — Create and run database migration
+**Subtask -1.2** — Create and run database migration ✅ **COMPLETED**
 - Visible output: Migration file created and applied
-- **Step 1: Generate migration file (without applying)**
+- **Step 1: Generate migration file (without applying)** ✅
   - Command: `npx prisma migrate dev --create-only --name rename_creator_to_body_of_work`
-  - This creates the migration file in `prisma/migrations/` without applying it
-- **Step 2: Edit migration file to add data update FIRST**
-  - Open the generated migration file (e.g., `prisma/migrations/YYYYMMDDHHMMSS_rename_creator_to_body_of_work/migration.sql`)
-  - **CRITICAL**: Add the data update SQL at the very top of the file (before any enum changes):
-    ```sql
-    -- Update existing records BEFORE changing enum
-    UPDATE "Chatbot" SET type = 'BODY_OF_WORK' WHERE type = 'CREATOR';
-    ```
-  - The rest of the file will contain Prisma's generated enum alteration SQL
-- **Step 3: Verify no CREATOR records remain (before applying migration)**
-  - Command: `psql $DATABASE_URL -c "SELECT COUNT(*) FROM \"Chatbot\" WHERE type = 'CREATOR';"`
-  - Expected: Returns 0 (or the number you're about to update)
-  - **If non-zero**: Migration will fail - ensure data update SQL is correct
-- **Step 4: Apply migration**
-  - Command: `npx prisma migrate dev`
-  - This applies the migration file (with data update + enum change)
-- **Step 5: Verify migration succeeded**
-  - Check records: `psql $DATABASE_URL -c "SELECT COUNT(*) FROM \"Chatbot\" WHERE type = 'BODY_OF_WORK';"`
-  - Check enum: `psql $DATABASE_URL -c "SELECT unnest(enum_range(NULL::\"ChatbotType\"));"`
-  - Expected: Shows `BODY_OF_WORK`, `FRAMEWORK`, `DEEP_DIVE`, `ADVISOR_BOARD` (no `CREATOR`)
+  - **Result**: Command failed in non-interactive environment, so migration file was created manually
+  - **Migration file created**: `prisma/migrations/20251229152358_rename_creator_to_body_of_work/migration.sql`
+- **Step 2: Edit migration file to add data update FIRST** ✅
+  - **CRITICAL**: Created migration file with proper order:
+    1. Create new enum type `ChatbotType_new` with `BODY_OF_WORK` value
+    2. Temporarily alter column to TEXT type to allow data updates
+    3. Update existing records: `UPDATE "Chatbot" SET type = 'BODY_OF_WORK' WHERE type = 'CREATOR';`
+    4. Alter column back to new enum type
+    5. Drop old enum type
+    6. Rename new enum type to original name
+  - **Rationale**: PostgreSQL doesn't allow setting enum values that don't exist, so we must create new enum first, convert column to text, update data, then convert back
+  - **Migration file**: Contains complete SQL for enum recreation with data migration
+- **Step 3: Verify no CREATOR records remain (before applying migration)** ✅
+  - **Note**: Verification done after migration (see Step 5)
+  - **Result**: Confirmed 0 CREATOR records remain after migration
+- **Step 4: Apply migration** ✅
+  - **Initial attempt**: Failed due to trying to UPDATE to non-existent enum value
+  - **Fix**: Updated migration file to create new enum first, convert column to text, update data, then convert back
+  - **Resolution**: Marked failed migration as rolled back: `npx prisma migrate resolve --rolled-back "20251229152358_rename_creator_to_body_of_work"`
+  - **Final application**: `npx prisma migrate deploy` - Migration applied successfully
+  - **Prisma client regeneration**: `npx prisma generate` - Client regenerated with new enum types
+- **Step 5: Verify migration succeeded** ✅
+  - **Verification script created**: `scripts/verify-creator-to-body-of-work-migration.ts`
+  - **Results**:
+    - ✅ CREATOR records remaining: 0 (all migrated successfully)
+    - ✅ BODY_OF_WORK records: 0 (no records exist yet, but type works)
+    - ✅ FRAMEWORK type exists and accessible
+    - ✅ DEEP_DIVE type exists and accessible
+    - ✅ ADVISOR_BOARD type exists and accessible
+    - ✅ BODY_OF_WORK type exists and accessible
+    - ✅ CREATOR type removed from enum (TypeScript types confirm)
+  - **Migration status**: All migrations successfully applied
+- **Status**: Migration completed successfully. Database enum updated, all records migrated, Prisma client regenerated. Next step: Update TypeScript types (Subtask -1.3)
 
-**Subtask -1.3** — Update shared TypeScript types
+**Subtask -1.3** — Update shared TypeScript types ✅ **COMPLETED**
 - Visible output: `lib/types/chatbot.ts` updated
-- **Step 1**: Update `ChatbotType` enum
+- **Step 1**: Update `ChatbotType` enum ✅
   - Change: `export type ChatbotType = 'BODY_OF_WORK' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD'`
-- **Step 2**: Add `isFavorite` field to `Chatbot` interface
+  - **Result**: Updated successfully - `'CREATOR'` replaced with `'BODY_OF_WORK'`
+- **Step 2**: Add `isFavorite` field to `Chatbot` interface ✅
   - Change: Add `isFavorite?: boolean;` to `Chatbot` interface
   - **Rationale**: API returns `isFavorite` conditionally when user is authenticated. Adding to base type avoids type casting and maintains type consistency.
-  - **Location**: Add after `favoriteCount: number;` field
-  - **Code**:
-    ```typescript
-    export interface Chatbot {
-      // ... existing fields ...
-      favoriteCount: number;
-      isFavorite?: boolean; // Only present when user is authenticated
-    }
-    ```
-- **Step 3: Verify TypeScript compiles**
+  - **Location**: Added after `favoriteCount: number;` field
+  - **Result**: Field added successfully with comment explaining conditional presence
+- **Step 3: Verify TypeScript compiles** ✅
   - Command: `npx tsc --noEmit`
-  - Expected: No TypeScript errors related to `ChatbotType` or `Chatbot` interface
-  - **If errors**: Fix type issues before proceeding to Subtask -1.4
+  - **Result**: Shared types updated successfully
+  - **Additional fixes**: Updated `components/chatbot-card.tsx` and `components/chatbot-detail-modal.tsx` to use shared types (replaced local `ChatbotType` definitions with imports from `@/lib/types/chatbot`)
+  - **Remaining TypeScript errors**: Expected and will be fixed in subsequent subtasks:
+    - `app/api/chatbots/public/route.ts` - validation array and error message still reference `'CREATOR'` (will be fixed in Subtask -1.4)
+    - `app/page.tsx` and `app/favorites/page.tsx` - local `ChatbotType` definitions still use `'CREATOR'` (will be fixed in Subtask -1.5)
+  - **Note**: These errors are expected as those files will be updated in Subtasks -1.4 and -1.5 per the plan
+- **Status**: Shared TypeScript types updated successfully. Components using shared types (`chatbot-card.tsx`, `chatbot-detail-modal.tsx`) updated. Remaining files will be updated in Subtasks -1.4 and -1.5. Next step: Update API route validation (Subtask -1.4)
 
 **Subtask -1.4** — Update API route validation
 - Visible output: `app/api/chatbots/public/route.ts` updated
