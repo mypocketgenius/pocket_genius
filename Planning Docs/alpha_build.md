@@ -2819,6 +2819,114 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
+### Side Quest: Theme Component Refactor ✅ COMPLETE (Dec 29, 2024)
+
+**Status:** ✅ **COMPLETE** (Dec 29, 2024)
+
+**Objective:** Extract chat page theme implementation into reusable components and apply theme consistently across all pages
+
+**Why:** After completing Phase 3.9 (Chatbot Versioning System), we identified that the sophisticated theme system (time-based gradients, adaptive colors, user preferences) was only implemented in the chat page. Other pages (homepage, favorites, creators, dashboard) used static backgrounds. This side quest unified the theme system across the entire application.
+
+**Prerequisites:**
+- ✅ Phase 3.9 complete (Chatbot Versioning System)
+- ✅ Chat page theme system working (time-based gradients, user preferences)
+- ✅ ThemeProvider context available site-wide
+
+**What Was Done:**
+
+1. **Created Reusable Theme Components:**
+   - ✅ `components/themed-page.tsx` - Page-level theme wrapper with gradient backgrounds
+   - ✅ `components/themed-header.tsx` - Header component with theme chrome colors
+   - ✅ `components/themed-container.tsx` - Container component for content areas (default, card, input variants)
+   - ✅ `components/chat-header.tsx` - Chat-specific header component with theme support
+   - ✅ `components/themed-page-wrapper.tsx` - Client wrapper for server components
+
+2. **Refactored Chat Page:**
+   - ✅ Extracted theme logic from `components/chat.tsx` into reusable components
+   - ✅ Wrapped messages container with ThemedPage component
+   - ✅ Replaced inline header styles with ChatHeader component
+   - ✅ Removed redundant `skyGradient` variable (now handled by ThemedPage)
+   - ✅ Preserved exact visual appearance and behavior (no regressions)
+
+3. **Updated AppHeader Component:**
+   - ✅ Made AppHeader theme-aware using `useTheme()` hook
+   - ✅ Replaced `bg-white` with `theme.chrome.header` background
+   - ✅ Applied theme colors for borders, text, and hover states
+   - ✅ Added smooth CSS transitions (2s ease) for theme changes
+
+4. **Migrated All Pages to Theme System:**
+   - ✅ Homepage (`app/page.tsx`) - Wrapped with ThemedPage
+   - ✅ Favorites page (`app/favorites/page.tsx`) - Wrapped with ThemedPage
+   - ✅ Creators page (`app/creators/[creatorSlug]/page.tsx`) - Wrapped with ThemedPage
+   - ✅ Dashboard page (`app/dashboard/[chatbotId]/page.tsx`) - Wrapped with ThemedPageWrapper
+   - ✅ Debug page (`app/dashboard/[chatbotId]/debug/page.tsx`) - Wrapped with ThemedPageWrapper
+   - ✅ All error pages (404, Access Denied) - Updated to use theme components
+
+5. **Migrated Side Menu Component:**
+   - ✅ Updated `components/side-menu.tsx` to use theme system
+   - ✅ Updated `components/side-menu-item.tsx` to use theme system
+   - ✅ Replaced hardcoded colors with theme-aware colors
+   - ✅ Added theme-aware hover states
+
+6. **Cleanup and Optimization:**
+   - ✅ Removed unused `skyGradient` variable from chat.tsx
+   - ✅ Verified ThemeBody component is still needed (handles body-level gradient and iOS scrolling)
+   - ✅ Optimized theme value access (no duplicate lookups)
+
+**Key Features:**
+- ✅ Theme changes based on time of day work correctly on all pages
+- ✅ User theme settings (cycle modes, custom periods) apply to all pages
+- ✅ Theme transitions smoothly between periods (2s CSS transitions)
+- ✅ Chrome colors (header, input, borders) adapt correctly to theme
+- ✅ Text colors adapt correctly (light/dark based on period)
+- ✅ All pages use consistent theme system (no hardcoded colors)
+- ✅ Theme persists across page navigations
+- ✅ No performance regressions (theme updates every 5 minutes for cycle modes)
+- ✅ iOS Safari scrolling issues remain fixed (no background-attachment: fixed on iOS)
+
+**Deliverables:**
+- ✅ `components/themed-page.tsx` - Page-level theme wrapper (9 tests passing)
+- ✅ `components/themed-header.tsx` - Header component with theme (18 tests passing)
+- ✅ `components/themed-container.tsx` - Container component with variants (15 tests passing)
+- ✅ `components/chat-header.tsx` - Chat-specific header (25 tests passing)
+- ✅ `components/themed-page-wrapper.tsx` - Server component wrapper
+- ✅ Refactored `components/chat.tsx` - Uses new theme components (9 tests passing)
+- ✅ Updated `components/app-header.tsx` - Theme-aware (21 tests passing)
+- ✅ Updated all pages to use theme system (29 tests passing)
+- ✅ Updated `components/side-menu.tsx` - Theme-aware (21 tests passing)
+- ✅ Updated `components/side-menu-item.tsx` - Theme-aware
+- ✅ Comprehensive test coverage (177+ tests total, all passing)
+
+**Implementation Details:**
+- **Theme Components:** All components use `useTheme()` hook to access theme values
+- **Color Application:** Background gradients, chrome colors, and text colors applied via inline styles
+- **CSS Transitions:** Smooth 2s transitions for theme changes (background, border, color)
+- **Hover States:** Theme-aware hover colors (light: `rgba(0, 0, 0, 0.05)`, dark: `rgba(255, 255, 255, 0.1)`)
+- **Server Components:** Created ThemedPageWrapper for server component compatibility
+- **iOS Handling:** Preserved iOS-specific overscroll behavior (handled by ThemeBody in root layout)
+
+**Code Quality Improvements:**
+- **Before:** Theme logic duplicated in chat.tsx, other pages used static backgrounds, inconsistent color application
+- **After:** Single source of truth (theme components), consistent theme application across all pages, reusable components
+- **Result:** Cleaner, more maintainable codebase with better separation of concerns
+
+**Testing:**
+- ✅ All 177+ tests passing (100% pass rate)
+- ✅ Component functionality tests (ThemedPage, ThemedHeader, ThemedContainer, ChatHeader)
+- ✅ Refactor verification tests (chat.tsx, app-header.tsx, all pages)
+- ✅ Theme application tests (light/dark themes, time-based changes, user settings)
+- ✅ Color migration tests (hardcoded colors removed, theme colors applied)
+- ✅ Integration tests (theme persists across navigations, smooth transitions)
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/12-29_theme-component-refactor.md`
+- Comprehensive test results and verification completed
+- All edge cases handled and documented
+
+**Note:** This side quest significantly improved code maintainability and user experience by unifying the theme system across the entire application. The implementation follows React best practices with proper component composition, theme context usage, and responsive design patterns. All pages now benefit from the sophisticated time-based gradient system and user theme preferences.
+
+---
+
 #### Phase 3.10: User Intake Forms ✅ ALPHA
 
 **Objective:** Implement intake forms to collect user context for personalization
@@ -4684,6 +4792,7 @@ If critical issues arise in production:
 - [x] Side Quest: Homepage Creator Cards ✅ **COMPLETE** (Dec 26, 2024)
 - [x] Side Quest: Add Chatbot imageUrl Field ✅ **COMPLETE** (Dec 27, 2024)
 - [x] Phase 3.9: Chatbot Versioning System ✅ **COMPLETE**
+- [x] Side Quest: Theme Component Refactor ✅ **COMPLETE** (Dec 29, 2024)
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence
