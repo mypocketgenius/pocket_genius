@@ -5,6 +5,7 @@ import { AppHeader } from '@/components/app-header';
 import { ThemedPage } from '@/components/themed-page';
 import { HomepageCreatorsSection } from '@/components/homepage-creators-section';
 import { HomepageGridSection } from '@/components/homepage-grid-section';
+import { HomepageFilterPills } from '@/components/homepage-filter-pills';
 import { useChatbotGrid } from '@/lib/hooks/use-chatbot-grid';
 
 function HomeContent() {
@@ -64,6 +65,9 @@ function HomeContent() {
             AI trained on their work. Personalized to your situation.
           </p>
         </div>
+        
+        {/* Filter Pills */}
+        <HomepageFilterPills />
 
         {/* Creators Grid - Uses extracted component */}
         <HomepageCreatorsSection />
