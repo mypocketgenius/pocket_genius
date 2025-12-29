@@ -1,7 +1,7 @@
 # Homepage Simplified Grids Refactor
 
 ## Objective
-Refactor the homepage to remove all filter UI and display five fixed grids: Creators, Frameworks, Deep Dives, Creator Bots, and Advisor Boards. Each grid will use a separate API call.
+Refactor the homepage to remove all filter UI and display five fixed grids: Creators, Frameworks, Deep Dives, Body of Work, and Advisor Boards. Each grid will use a separate API call.
 
 ## Acceptance Criteria
 - [ ] All filter UI components removed (category type filters, category badges, creator dropdown, chatbot type checkboxes, active filters display)
@@ -9,7 +9,7 @@ Refactor the homepage to remove all filter UI and display five fixed grids: Crea
   1. Grid of creators (profiles)
   2. Grid of chatbots by frameworks (type='FRAMEWORK')
   3. Grid of chatbots by deep dives (type='DEEP_DIVE')
-  4. Grid of chatbots by creator bots (type='CREATOR')
+  4. Grid of chatbots by body of work (type='BODY_OF_WORK')
   5. Grid of chatbots by advisor boards (type='ADVISOR_BOARD')
 - [ ] Each chatbot grid uses a separate API call to `/api/chatbots/public?type={TYPE}&pageSize=6`
 - [ ] Each chatbot grid shows 6 items initially with "Load More" button
@@ -44,6 +44,10 @@ Refactor the homepage to remove all filter UI and display five fixed grids: Crea
 - Individual error states per grid (show error message with retry button)
 
 ## Minimal Approach
+0. **PREREQUISITE**: Rename chatbot type from `CREATOR` to `BODY_OF_WORK` (Task -1: database migration + type updates)
+   - **CRITICAL**: Complete Task -1 entirely before proceeding to Task 0
+   - Migration order: Update data → Update schema → Create migration → Update code → Verify
+   - See Task -1 for detailed migration steps including data migration script
 1. Remove all filter-related state and UI from `app/page.tsx`
 2. Remove search query effects on homepage (search handled by AppHeader only)
 3. **Extract reusable `useChatbotGrid` hook** to manage grid state (chatbots, pagination, loading, errors)
@@ -81,12 +85,12 @@ Homepage Structure:
     │   ├── API: GET /api/chatbots/public?type=DEEP_DIVE&pageSize=6&page={page}
     │   ├── Load More button (if more pages)
     │   └── Empty state if no deep dives
-    ├── Creator Bots Grid
-    │   ├── Title: "Creator Bots"
-    │   ├── Description: "AI advisors based on expert creators"
-    │   ├── API: GET /api/chatbots/public?type=CREATOR&pageSize=6&page={page}
+    ├── Body of Work Grid
+    │   ├── Title: "Body of Work"
+    │   ├── Description: "AI advisors trained on comprehensive creator content"
+    │   ├── API: GET /api/chatbots/public?type=BODY_OF_WORK&pageSize=6&page={page}
     │   ├── Load More button (if more pages)
-    │   └── Empty state if no creator bots
+    │   └── Empty state if no body of work chatbots
     └── Advisor Boards Grid
         ├── Title: "Advisor Boards"
         ├── Description: "Collective wisdom from expert panels"
@@ -120,6 +124,13 @@ Homepage Structure:
 - Uses existing `renderChatbotGrid` pattern internally
 - **TypeScript types**: Uses existing `Chatbot`, `Pagination` types, creates `HomepageGridSectionProps` interface
 
+**File: `lib/types/creator.ts`** (~15 lines) - **NEW: Consistency improvement**
+- Shared type definition for Creator entity (person/entity who creates chatbots)
+- Matches API response format from `/api/creators`
+- Exports `Creator` interface: `{ id, slug, name, avatarUrl, bio, chatbotCount }`
+- **Rationale**: Consistency with how `Chatbot` type is handled in `lib/types/chatbot.ts`
+- **Note**: This is optional but improves maintainability and type consistency across codebase
+
 #### Refactored Files
 
 **File: `app/page.tsx`** (~100 lines after refactor)
@@ -143,13 +154,13 @@ Homepage Structure:
 - **Use `useChatbotGrid` hook** for each chatbot type (replaces individual state variables)
   - `frameworksGrid = useChatbotGrid('FRAMEWORK')`
   - `deepDivesGrid = useChatbotGrid('DEEP_DIVE')`
-  - `creatorBotsGrid = useChatbotGrid('CREATOR')`
+  - `bodyOfWorkGrid = useChatbotGrid('BODY_OF_WORK')`
   - `advisorBoardsGrid = useChatbotGrid('ADVISOR_BOARD')`
 
 #### API Calls
 - Creators: `GET /api/creators` (existing, keep as is)
 - Chatbots: `GET /api/chatbots/public?type={TYPE}&pageSize=6&page={page}` (single generic endpoint)
-  - Types: `FRAMEWORK`, `DEEP_DIVE`, `CREATOR`, `ADVISOR_BOARD`
+  - Types: `FRAMEWORK`, `DEEP_DIVE`, `BODY_OF_WORK`, `ADVISOR_BOARD`
 
 **Performance Optimization**: Grids load in parallel naturally - each `useChatbotGrid` hook fires its `useEffect` independently on mount, and `fetchCreators` runs in parallel. No explicit `Promise.all` needed since hooks handle their own loading.
 
@@ -191,7 +202,7 @@ Homepage Structure:
   1. Creators grid (with title and description)
   2. Frameworks grid (always shown, with title, description, loading/error/empty state, and Load More)
   3. Deep Dives grid (always shown, with title, description, loading/error/empty state, and Load More)
-  4. Creator Bots grid (always shown, with title, description, loading/error/empty state, and Load More)
+  4. Body of Work grid (always shown, with title, description, loading/error/empty state, and Load More)
   5. Advisor Boards grid (always shown, with title, description, loading/error/empty state, and Load More)
 
 **Section Header Format:**
@@ -238,9 +249,28 @@ Homepage Structure:
 - Remove URL param syncing for filters (category, categoryType, creator, type)
 - Remove search param syncing (search no longer affects homepage)
 - Remove `useSearchParams` and `useRouter` usage entirely (search handled by AppHeader component)
-- **Note**: Keep `Suspense` wrapper around `HomeContent` for consistent loading behavior (even though `useSearchParams` is removed, Suspense provides better UX during initial render)
+- Remove `Suspense` wrapper around `HomeContent` (no longer needed since `useSearchParams` is removed - component-level loading states handle UX)
 
 ### Component Pseudo-Code
+
+**File: `lib/types/creator.ts`**
+```typescript
+/**
+ * Shared type definitions for Creator entities
+ * 
+ * These types match the API response format from `/api/creators`
+ * Used across components to ensure type consistency
+ */
+
+export interface Creator {
+  id: string;
+  slug: string;
+  name: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  chatbotCount: number;
+}
+```
 
 **File: `lib/hooks/use-chatbot-grid.ts`**
 ```typescript
@@ -484,24 +514,14 @@ export function HomepageGridSection({
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Suspense } from 'react';
 import { AppHeader } from '@/components/app-header';
 import { CreatorCard } from '@/components/creator-card';
 import { HomepageGridSection } from '@/components/homepage-grid-section';
 import { useChatbotGrid } from '@/lib/hooks/use-chatbot-grid';
+import { Creator } from '@/lib/types/creator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-
-// Creator type (matches API response)
-interface Creator {
-  id: string;
-  slug: string;
-  name: string;
-  avatarUrl: string | null;
-  bio: string | null;
-  chatbotCount: number;
-}
 
 function HomeContent() {
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -512,7 +532,7 @@ function HomeContent() {
   // Use hooks for each chatbot grid - each hook fires independently on mount
   const frameworksGrid = useChatbotGrid('FRAMEWORK');
   const deepDivesGrid = useChatbotGrid('DEEP_DIVE');
-  const creatorBotsGrid = useChatbotGrid('CREATOR');
+  const bodyOfWorkGrid = useChatbotGrid('BODY_OF_WORK');
   const advisorBoardsGrid = useChatbotGrid('ADVISOR_BOARD');
 
   // Fetch creators - runs in parallel with chatbot grid hooks
@@ -544,14 +564,14 @@ function HomeContent() {
       let merged = new Set(prev);
       merged = frameworksGrid.syncFavorites(merged);
       merged = deepDivesGrid.syncFavorites(merged);
-      merged = creatorBotsGrid.syncFavorites(merged);
+      merged = bodyOfWorkGrid.syncFavorites(merged);
       merged = advisorBoardsGrid.syncFavorites(merged);
       return merged;
     });
   }, [
     frameworksGrid.chatbots,
     deepDivesGrid.chatbots,
-    creatorBotsGrid.chatbots,
+    bodyOfWorkGrid.chatbots,
     advisorBoardsGrid.chatbots,
     // Note: favorites NOT in deps - we use functional update to access current state
   ]);
@@ -653,16 +673,16 @@ function HomeContent() {
         />
 
         <HomepageGridSection
-          title="Creator Bots"
-          description="AI advisors based on expert creators"
-          chatbots={creatorBotsGrid.chatbots}
-          isLoading={creatorBotsGrid.isLoading}
-          isLoadingMore={creatorBotsGrid.isLoadingMore}
-          error={creatorBotsGrid.error}
-          pagination={creatorBotsGrid.pagination}
-          currentPage={creatorBotsGrid.page}
-          onLoadMore={creatorBotsGrid.loadMore}
-          onRetry={creatorBotsGrid.retry}
+          title="Body of Work"
+          description="AI advisors trained on comprehensive creator content"
+          chatbots={bodyOfWorkGrid.chatbots}
+          isLoading={bodyOfWorkGrid.isLoading}
+          isLoadingMore={bodyOfWorkGrid.isLoadingMore}
+          error={bodyOfWorkGrid.error}
+          pagination={bodyOfWorkGrid.pagination}
+          currentPage={bodyOfWorkGrid.page}
+          onLoadMore={bodyOfWorkGrid.loadMore}
+          onRetry={bodyOfWorkGrid.retry}
           favorites={favorites}
           onFavoriteToggle={handleFavoriteToggle}
         />
@@ -687,34 +707,90 @@ function HomeContent() {
 }
 
 export default function Home() {
-  return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen bg-background">
-          <AppHeader />
-          <div className="container mx-auto px-4 py-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-48 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </main>
-      }
-    >
-      <HomeContent />
-    </Suspense>
-  );
+  return <HomeContent />;
 }
 ```
 
 ## Work Plan
 
-### Task 0: Create Reusable Hook and Component (NEW)
+### Task -1: Database Migration - Rename CREATOR to BODY_OF_WORK (PREREQUISITE)
+
+**Migration Order**: This task must be completed before Task 0. The migration requires careful coordination:
+1. Update existing data records first (Subtask -1.1.5)
+2. Update Prisma schema (Subtask -1.1)
+3. Create migration with custom SQL (Subtask -1.2)
+4. Update TypeScript types and code (Subtasks -1.3 through -1.5)
+5. Verify everything works (Subtask -1.6)
+
+**Subtask -1.1** — Update Prisma schema
+- Visible output: `prisma/schema.prisma` updated with `BODY_OF_WORK` in ChatbotType enum
+- Change: `enum ChatbotType { CREATOR → BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD }`
+- **Note**: This change requires a custom migration SQL script (see Subtask -1.2)
+
+**Subtask -1.1.5** — Create data migration script (NEW - CRITICAL)
+- Visible output: SQL script to update existing `CREATOR` records to `BODY_OF_WORK` before enum change
+- **Rationale**: PostgreSQL enum changes require updating existing data BEFORE altering the enum type
+- **Action**: Create migration file with custom SQL:
+  ```sql
+  -- Update existing records BEFORE changing enum
+  UPDATE "Chatbot" SET type = 'BODY_OF_WORK' WHERE type = 'CREATOR';
+  
+  -- Then alter enum (Prisma will handle enum recreation)
+  ```
+- **Note**: This step must run before the enum migration in Subtask -1.2
+
+**Subtask -1.2** — Create and run database migration
+- Visible output: Migration file created and applied
+- Command: `npx prisma migrate dev --name rename_creator_to_body_of_work`
+- **Important**: The migration file must include:
+  1. Data update SQL (from Subtask -1.1.5) - updates existing records
+  2. Enum alteration SQL - Prisma will generate this, but may need manual adjustment for PostgreSQL
+- **PostgreSQL Enum Migration Strategy**: 
+  - Option A: Use Prisma's generated migration and manually add data update SQL at the top
+  - Option B: Create fully custom migration file with both data update and enum alteration
+- **Note**: After migration, verify existing records have `BODY_OF_WORK` type
+
+**Subtask -1.3** — Update shared TypeScript types
+- Visible output: `lib/types/chatbot.ts` updated
+- Change: `export type ChatbotType = 'BODY_OF_WORK' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD'`
+
+**Subtask -1.4** — Update API route validation
+- Visible output: `app/api/chatbots/public/route.ts` updated
+- Change: Update validation to accept `BODY_OF_WORK` instead of `CREATOR`
+- Update error messages: Change `"type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"` to `"type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"`
+- Update JSDoc documentation comments (line 22): Change `(CREATOR, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)` to `(BODY_OF_WORK, FRAMEWORK, DEEP_DIVE, ADVISOR_BOARD)`
+
+**Subtask -1.5** — Update all component type definitions
+- Visible output: All files using ChatbotType updated
+- **Part 1: Replace local type definitions with shared imports**
+  - Files to update: `app/page.tsx`, `components/chatbot-card.tsx`, `components/chatbot-detail-modal.tsx`, `app/favorites/page.tsx`
+  - Change: Remove local `type ChatbotType = 'CREATOR' | ...` definitions
+  - Change: Add `import { ChatbotType } from '@/lib/types/chatbot'` instead
+  - **Rationale**: Ensures type consistency and single source of truth
+- **Part 2: Update any remaining CREATOR references**
+  - Search codebase for remaining `'CREATOR'` string literals in type contexts
+  - Replace with `'BODY_OF_WORK'` where applicable
+- **Part 3: Update seed scripts (if applicable)**
+  - Check: `prisma/seed.ts`, `prisma/seed-pills.ts`, `prisma/seed-suggested-pills.ts`
+  - Update: Replace any `'CREATOR'` references with `'BODY_OF_WORK'` in seed data
+  - **Note**: Only update if seed scripts reference chatbot types
+
+**Subtask -1.6** — Verify migration success
+- Visible output: All tests pass, no references to `'CREATOR'` chatbot type remain
+- **Verification checklist**:
+  - ✅ Database enum updated: `ChatbotType` enum contains `BODY_OF_WORK` (not `CREATOR`)
+  - ✅ Existing records migrated: All chatbots with old `CREATOR` type now have `BODY_OF_WORK` type
+  - ✅ TypeScript types updated: `lib/types/chatbot.ts` exports `BODY_OF_WORK`
+  - ✅ API accepts new type: `/api/chatbots/public?type=BODY_OF_WORK` works
+  - ✅ API rejects old type: `/api/chatbots/public?type=CREATOR` returns 400 error
+  - ✅ Components use shared types: No local `ChatbotType` definitions remain
+  - ✅ Tests updated: All test assertions use `BODY_OF_WORK`
+  - ✅ No `'CREATOR'` references: Search codebase confirms no remaining `'CREATOR'` chatbot type strings
+- **Explicit test file updates**:
+  - `__tests__/api/chatbots/public/route.test.ts` (line 379): Update error message assertion from `"type must be 'CREATOR', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"` to `"type must be 'BODY_OF_WORK', 'FRAMEWORK', 'DEEP_DIVE', or 'ADVISOR_BOARD'"`
+  - Run all tests: `npm test` passes
+
+### Task 0: Create Reusable Hook, Component, and Types (NEW)
 **Subtask 0.1** — Create `lib/hooks/use-chatbot-grid.ts`
 - Visible output: Hook file created with `useChatbotGrid` function
 - Implements generic `fetchChatbotsByType` function
@@ -726,6 +802,12 @@ export default function Home() {
 - Handles: skeleton loading, error state, empty state, grid rendering, Load More button
 - Uses existing `renderChatbotGrid` pattern internally
 - Accepts all necessary props for grid display
+
+**Subtask 0.3** — Create `lib/types/creator.ts` (consistency improvement)
+- Visible output: Type file created with `Creator` interface exported
+- Matches API response format from `/api/creators`
+- Improves type consistency across codebase (similar to `lib/types/chatbot.ts`)
+- Note: This is optional but recommended for maintainability
 
 ### Task 1: Remove Filter UI and State
 **Subtask 1.1** — Remove filter-related state variables
@@ -742,7 +824,7 @@ export default function Home() {
 
 ### Task 2: Implement Grid State Management Using Hook
 **Subtask 2.1** — Use `useChatbotGrid` hook for each chatbot type
-- Visible output: Four hook instances created (`frameworksGrid`, `deepDivesGrid`, `creatorBotsGrid`, `advisorBoardsGrid`)
+- Visible output: Four hook instances created (`frameworksGrid`, `deepDivesGrid`, `bodyOfWorkGrid`, `advisorBoardsGrid`)
 
 **Subtask 2.2** — Verify parallel loading behavior
 - Visible output: All grids load in parallel on initial mount (creators + 4 chatbot grids)
@@ -784,8 +866,8 @@ export default function Home() {
 **Subtask 4.3** — Test homepage loads correctly
 - Visible output: All 5 grids display correctly (or show empty/error states appropriately)
 
-**Subtask 4.5** — Verify Suspense wrapper is maintained
-- Visible output: HomeContent wrapped in Suspense (provides consistent loading UX even though useSearchParams is removed)
+**Subtask 4.5** — Verify Suspense wrapper is removed
+- Visible output: Suspense wrapper removed from Home component (no longer needed without useSearchParams)
 
 **Subtask 4.4** — Verify search functionality (header search does NOT affect homepage)
 - Visible output: Search in header works but homepage grids remain unchanged
@@ -798,6 +880,7 @@ export default function Home() {
   - `app/page.tsx`: ~100 lines (main component, simplified)
   - `lib/hooks/use-chatbot-grid.ts`: ~80 lines (reusable hook)
   - `components/homepage-grid-section.tsx`: ~60 lines (reusable component)
+  - `lib/types/creator.ts`: ~15 lines (shared type definition)
 - ✅ All files within 120 line limit
 - ✅ Function count: 
   - `app/page.tsx`: ~3-4 functions (fetchCreators, handleFavoriteToggle, effects)
@@ -826,40 +909,55 @@ export default function Home() {
 
 ### Type Usage
 - **Shared Types**: Import `Chatbot` and `ChatbotType` from `@/lib/types/chatbot` (avoid duplication)
+- **Shared Types**: Import `Creator` from `@/lib/types/creator` (consistency improvement)
+- **Note**: ChatbotType enum updated from `CREATOR` to `BODY_OF_WORK` (see Task -1 for migration details)
 - **Local Types**: Define `Pagination` interface locally in hook file (matches API response)
 - **Extended Types**: Use `ChatbotWithFavorite` interface extending `Chatbot` with optional `isFavorite?: boolean`
-- **Creator Type**: Define `Creator` interface locally in `app/page.tsx` (matches API response format)
 - ✅ Type consistency maintained across codebase
 
 ## Risks & Edge Cases
 
-1. **Empty grids**: If a chatbot type has no items, show empty state message (handled in `HomepageGridSection` component)
-2. **API errors**: Each grid handles errors individually with error state and retry button (per-grid error handling)
-3. **Retry behavior**: Retry resets pagination to page 1 and clears existing chatbots (fresh start)
-4. **Favorites sync**: Favorites synced from all API responses using merge pattern (don't remove existing favorites when loading new pages)
+1. **Database migration coordination** (CRITICAL): The `CREATOR` → `BODY_OF_WORK` migration requires careful coordination
+   - **Risk**: Code and database out of sync during deployment window
+   - **Mitigation**: 
+     - Run migration FIRST (Task -1) before any code changes
+     - Update existing data records BEFORE altering enum (Subtask -1.1.5)
+     - Verify migration success before proceeding to Task 0
+     - PostgreSQL enum changes require custom SQL - Prisma may not handle automatically
+   - **Deployment strategy**: 
+     - Development: Run migration locally, verify, then deploy code
+     - Production: Run migration via Vercel/CI, verify, then deploy code changes
+   - **Rollback plan**: If migration fails, revert Prisma schema and code changes together
+2. **Empty grids**: If a chatbot type has no items, show empty state message (handled in `HomepageGridSection` component)
+3. **API errors**: Each grid handles errors individually with error state and retry button (per-grid error handling)
+4. **Retry behavior**: Retry resets pagination to page 1 and clears existing chatbots (fresh start)
+5. **Favorites sync**: Favorites synced from all API responses using merge pattern (don't remove existing favorites when loading new pages)
    - API returns `isFavorite?: boolean` field for each chatbot when user is authenticated
    - Uses `syncFavorites` method from each hook to extract favorites from chatbots array
    - Merged in parent component (`app/page.tsx`) - adds new favorites without removing existing ones
    - Note: This approach ensures favorites persist across pagination and grid loads
-5. **Search functionality**: Verify search in header does NOT affect homepage grids (only dropdown/search results page)
-6. **Performance**: 5 API calls on page load - **optimized with natural parallel loading** (each hook's useEffect fires independently, creators fetch runs in parallel)
-7. **Loading states**: Multiple loading states may cause layout shift - use skeleton loaders to prevent (handled in `HomepageGridSection`)
-8. **Pagination**: Ensure "Load More" appends items correctly and doesn't duplicate favorites
+6. **Search functionality**: Verify search in header does NOT affect homepage grids (only dropdown/search results page)
+7. **Performance**: 5 API calls on page load - **optimized with natural parallel loading** (each hook's useEffect fires independently, creators fetch runs in parallel)
+8. **Loading states**: Multiple loading states may cause layout shift - use skeleton loaders to prevent (handled in `HomepageGridSection`)
+9. **Pagination**: Ensure "Load More" appends items correctly and doesn't duplicate favorites
    - Hook handles appending correctly (`prev => [...prev, ...data.chatbots]`)
    - Favorites merge pattern prevents duplicates
-9. **Section descriptions**: Confirmed descriptive text:
+10. **Section descriptions**: Confirmed descriptive text:
    - Creators: "Discover experts and thought leaders"
    - Frameworks: "Structured methodologies and approaches"
    - Deep Dives: "In-depth explorations and analyses"
-   - Creator Bots: "AI advisors based on expert creators"
+   - Body of Work: "AI advisors trained on comprehensive creator content"
    - Advisor Boards: "Collective wisdom from expert panels"
-10. **Component patterns**: Use `HomepageGridSection` component for chatbot grids (reusable, not inline)
-11. **Suspense wrapper**: Keep Suspense wrapper around HomeContent for consistent loading UX (even though useSearchParams is removed)
-12. **Hook dependencies**: Ensure `useChatbotGrid` hook dependencies are correct (useCallback for fetch function with `[type]` dependency, useEffect depends on fetchChatbotsByType)
-13. **Favorites toggle**: Existing `handleFavoriteToggle` works correctly (no changes needed, ChatbotCard handles API call)
-14. **Type imports**: Use shared types from `@/lib/types/chatbot` (Chatbot, ChatbotType) - avoid duplicating type definitions
-15. **Pagination type**: Define Pagination interface locally in hook file (matches API response format)
-16. **isFavorite field**: Chatbot type includes optional `isFavorite?: boolean` from API (only when authenticated)
+11. **Component patterns**: Use `HomepageGridSection` component for chatbot grids (reusable, not inline)
+12. **Suspense wrapper**: Remove Suspense wrapper since useSearchParams is removed (component-level loading states handle UX)
+13. **Hook dependencies**: Ensure `useChatbotGrid` hook dependencies are correct (useCallback for fetch function with `[type]` dependency, useEffect depends on fetchChatbotsByType)
+14. **Favorites toggle**: Existing `handleFavoriteToggle` works correctly (no changes needed, ChatbotCard handles API call)
+15. **Type imports**: Use shared types from `@/lib/types/chatbot` (Chatbot, ChatbotType) - avoid duplicating type definitions
+    - **Migration note**: Task -1.5 Part 1 ensures all components use shared types instead of local definitions
+16. **Creator type**: Extract Creator type to `lib/types/creator.ts` for consistency (matches pattern used for Chatbot type)
+17. **Pagination type**: Define Pagination interface locally in hook file (matches API response format)
+18. **isFavorite field**: Chatbot type includes optional `isFavorite?: boolean` from API (only when authenticated)
+19. **Type consistency after migration**: All components must import `ChatbotType` from shared location - verify no local type definitions remain after Task -1.5
 
 ## Tests
 
@@ -869,7 +967,7 @@ export default function Home() {
   - Creators grid displays with title and description
   - Frameworks grid displays with title and description (or empty state)
   - Deep Dives grid displays with title and description (or empty state)
-  - Creator Bots grid displays with title and description (or empty state)
+  - Body of Work grid displays with title and description (or empty state)
   - Advisor Boards grid displays with title and description (or empty state)
   - Empty grids show empty state message (not hidden)
   - Each grid shows 6 items initially
@@ -885,7 +983,7 @@ export default function Home() {
   - 1 call to `/api/creators`
   - 1 call to `/api/chatbots/public?type=FRAMEWORK&pageSize=6&page=1`
   - 1 call to `/api/chatbots/public?type=DEEP_DIVE&pageSize=6&page=1`
-  - 1 call to `/api/chatbots/public?type=CREATOR&pageSize=6&page=1`
+  - 1 call to `/api/chatbots/public?type=BODY_OF_WORK&pageSize=6&page=1`
   - 1 call to `/api/chatbots/public?type=ADVISOR_BOARD&pageSize=6&page=1`
   - Calls should start simultaneously (not sequential) - verified in network tab timing
 
@@ -930,6 +1028,7 @@ export default function Home() {
   - Single `fetchChatbotsByType` function (no duplicate fetch functions)
   - All files within architectural limits (≤120 lines, ≤5 functions per file)
   - Types imported from shared `@/lib/types/chatbot` (no duplicate type definitions)
+  - `Creator` type imported from shared `@/lib/types/creator` (no duplicate type definitions)
 
 ## Approval Prompt
 
