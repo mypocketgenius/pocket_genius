@@ -8,6 +8,7 @@ import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
 import { Chatbot } from '@/lib/types/chatbot';
+import { useTheme } from '../lib/theme/theme-context';
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -55,6 +56,12 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
   const { user } = useUser();
   const { isSignedIn } = useAuth();
   const clerk = useClerk();
+  const theme = useTheme();
+
+  // Theme-aware hover colors
+  const hoverBgColor = theme.theme === 'light' 
+    ? 'rgba(0, 0, 0, 0.05)' 
+    : 'rgba(255, 255, 255, 0.1)';
   
   // State management
   const [activeTab, setActiveTab] = useState<'chats' | 'favorites'>('chats');
@@ -350,10 +357,14 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
       {/* Sidebar */}
       <div
         ref={sidebarRef}
-        className="fixed top-0 right-0 h-full w-full max-w-[600px] bg-white z-50 shadow-xl transform transition-transform duration-300 ease-out"
+        className="fixed top-0 right-0 h-full w-full max-w-[600px] z-50 shadow-xl transform transition-transform duration-300 ease-out"
         style={{ 
+          backgroundColor: theme.chrome.header,
+          color: theme.textColor,
+          borderColor: theme.chrome.border,
           transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-          visibility: isOpen || isSwipeActive ? 'visible' : 'hidden'
+          visibility: isOpen || isSwipeActive ? 'visible' : 'hidden',
+          transition: 'background-color 2s ease, border-color 2s ease, color 2s ease, transform 300ms ease-out',
         }}
       >
         <div className="flex flex-col h-full">
@@ -361,17 +372,24 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
           <div className="flex items-center justify-between p-4">
             {isSignedIn && user ? (
               <div>
-                <p className="font-semibold text-sm">
+                <p className="font-semibold text-sm" style={{ color: theme.textColor }}>
                   {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.fullName || 'User'}
                 </p>
-                <p className="text-xs text-gray-500">{user.primaryEmailAddress?.emailAddress}</p>
+                <p className="text-xs opacity-80" style={{ color: theme.textColor }}>{user.primaryEmailAddress?.emailAddress}</p>
               </div>
             ) : (
               <div></div>
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-2 rounded-full transition-colors opacity-80"
+              style={{ color: theme.textColor }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = hoverBgColor;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
               aria-label="Close menu"
             >
               <X className="w-5 h-5" />
@@ -388,9 +406,16 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                     router.push('/dashboard');
                     onClose();
                   }}
-                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                  style={{ color: theme.textColor }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  <BarChart className="w-5 h-5 text-gray-600" />
+                  <BarChart className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
                   <span className="text-sm font-medium">Creator Dashboard</span>
                 </button>
               </div>
@@ -405,9 +430,16 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                     clerk.openUserProfile();
                     onClose(); // Close sidebar when opening profile
                   }}
-                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                  style={{ color: theme.textColor }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  <User className="w-5 h-5 text-gray-600" />
+                  <User className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
                   <span className="text-sm font-medium">Manage Account</span>
                 </button>
               </div>
@@ -418,9 +450,16 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
               <div className="px-4 pt-2 pb-4">
                 <button
                   onClick={() => setThemeSettingsOpen(true)}
-                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                  style={{ color: theme.textColor }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  <Palette className="w-5 h-5 text-gray-600" />
+                  <Palette className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
                   <span className="text-sm font-medium">Theme</span>
                 </button>
               </div>
@@ -428,16 +467,23 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
             
             {/* Test Pages */}
             {isSignedIn && (
-              <div className="px-4 pt-2 pb-4 border-t border-gray-200 mt-2">
+              <div className="px-4 pt-2 pb-4 border-t mt-2" style={{ borderColor: theme.chrome.border }}>
                 <div className="pt-2 space-y-1">
                   <button
                     onClick={() => {
                       router.push('/test-files');
                       onClose();
                     }}
-                    className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                    className="w-full px-4 py-2 flex items-center gap-3 text-left transition-colors rounded-md"
+                    style={{ color: theme.textColor }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
-                    <FileText className="w-4 h-4 text-gray-600" />
+                    <FileText className="w-4 h-4 opacity-80" style={{ color: theme.textColor }} />
                     <span className="text-sm font-medium">Test Files</span>
                   </button>
                   <button
@@ -445,9 +491,16 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                       router.push('/test-upload');
                       onClose();
                     }}
-                    className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-md"
+                    className="w-full px-4 py-2 flex items-center gap-3 text-left transition-colors rounded-md"
+                    style={{ color: theme.textColor }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
-                    <Upload className="w-4 h-4 text-gray-600" />
+                    <Upload className="w-4 h-4 opacity-80" style={{ color: theme.textColor }} />
                     <span className="text-sm font-medium">Test Upload</span>
                   </button>
                 </div>
@@ -462,10 +515,24 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                   className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                     activeTab === 'chats'
                       ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : ''
                   }`}
+                  style={activeTab !== 'chats' ? {
+                    backgroundColor: hoverBgColor,
+                    color: theme.textColor,
+                  } : {}}
+                  onMouseEnter={(e) => {
+                    if (activeTab !== 'chats') {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeTab !== 'chats') {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }
+                  }}
                 >
-                  <MessageSquare className={`w-4 h-4 ${activeTab === 'chats' ? 'text-white' : 'text-gray-600'}`} />
+                  <MessageSquare className={`w-4 h-4 ${activeTab === 'chats' ? 'text-white' : ''}`} style={activeTab !== 'chats' ? { color: theme.textColor, opacity: 0.8 } : {}} />
                   Your Chats
                 </button>
                 <button
@@ -473,10 +540,24 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                   className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                     activeTab === 'favorites'
                       ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : ''
                   }`}
+                  style={activeTab !== 'favorites' ? {
+                    backgroundColor: hoverBgColor,
+                    color: theme.textColor,
+                  } : {}}
+                  onMouseEnter={(e) => {
+                    if (activeTab !== 'favorites') {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeTab !== 'favorites') {
+                      e.currentTarget.style.backgroundColor = hoverBgColor;
+                    }
+                  }}
                 >
-                  <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'text-white' : 'text-gray-600'}`} />
+                  <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'text-white' : ''}`} style={activeTab !== 'favorites' ? { color: theme.textColor, opacity: 0.8 } : {}} />
                   Your Favorites
                 </button>
               </div>
@@ -489,13 +570,13 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                   <div className="px-4 py-2 space-y-2">
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                        <div className="h-4 rounded w-3/4 mb-1 opacity-20" style={{ backgroundColor: theme.textColor }}></div>
+                        <div className="h-3 rounded w-1/2 opacity-10" style={{ backgroundColor: theme.textColor }}></div>
                       </div>
                     ))}
                   </div>
                 ) : chats.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center opacity-80" style={{ color: theme.textColor }}>
                     <p className="text-sm">FIND CHATS ON THE HOMESCREEN</p>
                   </div>
                 ) : (
@@ -516,13 +597,13 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                   <div className="px-4 py-2 space-y-2">
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                        <div className="h-4 rounded w-3/4 mb-1 opacity-20" style={{ backgroundColor: theme.textColor }}></div>
+                        <div className="h-3 rounded w-1/2 opacity-10" style={{ backgroundColor: theme.textColor }}></div>
                       </div>
                     ))}
                   </div>
                 ) : favorites.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center opacity-80" style={{ color: theme.textColor }}>
                     <p className="text-sm">FIND CHATS ON THE HOMESCREEN</p>
                   </div>
                 ) : (

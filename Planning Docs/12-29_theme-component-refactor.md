@@ -553,13 +553,65 @@ interface ThemedContainerProps {
 
 ---
 
-### Task 10: Cleanup and Optimization ✅ COMPLETE
+### Task 10: Migrate Side Menu to Use Theme ✅ COMPLETE
+**Purpose**: Apply theme system to the right-hand side sidebar menu
+
+**Subtask 10.1** — Update SideMenu component to use useTheme() hook ✅  
+**Visible output**: ✅ SideMenu imports and uses useTheme()
+
+**Subtask 10.2** — Replace hardcoded bg-white with theme.chrome.header ✅  
+**Visible output**: ✅ Sidebar background uses theme color via inline styles
+
+**Subtask 10.3** — Apply theme.textColor for text colors ✅  
+**Visible output**: ✅ Text uses theme color via inline styles
+
+**Subtask 10.4** — Update hover states to be theme-aware ✅  
+**Visible output**: ✅ Hover states adapt to light/dark theme using onMouseEnter/onMouseLeave handlers
+
+**Subtask 10.5** — Update borders to use theme.chrome.border ✅  
+**Visible output**: ✅ Borders use theme color via inline styles
+
+**Subtask 10.6** — Update SideMenuItem component to use theme ✅  
+**Visible output**: ✅ SideMenuItem uses theme colors for text and hover states
+
+**Subtask 10.7** — Verify theme applies correctly ✅  
+**Visible output**: ✅ Side menu adapts to theme changes, tests passing
+
+**Tests**: ✅ All tests passing (21 tests)
+- ✅ Component imports and uses useTheme() hook
+- ✅ Theme colors apply correctly (chrome.header, textColor, chrome.border)
+- ✅ CSS transitions included for smooth theme changes (2s ease)
+- ✅ Hover states work correctly with theme-aware colors
+- ✅ Hardcoded text-gray-* classes removed
+- ✅ Hardcoded bg-gray-* and hover:bg-gray-* classes removed
+- ✅ SideMenuItem component uses theme correctly
+
+**Implementation Summary**:
+- ✅ Updated `components/side-menu.tsx` to import and use `useTheme()` hook
+- ✅ Replaced `bg-white` class with `theme.chrome.header` background color via inline styles
+- ✅ Applied `theme.textColor` for all text elements via inline styles
+- ✅ Applied `theme.chrome.border` for borders via inline styles
+- ✅ Updated all hover states to use theme-aware colors:
+  - Light theme: `rgba(0, 0, 0, 0.05)`
+  - Dark theme: `rgba(255, 255, 255, 0.1)`
+- ✅ Added CSS transitions for smooth theme changes: `transition: 'background-color 2s ease, border-color 2s ease, color 2s ease'`
+- ✅ Updated skeleton loaders to use theme colors (opacity-based)
+- ✅ Updated empty state messages to use theme text color
+- ✅ Updated `components/side-menu-item.tsx` to import and use `useTheme()` hook
+- ✅ Applied theme colors to SideMenuItem text and hover states
+- ✅ Removed all hardcoded `text-gray-*`, `bg-gray-*`, and `hover:bg-gray-*` classes
+- ✅ Created comprehensive test suite at `__tests__/components/side-menu-theme.test.tsx` (21 tests, all passing)
+- ✅ Tests verify code structure, imports, theme application, and color migration
+
+---
+
+### Task 11: Cleanup and Optimization ✅ COMPLETE
 **Purpose**: Remove unused code and optimize theme system
 
-**Subtask 10.1** — Remove unused theme-related code from chat.tsx ✅  
+**Subtask 11.1** — Remove unused theme-related code from chat.tsx ✅  
 **Visible output**: ✅ Unused `skyGradient` variable removed from chat.tsx
 
-**Subtask 10.2** — Verify ThemeBody component is still needed ✅  
+**Subtask 11.2** — Verify ThemeBody component is still needed ✅  
 **Visible output**: ✅ Decision: ThemeBody is still needed and kept
 
 **Reasoning**:
@@ -570,7 +622,7 @@ interface ThemedContainerProps {
 - Applies `minHeight: 100vh` for non-iOS devices
 - Essential for site-wide theme application
 
-**Subtask 10.3** — Update documentation if needed ✅  
+**Subtask 11.3** — Update documentation if needed ✅  
 **Visible output**: ✅ Plan document updated with completion summary
 
 **Tests**: ✅ All tests passing (11 tests)
@@ -644,7 +696,18 @@ interface ThemedContainerProps {
 
 ---
 
-### Phase 5: Cleanup (Task 10)
+### Phase 4.5: Side Menu Migration (Task 10)
+**Goal**: Apply theme to side menu component
+
+1. Update SideMenu to use theme
+2. Update SideMenuItem to use theme
+3. Replace hardcoded colors with theme colors
+
+**Verification**: Side menu adapts to theme changes
+
+---
+
+### Phase 5: Cleanup (Task 11)
 **Goal**: Remove unused code and optimize
 
 1. Remove unused code
@@ -831,8 +894,9 @@ Each phase should be committed separately to enable granular rollback.
 
 - ✅ Chat page looks and behaves identically after refactor
 - ✅ All pages use theme system consistently
-- ✅ Theme changes work correctly on all pages
-- ✅ User theme settings apply to all pages
+- ✅ Side menu (right-hand sidebar) uses theme system
+- ✅ Theme changes work correctly on all pages and components
+- ✅ User theme settings apply to all pages and components
 - ✅ No performance regressions
 - ✅ No visual regressions
 - ✅ Code is maintainable and reusable
@@ -874,6 +938,41 @@ Each phase should be committed separately to enable granular rollback.
 ---
 
 ## Task 10 Completion Summary
+
+**Date Completed**: 12-29
+
+**Components Migrated**:
+1. ✅ `components/side-menu.tsx` - migrated to use theme system
+2. ✅ `components/side-menu-item.tsx` - migrated to use theme system
+
+**Changes Made**:
+- ✅ Added `useTheme()` hook import and usage
+- ✅ Replaced `bg-white` with `theme.chrome.header` background
+- ✅ Replaced `text-gray-*` colors with `theme.textColor`
+- ✅ Replaced `bg-gray-*` hover states with theme-aware hover colors (`hoverBgColor`)
+- ✅ Replaced `border-gray-*` with `theme.chrome.border`
+- ✅ Updated skeleton loaders to use theme colors (opacity-based)
+- ✅ Updated empty state messages to use theme text color
+- ✅ Added CSS transitions for smooth theme changes (2s ease)
+- ✅ Removed all hardcoded color classes
+
+**Test Coverage**:
+- ✅ 21 tests created and passing
+- ✅ Code structure verification tests
+- ✅ Theme application verification tests
+- ✅ Color migration verification tests
+
+**Key Features**:
+- Side menu adapts to theme changes (light/dark)
+- Theme-aware hover states for all interactive elements
+- Smooth CSS transitions for theme changes
+- Consistent theme application across all sidebar elements
+
+**Status**: ✅ Task 10 Complete - Side menu now uses theme system
+
+---
+
+## Task 11 Completion Summary
 
 **Date Completed**: 12-29
 
