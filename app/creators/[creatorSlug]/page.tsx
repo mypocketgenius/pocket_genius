@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatbotCard } from '@/components/chatbot-card';
 import { AppHeader } from '@/components/app-header';
+import { ThemedPage } from '@/components/themed-page';
 import { Chatbot } from '@/lib/types/chatbot';
 
 interface Creator {
@@ -200,12 +201,12 @@ export default function CreatorPage() {
   // 404 page for invalid creator slug
   if (!isLoadingCreator && error === 'Creator not found') {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <ThemedPage className="min-h-screen">
         <AppHeader />
         <div className="container mx-auto px-4 py-16 flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Creator not found</h1>
-            <p className="text-gray-600 mb-6">The creator you&apos;re looking for doesn&apos;t exist.</p>
+            <h1 className="text-3xl font-bold mb-2">Creator not found</h1>
+            <p className="mb-6">The creator you&apos;re looking for doesn&apos;t exist.</p>
             <Link
               href="/"
               className="text-blue-600 hover:underline font-medium"
@@ -214,28 +215,28 @@ export default function CreatorPage() {
             </Link>
           </div>
         </div>
-      </div>
+      </ThemedPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <ThemedPage className="min-h-screen">
       <AppHeader />
 
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb Navigation */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-gray-600">
-          <Link href="/" className="hover:text-gray-900 transition-colors">
+        <nav className="mb-6 flex items-center gap-2 text-sm">
+          <Link href="/" className="hover:opacity-80 transition-opacity">
             Home
           </Link>
           <ChevronRight className="w-4 h-4" />
-          <Link href="/" className="hover:text-gray-900 transition-colors">
+          <Link href="/" className="hover:opacity-80 transition-opacity">
             Creators
           </Link>
           {creator && (
             <>
               <ChevronRight className="w-4 h-4" />
-              <span className="text-gray-900 font-medium">{creator.name}</span>
+              <span className="font-medium">{creator.name}</span>
             </>
           )}
         </nav>
@@ -267,8 +268,8 @@ export default function CreatorPage() {
                     unoptimized
                   />
                 ) : (
-                  <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-gray-600 text-5xl font-semibold">
+                  <div className="w-32 h-32 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                    <span className="text-gray-600 dark:text-gray-300 text-5xl font-semibold">
                       {creator.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -277,12 +278,12 @@ export default function CreatorPage() {
 
               {/* Creator Info */}
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <h1 className="text-3xl font-bold mb-2">
                   {creator.name}
                 </h1>
                 
                 {creator.bio && (
-                  <p className="text-gray-600 mb-4 leading-relaxed">
+                  <p className="mb-4 leading-relaxed opacity-90">
                     {creator.bio}
                   </p>
                 )}
@@ -299,7 +300,7 @@ export default function CreatorPage() {
                           href={url}
                           target="_blank"
                           rel="nofollow noopener noreferrer"
-                          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                          className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity"
                           aria-label={`Visit ${creator.name}'s ${platform}`}
                         >
                           {renderSocialIcon(platform)}
@@ -323,7 +324,7 @@ export default function CreatorPage() {
 
         {/* Chatbots Grid */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+          <h2 className="text-2xl font-bold mb-6">
             {creator ? `Chatbots by ${creator.name}` : 'Chatbots'}
           </h2>
 
@@ -342,8 +343,8 @@ export default function CreatorPage() {
             </div>
           ) : chatbots.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600 text-lg mb-2">No chatbots yet</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-lg mb-2 opacity-90">No chatbots yet</p>
+              <p className="text-sm opacity-70">
                 This creator hasn&apos;t published any chatbots.
               </p>
             </div>
@@ -383,7 +384,7 @@ export default function CreatorPage() {
           )}
         </div>
       </div>
-    </div>
+    </ThemedPage>
   );
 }
 

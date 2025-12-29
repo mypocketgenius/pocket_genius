@@ -4,6 +4,7 @@
 
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { ThemedPageWrapper } from '@/components/themed-page-wrapper';
 import { verifyChatbotOwnership } from '@/lib/auth/chatbot-ownership';
 
 interface DebugPageProps {
@@ -149,106 +150,106 @@ export default async function DebugPage({ params }: DebugPageProps) {
     });
 
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <ThemedPageWrapper className="min-h-screen py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Debug</h1>
-            <p className="text-gray-600">{chatbot.title}</p>
-          <p className="text-sm text-gray-500 mt-2">
+            <h1 className="text-3xl font-bold mb-2">Dashboard Debug</h1>
+            <p className="opacity-90">{chatbot.title}</p>
+          <p className="text-sm opacity-70 mt-2">
             Current filter: Month {currentMonth}/{currentYear}
           </p>
         </div>
 
         {/* Events Feedback Summary */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Events Feedback (Raw Counts)</h2>
-          <p className="text-sm text-gray-500 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Events Feedback (Raw Counts)</h2>
+          <p className="text-sm opacity-70 mb-4">
             Note: Message_Feedback table was removed in Phase 2. Feedback is now tracked via Events table.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Feedback</div>
-              <div className="text-2xl font-bold text-blue-600">{totalFeedback}</div>
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Feedback</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalFeedback}</div>
             </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Helpful</div>
-              <div className="text-2xl font-bold text-green-600">{helpfulFeedback}</div>
+            <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Helpful</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{helpfulFeedback}</div>
             </div>
-            <div className="bg-red-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Not Helpful</div>
-              <div className="text-2xl font-bold text-red-600">{notHelpfulFeedback}</div>
+            <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Not Helpful</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{notHelpfulFeedback}</div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Messages</div>
-              <div className="text-2xl font-bold text-gray-600">{messageIds.length}</div>
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="text-sm opacity-80">Messages</div>
+              <div className="text-2xl font-bold text-gray-600 dark:text-gray-300">{messageIds.length}</div>
             </div>
           </div>
         </div>
 
         {/* Chunk Performance - Current Month */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">
             Chunk Performance - Current Month ({currentMonth}/{currentYear})
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Chunks</div>
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Chunks</div>
+              <div className="text-2xl font-bold">
                 {chunkPerformanceCurrentMonth._count.id}
               </div>
             </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Helpful</div>
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Helpful</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {chunkPerformanceCurrentMonth._sum.helpfulCount || 0}
               </div>
             </div>
-            <div className="bg-red-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Not Helpful</div>
-              <div className="text-2xl font-bold text-red-600">
+            <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Not Helpful</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {chunkPerformanceCurrentMonth._sum.notHelpfulCount || 0}
               </div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Times Used</div>
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Times Used</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {chunkPerformanceCurrentMonth._sum.timesUsed || 0}
               </div>
             </div>
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Chunks (timesUsed ≥ 5)</div>
-              <div className="text-2xl font-bold text-yellow-600">{chunksWithMinUsage}</div>
-              <div className="text-xs text-gray-500 mt-1">(Dashboard filter)</div>
+            <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Chunks (timesUsed ≥ 5)</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{chunksWithMinUsage}</div>
+              <div className="text-xs opacity-70 mt-1">(Dashboard filter)</div>
             </div>
           </div>
         </div>
 
         {/* Chunk Performance - All Time */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Chunk Performance - All Time</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Chunk Performance - All Time</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Chunks</div>
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Chunks</div>
+              <div className="text-2xl font-bold">
                 {chunkPerformanceAllTime._count.id}
               </div>
             </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Helpful</div>
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Helpful</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {chunkPerformanceAllTime._sum.helpfulCount || 0}
               </div>
             </div>
-            <div className="bg-red-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Not Helpful</div>
-              <div className="text-2xl font-bold text-red-600">
+            <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Not Helpful</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {chunkPerformanceAllTime._sum.notHelpfulCount || 0}
               </div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-gray-600">Total Times Used</div>
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
+              <div className="text-sm opacity-80">Total Times Used</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {chunkPerformanceAllTime._sum.timesUsed || 0}
               </div>
             </div>
@@ -257,51 +258,51 @@ export default async function DebugPage({ params }: DebugPageProps) {
 
         {/* Breakdown by Month */}
         {chunkPerformanceByMonth.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Breakdown by Month/Year</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">Breakdown by Month/Year</h2>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium opacity-70 uppercase tracking-wider">
                       Month/Year
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium opacity-70 uppercase tracking-wider">
                       Chunks
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium opacity-70 uppercase tracking-wider">
                       Helpful
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium opacity-70 uppercase tracking-wider">
                       Not Helpful
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium opacity-70 uppercase tracking-wider">
                       Times Used
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {chunkPerformanceByMonth.map((group, idx) => (
                     <tr
                       key={`${group.year}-${group.month}`}
-                      className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                      className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {group.month}/{group.year}
                         {group.month === currentMonth && group.year === currentYear && (
-                          <span className="ml-2 text-xs text-blue-600">(Current)</span>
+                          <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Current)</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm opacity-80">
                         {group._count.id}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 dark:text-green-400 font-medium">
                         {group._sum.helpfulCount || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 dark:text-red-400 font-medium">
                         {group._sum.notHelpfulCount || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 dark:text-blue-400 font-medium">
                         {group._sum.timesUsed || 0}
                       </td>
                     </tr>
@@ -313,9 +314,9 @@ export default async function DebugPage({ params }: DebugPageProps) {
         )}
 
         {/* Explanation */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-yellow-900 mb-4">Why Quantities Might Not Match</h2>
-          <div className="space-y-3 text-sm text-yellow-800">
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-yellow-900 dark:text-yellow-200 mb-4">Why Quantities Might Not Match</h2>
+          <div className="space-y-3 text-sm text-yellow-800 dark:text-yellow-200">
             <div>
               <strong className="font-semibold">1. Month/Year Filtering:</strong> Dashboard only shows chunks
               from month {currentMonth}/{currentYear}. Feedback from other months won&apos;t appear.
@@ -327,7 +328,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
             </div>
             <div>
               <strong className="font-semibold">3. Times Used Filter:</strong> Dashboard filters by{' '}
-              <code className="bg-yellow-100 px-1 rounded">timesUsed &gt;= 5</code>. Chunks below this
+              <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">timesUsed &gt;= 5</code>. Chunks below this
               threshold won&apos;t appear even if they have feedback.
             </div>
             <div>
@@ -347,7 +348,7 @@ export default async function DebugPage({ params }: DebugPageProps) {
           </a>
           </div>
         </div>
-      </div>
+      </ThemedPageWrapper>
     );
   } catch (error) {
     // Handle authentication/authorization errors
@@ -359,23 +360,23 @@ export default async function DebugPage({ params }: DebugPageProps) {
 
     if (errorMessage === 'Chatbot not found') {
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <ThemedPageWrapper className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-            <p className="text-gray-600">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
+            <h1 className="text-2xl font-bold mb-2">Chatbot not found</h1>
+            <p className="opacity-90">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
           </div>
-        </div>
+        </ThemedPageWrapper>
       );
     }
 
     // Unauthorized access
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <ThemedPageWrapper className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have access to this chatbot&apos;s dashboard.</p>
+          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <p className="opacity-90">You do not have access to this chatbot&apos;s dashboard.</p>
         </div>
-      </div>
+      </ThemedPageWrapper>
     );
   }
 }

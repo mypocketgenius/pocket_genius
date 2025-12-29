@@ -4,6 +4,7 @@
 
 import { redirect } from 'next/navigation';
 import DashboardContent from '@/components/dashboard-content';
+import { ThemedPageWrapper } from '@/components/themed-page-wrapper';
 import { verifyChatbotOwnership } from '@/lib/auth/chatbot-ownership';
 
 interface DashboardPageProps {
@@ -34,9 +35,9 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     const { chatbot } = await verifyChatbotOwnership(chatbotId);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <ThemedPageWrapper className="min-h-screen">
         <DashboardContent chatbotId={chatbot.id} chatbotTitle={chatbot.title} />
-      </div>
+      </ThemedPageWrapper>
     );
   } catch (error) {
     // Handle authentication/authorization errors
@@ -48,23 +49,23 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 
     if (errorMessage === 'Chatbot not found') {
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <ThemedPageWrapper className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Chatbot not found</h1>
-            <p className="text-gray-600">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
+            <h1 className="text-2xl font-bold mb-2">Chatbot not found</h1>
+            <p className="opacity-90">The chatbot you&apos;re looking for doesn&apos;t exist.</p>
           </div>
-        </div>
+        </ThemedPageWrapper>
       );
     }
 
     // Unauthorized access
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <ThemedPageWrapper className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have access to this chatbot&apos;s dashboard.</p>
+          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <p className="opacity-90">You do not have access to this chatbot&apos;s dashboard.</p>
         </div>
-      </div>
+      </ThemedPageWrapper>
     );
   }
 }
