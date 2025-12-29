@@ -80,7 +80,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const theme = useTheme();
   
   // Use theme values from context
-  const skyGradient = theme.gradient;
   const timeTheme = theme.theme;
   const chromeColors = theme.chrome;
   const currentBubbleStyle = theme.bubbleStyles[timeTheme];
