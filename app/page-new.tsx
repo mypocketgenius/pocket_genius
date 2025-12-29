@@ -63,6 +63,70 @@ function HomeContent() {
             AI trained on their work. Personalized to your situation.
           </p>
         </div>
+
+        {/* Creators Grid - Uses extracted component */}
+        <HomepageCreatorsSection />
+
+        {/* Chatbot Grids */}
+        <HomepageGridSection
+          title="Frameworks"
+          description="Structured methodologies and approaches"
+          chatbots={frameworksGrid.chatbots}
+          isLoading={frameworksGrid.isLoading}
+          isLoadingMore={frameworksGrid.isLoadingMore}
+          error={frameworksGrid.error}
+          pagination={frameworksGrid.pagination}
+          currentPage={frameworksGrid.page}
+          onLoadMore={frameworksGrid.loadMore}
+          onRetry={frameworksGrid.retry}
+          favorites={favorites}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
+
+        <HomepageGridSection
+          title="Deep Dives"
+          description="In-depth explorations and analyses"
+          chatbots={deepDivesGrid.chatbots}
+          isLoading={deepDivesGrid.isLoading}
+          isLoadingMore={deepDivesGrid.isLoadingMore}
+          error={deepDivesGrid.error}
+          pagination={deepDivesGrid.pagination}
+          currentPage={deepDivesGrid.page}
+          onLoadMore={deepDivesGrid.loadMore}
+          onRetry={deepDivesGrid.retry}
+          favorites={favorites}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
+
+        <HomepageGridSection
+          title="Body of Work"
+          description="AI advisors trained on comprehensive creator content"
+          chatbots={bodyOfWorkGrid.chatbots}
+          isLoading={bodyOfWorkGrid.isLoading}
+          isLoadingMore={bodyOfWorkGrid.isLoadingMore}
+          error={bodyOfWorkGrid.error}
+          pagination={bodyOfWorkGrid.pagination}
+          currentPage={bodyOfWorkGrid.page}
+          onLoadMore={bodyOfWorkGrid.loadMore}
+          onRetry={bodyOfWorkGrid.retry}
+          favorites={favorites}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
+
+        <HomepageGridSection
+          title="Advisor Boards"
+          description="Collective wisdom from expert panels"
+          chatbots={advisorBoardsGrid.chatbots}
+          isLoading={advisorBoardsGrid.isLoading}
+          isLoadingMore={advisorBoardsGrid.isLoadingMore}
+          error={advisorBoardsGrid.error}
+          pagination={advisorBoardsGrid.pagination}
+          currentPage={advisorBoardsGrid.page}
+          onLoadMore={advisorBoardsGrid.loadMore}
+          onRetry={advisorBoardsGrid.retry}
+          favorites={favorites}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
       </div>
     </main>
   );
