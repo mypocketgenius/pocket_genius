@@ -441,41 +441,66 @@ Homepage Structure:
 
 ### Task 1: Create New Homepage File
 
-**Subtask 1.1** — Create `app/page-new.tsx` with basic structure
+**Subtask 1.1** — Create `app/page-new.tsx` with basic structure ✅ **COMPLETED**
 - Visible output: New file created with:
-  - `'use client'` directive
-  - Imports: `AppHeader`, `HomepageCreatorsSection`, `HomepageGridSection`, `useChatbotGrid`, types
-  - Basic component structure: `HomeContent` function component
-  - Export default `Home` component (no Suspense wrapper needed)
-- **Note**: Start with minimal structure, add functionality incrementally
+  - `'use client'` directive ✅
+  - Imports: `AppHeader`, `HomepageCreatorsSection`, `HomepageGridSection`, `useChatbotGrid`, types ✅
+  - Basic component structure: `HomeContent` function component ✅
+  - Export default `Home` component (no Suspense wrapper needed) ✅
+- **Result**: File created at `app/page-new.tsx` with all required imports and basic structure
+- **File size**: 73 lines (well within ≤120 line limit)
 - **Note**: Uses extracted components/hooks from Task 0 to keep file size ≤120 lines
+- **Status**: Basic structure complete. Ready for state management (Subtask 1.2)
 
-**Subtask 1.2** — Add state management
+**Subtask 1.2** — Add state management ✅ **COMPLETED**
 - Visible output: State variables added:
-  - `favorites` state (Set<string>)
-  - Four `useChatbotGrid` hook instances: `frameworksGrid`, `deepDivesGrid`, `bodyOfWorkGrid`, `advisorBoardsGrid`
-- **Note**: No filter-related state (no `selectedCategories`, `selectedTypes`, `searchQuery`, etc.)
-- **Note**: Creators state managed by `useCreators` hook (used in `HomepageCreatorsSection` component)
+  - `favorites` state (Set<string>) ✅
+  - Four `useChatbotGrid` hook instances: `frameworksGrid`, `deepDivesGrid`, `bodyOfWorkGrid`, `advisorBoardsGrid` ✅
+- **Result**: All state management added successfully
+  - `favorites` state initialized as `new Set<string>()`
+  - Four hook instances created for each chatbot type (FRAMEWORK, DEEP_DIVE, BODY_OF_WORK, ADVISOR_BOARD)
+  - Each hook fires independently on mount (parallel API calls)
+- **Note**: No filter-related state (no `selectedCategories`, `selectedTypes`, `searchQuery`, etc.) ✅
+- **Note**: Creators state managed by `useCreators` hook (used in `HomepageCreatorsSection` component) ✅
+- **Status**: State management complete. Ready for favorites sync logic (Subtask 1.5)
 
-**Subtask 1.5** — Add favorites sync logic
+**Subtask 1.5** — Add favorites sync logic ✅ **COMPLETED**
 - Visible output: `useEffect` hook that syncs favorites from all grids:
-  - Merges favorites from API responses (`isFavorite` field) with existing favorites
-  - Uses `syncFavorites` method from each hook
-  - Functional update pattern to avoid stale closures
-- **Dependencies**: `frameworksGrid.chatbots`, `deepDivesGrid.chatbots`, `bodyOfWorkGrid.chatbots`, `advisorBoardsGrid.chatbots`
+  - Merges favorites from API responses (`isFavorite` field) with existing favorites ✅
+  - Uses `syncFavorites` method from each hook ✅
+  - Functional update pattern to avoid stale closures ✅
+- **Result**: Favorites sync logic implemented successfully
+  - `useEffect` hook added with proper dependencies (`frameworksGrid.chatbots`, `deepDivesGrid.chatbots`, `bodyOfWorkGrid.chatbots`, `advisorBoardsGrid.chatbots`)
+  - Functional update pattern (`prev => ...`) prevents infinite loops
+  - Merges favorites from all four grids using `syncFavorites` method
+  - Comment added explaining the pattern and why `favorites` is not in dependency array
+- **Dependencies**: `frameworksGrid.chatbots`, `deepDivesGrid.chatbots`, `bodyOfWorkGrid.chatbots`, `advisorBoardsGrid.chatbots` ✅
+- **Status**: Favorites sync logic complete. Ready for favorite toggle handler (Subtask 1.6)
 
-**Subtask 1.6** — Add `handleFavoriteToggle` function
+**Subtask 1.6** — Add `handleFavoriteToggle` function ✅ **COMPLETED**
 - Visible output: Function that updates favorites state:
-  - Adds or removes chatbot ID from favorites Set
-  - Works with `ChatbotCard` component's `onFavoriteToggle` prop
-- **Note**: Same implementation as old file, but isolated in new file
+  - Adds or removes chatbot ID from favorites Set ✅
+  - Works with `ChatbotCard` component's `onFavoriteToggle` prop ✅
+- **Result**: `handleFavoriteToggle` function implemented successfully
+  - Function signature: `(chatbotId: string, isFavorite: boolean) => void`
+  - Uses functional update pattern (`prev => ...`) to update favorites Set
+  - Adds chatbot ID to Set when `isFavorite` is true, removes when false
+  - Compatible with `ChatbotCard` component's `onFavoriteToggle` prop
+- **Note**: Same implementation as old file, but isolated in new file ✅
+- **Status**: Favorite toggle handler complete. Ready for hero section (Subtask 1.7)
 
-**Subtask 1.7** — Add hero section JSX
+**Subtask 1.7** — Add hero section JSX ✅ **COMPLETED**
 - Visible output: Hero section rendered:
-  - Title: "Turn Any Expert Into Your Advisor"
-  - Description: "AI trained on their work. Personalized to your situation."
-  - Centered layout with proper spacing
-- **Note**: Exact same as old file
+  - Title: "Turn Any Expert Into Your Advisor" ✅
+  - Description: "AI trained on their work. Personalized to your situation." ✅
+  - Centered layout with proper spacing ✅
+- **Result**: Hero section JSX added successfully
+  - Title and description match old file exactly
+  - Centered layout with `text-center` class
+  - Proper spacing with `mb-8` margin bottom
+  - Container wrapper with `container mx-auto px-4 py-8` classes
+- **Note**: Exact same as old file ✅
+- **Status**: Hero section complete. Tasks 1.1-1.7 fully implemented. File ready for grid sections (Subtasks 1.8-1.12)
 
 **Subtask 1.8** — Add creators grid JSX
 - Visible output: Creators grid section rendered using `HomepageCreatorsSection` component
