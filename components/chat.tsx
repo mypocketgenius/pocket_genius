@@ -16,6 +16,7 @@ import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
+import { ThemedPage } from './themed-page';
 
 interface Message {
   id: string;
@@ -855,10 +856,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
 
       {/* Messages container */}
-      <div 
+      <ThemedPage 
         className="flex-1 overflow-y-auto p-4 space-y-4 sky-gradient-transition"
         style={{
-          background: `linear-gradient(135deg, ${skyGradient.start}, ${skyGradient.end})`,
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
           overscrollBehavior: 'none', // Prevent scroll overhangs on iOS Safari/Chrome
         }}
@@ -1026,7 +1026,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </ThemedPage>
 
       {/* Phase 4: Input area with dynamic pills */}
       <div 
