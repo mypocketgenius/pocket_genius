@@ -28,6 +28,8 @@ interface SearchBarProps {
   maxResults?: number;
   // Optional callback when chatbot selected
   onChatbotSelect?: (chatbotId: string) => void;
+  // Optional callback when expansion state changes (for mobile)
+  onExpansionChange?: (isExpanded: boolean) => void;
 }
 
 export function SearchBar({
@@ -39,10 +41,16 @@ export function SearchBar({
   showDropdown = true,
   maxResults = 10,
   onChatbotSelect,
+  onExpansionChange,
 }: SearchBarProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState(initialValue);
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Notify parent when expansion state changes
+  useEffect(() => {
+    onExpansionChange?.(isExpanded);
+  }, [isExpanded, onExpansionChange]);
   
   // Dropdown state management
   const [searchResults, setSearchResults] = useState<Chatbot[]>([]);
@@ -331,23 +339,15 @@ export function SearchBar({
           {desktopSearch}
         </div>
 
-        {/* Mobile: icon button in header (always show icon, not expanded input) */}
+        {/* Mobile: icon button in header (only show when not expanded) */}
         <div className="md:hidden flex-shrink-0">
-          {!isExpanded ? (
+          {!isExpanded && (
             <button
               onClick={() => setIsExpanded(true)}
               className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
               aria-label="Search"
             >
               <Search className="h-5 w-5 text-gray-600" />
-            </button>
-          ) : (
-            <button
-              onClick={handleClose}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="Close search"
-            >
-              <X className="h-5 w-5 text-gray-600" />
             </button>
           )}
         </div>

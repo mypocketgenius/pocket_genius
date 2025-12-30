@@ -28,6 +28,7 @@ export function AppHeader({
   rightContent,
 }: AppHeaderProps) {
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const theme = useTheme();
 
   // Theme-aware hover colors
@@ -52,7 +53,7 @@ export function AppHeader({
             {leftContent ? (
               leftContent
             ) : (
-              <Link href="/" className="hover:opacity-80 transition-opacity">
+              <Link href="/" className={`hover:opacity-80 transition-opacity ${isSearchExpanded ? 'hidden md:block' : ''}`}>
                 <h1 className="text-2xl font-bold">
                   <span className="hidden md:inline">Pocket Genius</span>
                   <span className="md:hidden">PG</span>
@@ -63,7 +64,7 @@ export function AppHeader({
 
           {/* Auth buttons - moved to left of search */}
           {showAuth && (
-            <div className="flex gap-2 items-center flex-shrink-0">
+            <div className={`flex gap-2 items-center flex-shrink-0 ${isSearchExpanded ? 'hidden md:flex' : ''}`}>
               <SignedOut>
                 <SignInButton mode="modal">
                   <Button variant="default" size="sm">
@@ -77,6 +78,7 @@ export function AppHeader({
           {/* Search bar */}
           <SearchBar
             variant="header"
+            onExpansionChange={setIsSearchExpanded}
           />
 
           {/* Right side: Side menu button (always visible) and UserButton (when signed in) */}
