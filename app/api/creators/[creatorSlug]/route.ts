@@ -19,6 +19,7 @@ import { prisma } from '@/lib/prisma';
  *     name: string;
  *     avatarUrl: string | null;
  *     bio: string | null;
+ *     shortBio: string | null;
  *     socialLinks: {
  *       website?: string;
  *       linkedin?: string;
@@ -61,6 +62,7 @@ export async function GET(
         name: true,
         avatarUrl: true,
         bio: true,
+        shortBio: true,
         socialLinks: true,
       },
     });

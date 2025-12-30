@@ -10,7 +10,8 @@ export interface Creator {
   slug: string;
   name: string;
   avatarUrl: string | null;
-  bio: string | null;
+  bio: string | null;        // Full bio
+  shortBio: string | null;   // Short bio for cards
   chatbotCount: number;
 }
 

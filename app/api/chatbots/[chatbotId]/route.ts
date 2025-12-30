@@ -21,6 +21,7 @@ import { createChatbotVersion } from '@/lib/chatbot/versioning';
  * - changelog?: string
  * - title?: string (non-versioned)
  * - description?: string (non-versioned)
+ * - shortDescription?: string (non-versioned)
  * - isPublic?: boolean (non-versioned)
  * 
  * Response: { success: true, version?: Chatbot_Version }
@@ -91,6 +92,7 @@ export async function PATCH(
       // Non-versioned fields
       title,
       description,
+      shortDescription,
       isPublic,
     } = body;
     
@@ -112,6 +114,7 @@ export async function PATCH(
     const nonVersionedUpdates: any = {};
     if (title !== undefined) nonVersionedUpdates.title = title;
     if (description !== undefined) nonVersionedUpdates.description = description;
+    if (shortDescription !== undefined) nonVersionedUpdates.shortDescription = shortDescription;
     if (isPublic !== undefined) nonVersionedUpdates.isPublic = isPublic;
     
     if (Object.keys(nonVersionedUpdates).length > 0) {

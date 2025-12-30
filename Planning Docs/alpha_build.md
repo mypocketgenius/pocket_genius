@@ -2927,6 +2927,101 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
+### Side Quest: Short Bio/Description Fields for Cards ✅ COMPLETE (Dec 30, 2024)
+
+**Status:** ✅ **COMPLETE** (Dec 30, 2024)
+
+**Objective:** Add separate `shortBio` and `shortDescription` fields to Creator and Chatbot models respectively. Cards will use these short fields, while detail pages/modals will continue using the full `bio` and `description` fields.
+
+**Why:** After completing Phase 3.7 (UI/UX improvements), we identified that cards were truncating long bio/description fields. This side quest adds dedicated short fields that creators can manually set, providing better control over card display while preserving full content for detail pages.
+
+**Prerequisites:**
+- ✅ Phase 3.7 complete (Homepage with creator and chatbot cards)
+- ✅ CreatorCard and ChatbotCard components exist
+
+**What Was Done:**
+
+1. **Database Schema Update:**
+   - Added `shortBio String?` to Creator model
+   - Added `shortDescription String?` to Chatbot model
+   - Created and applied migration `20251230104405_add_short_bio_description`
+   - Migration adds nullable TEXT columns to both tables
+
+2. **TypeScript Type Updates:**
+   - Updated `lib/types/creator.ts` to include `shortBio: string | null`
+   - Updated `lib/types/chatbot.ts` to include `shortDescription: string | null`
+
+3. **API Endpoint Updates:**
+   - Updated `/api/creators` to return `shortBio` in response
+   - Updated `/api/creators/[creatorSlug]` to return `shortBio` in response
+   - Updated `/api/chatbots/public` to return `shortDescription` in response
+   - Updated `/api/chatbots/[chatbotId]` PATCH endpoint to accept `shortDescription` as non-versioned field
+   - Updated API documentation comments to reflect new fields
+
+4. **Component Updates:**
+   - Updated `CreatorCard` to use `shortBio` with fallback to truncated `bio`
+   - Updated `ChatbotCard` to use `shortDescription` with fallback to truncated `description`
+   - Verified Creator page (`app/creators/[creatorSlug]/page.tsx`) still uses full `bio`
+   - Verified ChatbotDetailModal still uses full `description`
+
+5. **Testing & Verification:**
+   - Updated test files to include new fields
+   - All API tests passing (5/5 creators, 18/18 chatbots public)
+   - No TypeScript compilation errors
+   - No linting errors
+   - Fallback behavior verified
+
+**Key Features:**
+- ✅ Cards use short fields when available, fallback to truncated long fields
+- ✅ Pages/modals continue using full fields as intended
+- ✅ All changes backward compatible (nullable fields)
+- ✅ Migration applied successfully
+- ✅ PATCH endpoint supports updating shortDescription
+
+**Deliverables:**
+- ✅ Database migration created and applied
+- ✅ TypeScript types updated
+- ✅ All API endpoints return/accept new fields
+- ✅ Cards use short fields with fallback
+- ✅ Pages/modals verified to use full fields
+- ✅ All tests passing
+
+**Files Created:**
+- `prisma/migrations/20251230104405_add_short_bio_description/migration.sql` - Database migration
+
+**Files Modified:**
+- `prisma/schema.prisma` - Added shortBio and shortDescription fields
+- `prisma/seed.ts` - Updated to populate shortBio and shortDescription for Sun Tzu and Art of War
+- `lib/types/creator.ts` - Added shortBio to interface
+- `lib/types/chatbot.ts` - Added shortDescription to interface
+- `app/api/creators/route.ts` - Returns shortBio
+- `app/api/creators/[creatorSlug]/route.ts` - Returns shortBio
+- `app/api/chatbots/public/route.ts` - Returns shortDescription
+- `app/api/chatbots/[chatbotId]/route.ts` - Accepts shortDescription
+- `components/creator-card.tsx` - Uses shortBio with fallback
+- `components/chatbot-card.tsx` - Uses shortDescription with fallback
+- `__tests__/api/creators/route.test.ts` - Updated tests
+- `__tests__/api/creators/[creatorSlug]/route.test.ts` - Updated tests
+- `__tests__/api/chatbots/public/route.test.ts` - Updated tests
+
+**Data Updates:**
+- ✅ Sun Tzu creator: `shortBio` populated ("Ancient Chinese military strategist and philosopher")
+- ✅ Art of War chatbot: `shortDescription` populated ("Explore timeless military strategy and philosophy with Sun Tzu")
+
+**Test Results:**
+- ✅ **23/23 tests passing** (5 creators API + 7 creators slug API + 18 chatbots public API)
+- ✅ All acceptance criteria met
+- ✅ No breaking changes
+
+**Implementation Details:**
+- Fallback logic: If `shortBio`/`shortDescription` exists → use it exactly; If null but `bio`/`description` exists → truncate to ~100 chars; If both null → display nothing
+- Cards automatically receive new fields from API responses
+- Type safety maintained across all components
+
+**Note:** This side quest improves card display quality by allowing creators to set optimized short descriptions for cards while preserving full content for detail pages. The implementation maintains backward compatibility through nullable fields and graceful fallbacks.
+
+---
+
 #### Phase 3.10: User Intake Forms ✅ ALPHA
 
 **Objective:** Implement intake forms to collect user context for personalization

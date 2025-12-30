@@ -24,6 +24,7 @@ interface Chatbot {
   slug: string;
   title: string;
   description: string | null;
+  shortDescription: string | null;
   imageUrl: string | null;
   type: ChatbotType | null;
   priceCents: number;
@@ -62,6 +63,7 @@ interface Creator {
   name: string;
   avatarUrl: string | null;
   bio: string | null;
+  shortBio: string | null;
   chatbotCount: number;
 }
 

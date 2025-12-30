@@ -21,6 +21,7 @@ interface ChatbotCardProps {
     slug: string;
     title: string;
     description: string | null;
+    shortDescription: string | null;
     imageUrl: string | null;
     type: ChatbotType | null;
     priceCents: number;
@@ -162,11 +163,12 @@ export function ChatbotCard({
     return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
-  // Truncate description to ~100 chars
-  const truncateDescription = (text: string | null) => {
-    if (!text) return null;
-    if (text.length <= 100) return text;
-    return text.substring(0, 100).trim() + '...';
+  // Use shortDescription if available, otherwise truncate description
+  const getDisplayDescription = () => {
+    if (chatbot.shortDescription) return chatbot.shortDescription;
+    if (!chatbot.description) return null;
+    if (chatbot.description.length <= 100) return chatbot.description;
+    return chatbot.description.substring(0, 100).trim() + '...';
   };
 
   // Render star rating display
@@ -264,10 +266,10 @@ export function ChatbotCard({
             </Link>
           </div>
 
-          {/* Description - truncated to 3 lines */}
-          {chatbot.description && (
+          {/* Description - uses shortDescription if available, otherwise truncated description */}
+          {getDisplayDescription() && (
             <p className="text-sm text-gray-600 line-clamp-3">
-              {truncateDescription(chatbot.description)}
+              {getDisplayDescription()}
             </p>
           )}
 

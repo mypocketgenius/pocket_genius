@@ -4,6 +4,7 @@
 
 import { GET } from '@/app/api/chatbots/public/route';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
 
 // Mock Decimal-like object for testing
 class MockDecimal {
@@ -23,12 +24,22 @@ jest.mock('@/lib/prisma', () => ({
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
   },
+}));
+
+// Mock Clerk auth
+jest.mock('@clerk/nextjs/server', () => ({
+  auth: jest.fn(),
 }));
 
 describe('GET /api/chatbots/public', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: no authenticated user
+    (auth as jest.Mock).mockResolvedValue({ userId: null });
   });
 
   const mockChatbot = {
@@ -36,6 +47,7 @@ describe('GET /api/chatbots/public', () => {
     slug: 'art-of-war',
     title: 'The Art of War',
     description: 'A classic text on strategy',
+    shortDescription: 'Strategy guide',
     imageUrl: null,
     type: 'DEEP_DIVE',
     priceCents: 0,
@@ -83,6 +95,7 @@ describe('GET /api/chatbots/public', () => {
         slug: 'art-of-war',
         title: 'The Art of War',
         description: 'A classic text on strategy',
+        shortDescription: 'Strategy guide',
         imageUrl: null,
         type: 'DEEP_DIVE',
         priceCents: 0,
@@ -143,6 +156,7 @@ describe('GET /api/chatbots/public', () => {
       expect(chatbot).toHaveProperty('slug');
       expect(chatbot).toHaveProperty('title');
       expect(chatbot).toHaveProperty('description');
+      expect(chatbot).toHaveProperty('shortDescription');
       expect(chatbot).toHaveProperty('imageUrl');
       expect(chatbot).toHaveProperty('type');
       expect(chatbot).toHaveProperty('priceCents');

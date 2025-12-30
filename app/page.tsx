@@ -75,7 +75,7 @@ function HomeContent() {
         {/* Chatbot Grids */}
         <HomepageGridSection
           title="Frameworks"
-          description="AI that teaches a single structured method or approach"
+          description="AI trained on a single proven method - specialized guidance, not general advice"
           chatbots={frameworksGrid.chatbots}
           isLoading={frameworksGrid.isLoading}
           isLoadingMore={frameworksGrid.isLoadingMore}
@@ -90,7 +90,7 @@ function HomeContent() {
 
         <HomepageGridSection
           title="Deep Dives"
-          description="AI focused on one specific work or topic"
+          description="AI immersed in one seminal work - deep expertise, not surface-level summaries"
           chatbots={deepDivesGrid.chatbots}
           isLoading={deepDivesGrid.isLoading}
           isLoadingMore={deepDivesGrid.isLoadingMore}
@@ -105,7 +105,7 @@ function HomeContent() {
 
         <HomepageGridSection
           title="Body of Work"
-          description="AI trained across an expert's entire collection of works"
+          description="AI trained on an expert's complete writings - their full philosophy, not generic interpretations"
           chatbots={bodyOfWorkGrid.chatbots}
           isLoading={bodyOfWorkGrid.isLoading}
           isLoadingMore={bodyOfWorkGrid.isLoadingMore}
@@ -120,7 +120,7 @@ function HomeContent() {
 
         <HomepageGridSection
           title="Advisor Boards"
-          description="AI combining wisdom from multiple experts"
+          description="Multiple expert AIs working together on your problem - curated wisdom, not one-size-fits-all answers"
           chatbots={advisorBoardsGrid.chatbots}
           isLoading={advisorBoardsGrid.isLoading}
           isLoadingMore={advisorBoardsGrid.isLoadingMore}

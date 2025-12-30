@@ -26,6 +26,7 @@ describe('GET /api/creators', () => {
       name: 'Sun Tzu',
       avatarUrl: 'https://example.com/avatar1.jpg',
       bio: 'Ancient Chinese military strategist and philosopher.',
+      shortBio: 'Military strategist',
       _count: {
         chatbots: 5,
       },
@@ -36,6 +37,7 @@ describe('GET /api/creators', () => {
       name: 'Niccolò Machiavelli',
       avatarUrl: null,
       bio: null,
+      shortBio: null,
       _count: {
         chatbots: 3,
       },
@@ -52,13 +54,14 @@ describe('GET /api/creators', () => {
       expect(response.status).toBe(200);
       expect(data.creators).toHaveLength(2);
       
-      // Verify transformed response includes bio and chatbotCount
+      // Verify transformed response includes bio, shortBio and chatbotCount
       expect(data.creators[0]).toEqual({
         id: 'creator-1',
         slug: 'sun-tzu',
         name: 'Sun Tzu',
         avatarUrl: 'https://example.com/avatar1.jpg',
         bio: 'Ancient Chinese military strategist and philosopher.',
+        shortBio: 'Military strategist',
         chatbotCount: 5,
       });
       expect(data.creators[1]).toEqual({
@@ -67,6 +70,7 @@ describe('GET /api/creators', () => {
         name: 'Niccolò Machiavelli',
         avatarUrl: null,
         bio: null,
+        shortBio: null,
         chatbotCount: 3,
       });
 
@@ -89,6 +93,7 @@ describe('GET /api/creators', () => {
           name: true,
           avatarUrl: true,
           bio: true,
+          shortBio: true,
           _count: {
             select: {
               chatbots: {
@@ -113,7 +118,7 @@ describe('GET /api/creators', () => {
       expect(data.creators).toEqual([]);
     });
 
-    it('should include bio and chatbotCount in response', async () => {
+    it('should include bio, shortBio and chatbotCount in response', async () => {
       (prisma.creator.findMany as jest.Mock).mockResolvedValue([mockCreators[0]]);
 
       const response = await GET();
@@ -121,6 +126,7 @@ describe('GET /api/creators', () => {
 
       expect(response.status).toBe(200);
       expect(data.creators[0]).toHaveProperty('bio');
+      expect(data.creators[0]).toHaveProperty('shortBio');
       expect(data.creators[0]).toHaveProperty('chatbotCount');
       expect(data.creators[0].chatbotCount).toBe(5);
     });

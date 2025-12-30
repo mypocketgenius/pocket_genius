@@ -19,6 +19,7 @@ import { prisma } from '@/lib/prisma';
  *     name: string;
  *     avatarUrl: string | null;
  *     bio: string | null;
+ *     shortBio: string | null;
  *     chatbotCount: number;
  *   }>;
  * }
@@ -43,6 +44,7 @@ export async function GET() {
         name: true,
         avatarUrl: true,
         bio: true,
+        shortBio: true,
         _count: {
           select: {
             chatbots: {
@@ -63,6 +65,7 @@ export async function GET() {
       name: creator.name,
       avatarUrl: creator.avatarUrl,
       bio: creator.bio,
+      shortBio: creator.shortBio,
       chatbotCount: creator._count.chatbots,
     }));
 

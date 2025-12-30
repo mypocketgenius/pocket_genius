@@ -64,11 +64,15 @@ async function main() {
     where: { id: 'creator_sun_tzu' },
     update: {
       slug: 'sun-tzu',
+      bio: 'Ancient Chinese military strategist and philosopher, author of The Art of War, one of the most influential works on military strategy ever written.',
+      shortBio: 'Ancient Chinese military strategist and philosopher',
     },
     create: {
       id: 'creator_sun_tzu',
       name: 'Sun Tzu',
       slug: 'sun-tzu',
+      bio: 'Ancient Chinese military strategist and philosopher, author of The Art of War, one of the most influential works on military strategy ever written.',
+      shortBio: 'Ancient Chinese military strategist and philosopher',
     },
   });
 
@@ -99,7 +103,8 @@ async function main() {
     where: { id: 'chatbot_art_of_war' },
     update: {
       slug: 'art-of-war',
-      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
+      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War. Explore ancient wisdom on strategy, tactics, and leadership that remains relevant for modern business, personal development, and competitive situations.',
+      shortDescription: 'Explore timeless military strategy and philosophy with Sun Tzu',
       isPublic: true,
       isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,
@@ -112,7 +117,8 @@ async function main() {
       title: 'Art of War Deep Dive',
       creatorId: creator.id,
       slug: 'art-of-war',
-      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War.',
+      description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War. Explore ancient wisdom on strategy, tactics, and leadership that remains relevant for modern business, personal development, and competitive situations.',
+      shortDescription: 'Explore timeless military strategy and philosophy with Sun Tzu',
       isPublic: true,
       isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,

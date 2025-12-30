@@ -51,7 +51,8 @@ model Creator {
   name        String
   slug        String?  @unique
   avatarUrl   String?
-  bio         String?
+  bio         String?  // Full bio for detail pages
+  shortBio    String?  // Short bio for cards (~150 chars)
   socialLinks Json? // { website, linkedin, x, facebook, tiktok, masterclass, youtube }
   createdAt   DateTime @default(now())
 
@@ -87,9 +88,10 @@ model Chatbot {
   creator   Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   // Phase 3.7.1: Homepage browsing fields
-  slug           String?      @unique
-  description    String?
-  imageUrl       String?
+  slug             String?      @unique
+  description      String?      // Full description for detail pages
+  shortDescription String?      // Short description for cards (~150 chars)
+  imageUrl         String?
   isPublic       Boolean      @default(false)
   allowAnonymous Boolean      @default(false)
   type           ChatbotType?

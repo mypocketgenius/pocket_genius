@@ -13,7 +13,8 @@ export interface Chatbot {
   id: string;
   slug: string;
   title: string;
-  description: string | null;
+  description: string | null;        // Full description
+  shortDescription: string | null;    // Short description for cards
   imageUrl: string | null;
   type: ChatbotType | null;
   priceCents: number;

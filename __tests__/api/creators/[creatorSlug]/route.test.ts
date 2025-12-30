@@ -25,6 +25,7 @@ describe('GET /api/creators/[creatorSlug]', () => {
     name: 'Sun Tzu',
     avatarUrl: 'https://example.com/avatar1.jpg',
     bio: 'Ancient Chinese military strategist',
+    shortBio: 'Military strategist',
     socialLinks: {
       website: 'https://example.com',
       linkedin: 'https://linkedin.com/in/suntzu',
@@ -58,6 +59,7 @@ describe('GET /api/creators/[creatorSlug]', () => {
           name: true,
           avatarUrl: true,
           bio: true,
+          shortBio: true,
           socialLinks: true,
         },
       });

@@ -29,6 +29,7 @@ import { prisma } from '@/lib/prisma';
  *     slug: string;
  *     title: string;
  *     description: string | null;
+ *     shortDescription: string | null;
  *     imageUrl: string | null;
  *     type: ChatbotType;
  *     priceCents: number;
@@ -233,6 +234,7 @@ export async function GET(req: Request) {
         slug: chatbot.slug,
         title: chatbot.title,
         description: chatbot.description,
+        shortDescription: chatbot.shortDescription,
         imageUrl: chatbot.imageUrl,
         type: chatbot.type,
         priceCents: chatbot.priceCents,

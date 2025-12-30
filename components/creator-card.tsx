@@ -15,6 +15,7 @@ interface CreatorCardProps {
     name: string;
     avatarUrl: string | null;
     bio: string | null;
+    shortBio: string | null;
     chatbotCount: number;
   };
 }
@@ -37,11 +38,12 @@ export function CreatorCard({ creator }: CreatorCardProps) {
     router.push(`/creators/${creator.slug}`);
   };
 
-  // Truncate bio to ~100 chars (matching ChatbotCard description truncation)
-  const truncateBio = (text: string | null) => {
-    if (!text) return null;
-    if (text.length <= 100) return text;
-    return text.substring(0, 100).trim() + '...';
+  // Use shortBio if available, otherwise truncate bio
+  const getDisplayBio = () => {
+    if (creator.shortBio) return creator.shortBio;
+    if (!creator.bio) return null;
+    if (creator.bio.length <= 100) return creator.bio;
+    return creator.bio.substring(0, 100).trim() + '...';
   };
 
   return (
@@ -75,10 +77,10 @@ export function CreatorCard({ creator }: CreatorCardProps) {
           {creator.name}
         </h3>
 
-        {/* Bio snippet - truncated to ~100 chars */}
-        {creator.bio && (
+        {/* Bio snippet - uses shortBio if available, otherwise truncated bio */}
+        {getDisplayBio() && (
           <p className="text-sm text-gray-600 line-clamp-2 -mt-0.5">
-            {truncateBio(creator.bio)}
+            {getDisplayBio()}
           </p>
         )}
 
