@@ -5,6 +5,7 @@
 // Search expands on clicking the search icon
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
@@ -51,10 +52,12 @@ export function AppHeader({
             {leftContent ? (
               leftContent
             ) : (
-              <h1 className="text-2xl font-bold">
-                <span className="hidden md:inline">Pocket Genius</span>
-                <span className="md:hidden">PG</span>
-              </h1>
+              <Link href="/" className="hover:opacity-80 transition-opacity">
+                <h1 className="text-2xl font-bold">
+                  <span className="hidden md:inline">Pocket Genius</span>
+                  <span className="md:hidden">PG</span>
+                </h1>
+              </Link>
             )}
           </div>
 
