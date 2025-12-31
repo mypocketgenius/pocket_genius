@@ -3022,6 +3022,85 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
+### Side Quest: Pill Design System Redesign ✅ COMPLETE (Jan 1, 2025)
+
+**Status:** ✅ **COMPLETE** (Jan 1, 2025)
+
+**Objective:** Redesign filter pills (homepage) and chat pills (chat screen) with a theme-aware design system that distinguishes pills by function and adapts throughout the day.
+
+**Why:** After completing Phase 3.9 (Chatbot Versioning System) and the theme component refactor, pills were using hard-coded Tailwind colors that didn't adapt to the theme system. This side quest unified pill styling with the theme system, creating visual distinction between filter, action, and suggestion pills while maintaining consistency.
+
+**Prerequisites:**
+- ✅ Phase 3.9 complete (Chatbot Versioning System)
+- ✅ Theme component refactor complete (theme system unified across app)
+- ✅ Homepage filter pills and chat pills exist
+
+**What Was Done:**
+
+1. **Created Pill Color System:**
+   - Created `lib/theme/pill-colors.ts` - Extracts secondary accent from `gradient.start`, generates period-specific semantic colors (success/error), and calculates neutral colors from chrome blend
+   - Supports all 8 time periods with theme-aware color generation
+   - Comprehensive test suite created (40 tests passing)
+
+2. **Created Pill Style Generator:**
+   - Created `lib/theme/pill-styles.ts` - Generates React.CSSProperties for filter, action, and suggestion pills
+   - Implements HSL→RGBA conversion for opacity handling
+   - Defines consistent base values (border radius: 9999px, font size: 0.875rem)
+   - Handles selected/unselected states with opacity, font weight, and border changes
+   - Comprehensive test suite created (54 tests passing)
+
+3. **Updated Homepage Filter Pills:**
+   - Updated `components/homepage-filter-pills.tsx` to use theme-aware pill system
+   - Filter pills use secondary accent at 15% opacity (unselected) / 30% opacity (selected)
+   - Selected state shows: 30% opacity background + 1px border at 85% opacity + font weight 600
+   - Unselected state shows: 15% opacity background + font weight 500
+
+4. **Updated Chat Pills:**
+   - Updated `components/pills/pill.tsx` to use theme-aware pill system
+   - Feedback pills: Use semantic colors (success for helpful, error for not helpful) at 20% unselected / 25% selected opacity
+   - Expansion pills: Use neutral color with 12% unselected / 20% selected opacity, 1px border at 40% opacity (secondary suggestion style)
+   - Suggested pills: Use secondary accent color with 12% unselected / 20% selected opacity, no border (primary suggestion style)
+
+**Key Features:**
+- ✅ Theme-aware colors that adapt throughout the day (all 8 periods)
+- ✅ Visual distinction by function (filter, action, suggestion)
+- ✅ Consistent base styles (border radius, font size, spacing)
+- ✅ Selected states with opacity, font weight, and border changes
+- ✅ Semantic colors maintain recognizability across periods
+- ✅ Conditional borders (primary suggestions = no border, secondary = border)
+
+**Deliverables:**
+- ✅ `lib/theme/pill-colors.ts` created (130 lines)
+- ✅ `lib/theme/pill-styles.ts` created (154 lines)
+- ✅ Updated `components/homepage-filter-pills.tsx` (theme-aware)
+- ✅ Updated `components/pills/pill.tsx` (theme-aware)
+- ✅ Comprehensive test suites (`__tests__/lib/theme/pill-colors.test.ts`, `__tests__/lib/theme/pill-styles.test.ts`)
+- ✅ All 94 tests passing (40 color tests + 54 style tests)
+
+**Implementation Details:**
+- Secondary accent extracted from `gradient.start` (sky color)
+- Semantic colors harmonize with theme (e.g., warm sage success for golden hour, cool teal for dusk)
+- Neutral color calculated from blend: 60% chrome.text + 40% gradient.end, saturation -50%
+- Filter pills: 15-20% opacity, medium→semibold font weight when selected
+- Action pills: 20-25% opacity, semantic colors, semibold font
+- Suggestion pills: 12-20% opacity, conditional borders, regular font
+
+**Testing:**
+- ✅ All 94 tests passing (100% pass rate)
+- ✅ Colors verified for all 8 periods
+- ✅ Style generation verified for all pill types
+- ✅ Selected/unselected states working correctly
+- ✅ Theme transitions smooth (colors adapt throughout the day)
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-01_pill-design-system.md`
+- Comprehensive test results and verification completed
+- All edge cases handled and documented
+
+**Note:** This side quest unified pill styling with the theme system, creating a cohesive visual language across filter pills (homepage) and chat pills (chat screen). Pills now adapt to theme changes throughout the day while maintaining clear visual distinction by function.
+
+---
+
 #### Phase 3.10: User Intake Forms ✅ ALPHA
 
 **Objective:** Implement intake forms to collect user context for personalization
