@@ -1,5 +1,6 @@
 import type { PillColors, HSLColor } from './pill-colors';
 import { parseHSL } from './pill-colors';
+import type { TimePeriod } from './types';
 
 // Consistent base values
 const BASE_BORDER_RADIUS = '9999px'; // Fully rounded
@@ -8,21 +9,21 @@ const BASE_FONT_SIZE = '0.875rem';   // text-sm (14px)
 // Pill type configurations
 const PILL_CONFIG = {
   filter: {
-    fillOpacity: { unselected: 0.18, selected: 0.30 },
+    fillOpacity: { unselected: 0.20, selected: 0.35 }, // Increased for better visibility
     fontWeight: { unselected: '500', selected: '600' }, // Medium → Semibold when selected
-    padding: '12px 20px',
+    padding: '8px 18px', // Reduced vertical padding for shorter pills
     border: { unselected: '1px', selected: '1px' }, // Border for both states
     borderOpacity: { unselected: 0.50, selected: 0.85 }, // Border opacity for both states
   },
   action: {
-    fillOpacity: { unselected: 0.25, selected: 0.30 }, // Increased for better visibility
+    fillOpacity: { unselected: 0.35, selected: 0.40 }, // Increased significantly for better visibility
     fontWeight: '600', // Semibold
     padding: '10px 18px',
     border: '1px', // Add border for action pills
     borderOpacity: 0.70, // Border opacity for action pills (increased for visibility)
   },
   suggestion: {
-    fillOpacity: { unselected: 0.18, selected: 0.25 }, // Increased from 12% to 18% for visibility
+    fillOpacity: { unselected: 0.20, selected: 0.28 }, // Increased for better visibility
     fontWeight: '400', // Regular
     padding: '10px 16px',
     border: { primary: '1px', secondary: '1px' }, // Both primary and secondary have borders
@@ -68,12 +69,13 @@ function hslToRgba(hslString: string, opacity: number): string {
 
 /**
  * Generate styles for filter pills (navigation/category selection)
- * Selected state: 30% opacity background + 1-2px inner border + font weight 500→600
+ * Selected state: 35% opacity background + 1px border + font weight 500→600
  */
 export function getFilterPillStyles(
   colors: PillColors,
   isSelected: boolean,
-  theme: 'light' | 'dark' = 'light' // Add theme parameter for contrast adjustment
+  theme: 'light' | 'dark' = 'light',
+  period?: TimePeriod // Add period for enhanced text contrast in evening/night
 ): React.CSSProperties {
   const config = PILL_CONFIG.filter;
   const opacity = isSelected ? config.fillOpacity.selected : config.fillOpacity.unselected;
@@ -81,7 +83,7 @@ export function getFilterPillStyles(
   
   // Adjust colors for theme: darken for light themes, lighten for dark themes
   const adjustedBgColor = adjustColorForTheme(colors.secondaryAccent, theme, true);
-  const textColor = adjustTextColorForContrast(colors.secondaryAccent, theme);
+  const textColor = adjustTextColorForContrast(colors.secondaryAccent, theme, period);
   
   const borderOpacity = isSelected ? config.borderOpacity.selected : config.borderOpacity.unselected;
   const borderWidth = isSelected ? config.border.selected : config.border.unselected;
@@ -118,8 +120,8 @@ function adjustColorForTheme(hslString: string, theme: 'light' | 'dark', isBackg
         color.l = Math.max(40, color.l * 0.65);
       }
     } else {
-      // Darken text colors: target 25-40% lightness for strong contrast
-      color.l = Math.max(25, color.l * 0.6);
+      // Darken text colors: target 25-35% lightness for strong contrast
+      color.l = Math.max(25, Math.min(35, color.l * 0.6));
     }
     // Increase saturation for more vibrancy
     color.s = Math.min(100, color.s * 1.3);
@@ -142,9 +144,35 @@ function adjustColorForTheme(hslString: string, theme: 'light' | 'dark', isBackg
 /**
  * Helper: Adjust lightness for better text contrast
  * Darkens light colors and lightens dark colors for readability
+ * Enhanced for evening/night periods to ensure legibility
  */
-function adjustTextColorForContrast(hslString: string, theme: 'light' | 'dark'): string {
-  return adjustColorForTheme(hslString, theme, false);
+function adjustTextColorForContrast(
+  hslString: string, 
+  theme: 'light' | 'dark',
+  period?: TimePeriod
+): string {
+  const color = parseHSL(hslString);
+  
+  if (theme === 'light') {
+    // For light themes: ensure text is dark enough (25-35% lightness)
+    color.l = Math.max(25, Math.min(35, color.l * 0.6));
+    color.s = Math.min(100, color.s * 1.3); // Increase saturation
+  } else {
+    // For dark themes: ensure text is light enough for readability
+    // Special handling for evening/night periods which have very dark base colors
+    if (period === 'evening' || period === 'night') {
+      // Force lighter text for evening/night: 75-85% lightness
+      // These periods have very dark gradients (8-12% lightness), so we need aggressive lightening
+      color.l = Math.max(75, Math.min(85, color.l < 20 ? 80 : color.l * 2.5));
+    } else {
+      // Other dark periods: ensure at least 70% lightness
+      color.l = Math.max(70, Math.min(85, color.l * 1.5));
+    }
+    // Maintain or slightly increase saturation for vibrancy
+    color.s = Math.min(100, color.s * 1.1);
+  }
+  
+  return `hsl(${Math.round(color.h)}, ${Math.round(color.s * 10) / 10}%, ${Math.round(color.l * 10) / 10}%)`;
 }
 
 /**
@@ -175,7 +203,8 @@ export function getActionPillStyles(
   colors: PillColors,
   isPositive: boolean, // true for helpful, false for not helpful
   isSelected: boolean,
-  theme: 'light' | 'dark' = 'light' // Add theme parameter for contrast adjustment
+  theme: 'light' | 'dark' = 'light',
+  period?: TimePeriod // Add period for enhanced text contrast in evening/night
 ): React.CSSProperties {
   const config = PILL_CONFIG.action;
   const opacity = isSelected ? config.fillOpacity.selected : config.fillOpacity.unselected;
@@ -183,7 +212,7 @@ export function getActionPillStyles(
   
   // Adjust colors for theme: darken for light themes, lighten for dark themes
   const adjustedBgColor = adjustColorForTheme(semanticColor, theme, true);
-  const textColor = adjustTextColorForContrast(semanticColor, theme);
+  const textColor = adjustTextColorForContrast(semanticColor, theme, period);
   const borderColor = getBorderColor(semanticColor, theme);
   
   return {
