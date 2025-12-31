@@ -86,16 +86,16 @@ export function Pill({ pill, isSelected, onClick, disabled = false }: PillProps)
       // Feedback pills: Use semantic colors (success/error) from theme
       const isHelpful = pill.label.toLowerCase().includes('helpful') && 
                        !pill.label.toLowerCase().includes('not');
-      return getActionPillStyles(pillColors, isHelpful, isSelected, theme.theme);
+      return getActionPillStyles(pillColors, isHelpful, isSelected, theme.theme, period);
     }
     
     if (pill.pillType === 'expansion') {
       // Expansion pills: Use neutral suggestion style (secondary = has border)
-      return getSuggestionPillStyles(pillColors, false, isSelected, theme.theme);
+      return getSuggestionPillStyles(pillColors, false, isSelected, theme.theme, period);
     }
     
     // Suggested questions: Use primary suggestion style (no border)
-    return getSuggestionPillStyles(pillColors, true, isSelected, theme.theme);
+    return getSuggestionPillStyles(pillColors, true, isSelected, theme.theme, period);
   };
 
   const baseStyles: React.CSSProperties = {

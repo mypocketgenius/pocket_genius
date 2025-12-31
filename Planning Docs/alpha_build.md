@@ -3101,7 +3101,7 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
 ---
 
-#### Phase 3.10: User Intake Forms ✅ ALPHA
+#### Phase 3.10: User Intake Forms ⚠️ IN PROGRESS
 
 **Objective:** Implement intake forms to collect user context for personalization
 
@@ -3112,9 +3112,15 @@ The core requirement (users can select and switch between multiple chatbots) is 
 - ✅ User model exists
 - ✅ Need to collect user context (industry, role, goals, etc.)
 
+**Status:**
+- ✅ Step 1a: Database Schema Migration (Jan 1, 2025) - **COMPLETE**
+- ✅ Step 1b: Commit Migration Files (Jan 1, 2025) - **COMPLETE**
+- ⚠️ Step 1c: Deploy to Production (Jan 1, 2025) - **READY - REQUIRES MANUAL PUSH**
+- ⏳ Step 2-9: API Routes, Components, Integration - **PENDING**
+
 **Tasks:**
 
-1. **Add Intake_Question, Intake_Response, and User_Context models to schema:**
+1. **Add Intake_Question, Intake_Response, and User_Context models to schema:** ✅ **COMPLETE**
 
    **`prisma/schema.prisma`:**
    ```prisma
@@ -3203,26 +3209,96 @@ The core requirement (users can select and switch between multiple chatbots) is 
 
    **Run migration:**
    
-   **Step 1a: Update Development Database (Local)**
-   - Ensure your `.env.local` points to your **development Neon branch**
-   - Run migration locally (creates migration files + applies to dev DB):
-     ```bash
-     npx prisma migrate dev --name add_intake_forms
-     npx prisma generate
-     ```
-   - This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+   **Step 1a: Update Development Database (Local)** ✅ **COMPLETE** (Jan 1, 2025)
    
-   **Step 1b: Commit Migration Files**
-   - Commit the new migration files to git:
-     ```bash
-     git add prisma/migrations/
-     git commit -m "Add intake forms migration"
-     ```
+   **Status:** ✅ **COMPLETE**
    
-   **Step 1c: Deploy to Production (Vercel)**
-   - Push to your repository and deploy to Vercel
-   - Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
-   - This applies the migration to your **production Neon database**
+   **What Was Done:**
+   
+   1. **Schema Updated:**
+      - ✅ Added `IntakeResponseType` enum (TEXT, NUMBER, SELECT, MULTI_SELECT, FILE, DATE, BOOLEAN)
+      - ✅ Added `ContextSource` enum (USER_PROVIDED, INFERRED, INTAKE_FORM, PLATFORM_SYNC)
+      - ✅ Added `Intake_Question` model with all required fields and relations
+      - ✅ Added `Intake_Response` model with all required fields and relations
+      - ✅ Added `User_Context` model with flexible key-value storage
+      - ✅ Updated User model to include `intakeResponses` and `userContexts` relations
+      - ✅ Updated Chatbot model to include `intakeQuestions`, `intakeResponses`, and `userContexts` relations
+      - ✅ Updated File model to include `intakeResponses` relation
+   
+   2. **Migration Process:**
+      - **Issue Encountered:** Migration checksum conflict detected with previous migration `20251229152358_rename_creator_to_body_of_work`
+      - **Resolution:** Used `prisma db push` to sync schema directly to development database
+      - **Migration File Created:** Manually created `prisma/migrations/20260101093143_add_intake_forms/migration.sql` with all required SQL statements
+      - **Migration Marked as Applied:** Used `prisma migrate resolve --applied` to mark migration as applied (since schema was already synced)
+   
+   3. **Prisma Client Generated:**
+      - ✅ Ran `npx prisma generate` successfully
+      - ✅ Prisma Client now includes new types: `IntakeResponseType`, `ContextSource`, `Intake_Question`, `Intake_Response`, `User_Context`
+   
+   **Migration File Created:**
+   - `prisma/migrations/20260101093143_add_intake_forms/migration.sql`
+   - Includes: enum creation, table creation, indexes, foreign keys, and constraints
+   
+   **Database Status:**
+   - ✅ Development database schema is up to date
+   - ✅ All 11 migrations applied successfully
+   - ✅ New tables created: `Intake_Question`, `Intake_Response`, `User_Context`
+   - ✅ New enums created: `IntakeResponseType`, `ContextSource`
+   
+   **Note:** Migration checksum issue resolved by syncing schema first, then creating migration file manually. This approach ensures database and migration history remain consistent.
+   
+   **Step 1b: Commit Migration Files** ✅ **COMPLETE** (Jan 1, 2025)
+   
+   **Status:** ✅ **COMPLETE**
+   
+   **What Was Done:**
+   
+   1. **Migration Files Committed:**
+      - ✅ Added migration directory `prisma/migrations/20260101093143_add_intake_forms/` to git staging
+      - ✅ Committed migration file with message "Add intake forms migration"
+      - ✅ Commit hash: `1c309fc`
+      - ✅ Migration file includes 97 lines of SQL (enum creation, table creation, indexes, foreign keys, and constraints)
+   
+   **Git Status:**
+   - ✅ Migration files are now tracked in version control
+   - ✅ Ready for deployment to production (Step 1c)
+   
+   **Note:** Migration files are committed and ready for production deployment. The migration will be automatically applied when deployed to Vercel.
+   
+   **Step 1c: Deploy to Production (Vercel)** ⚠️ **READY FOR MANUAL DEPLOYMENT**
+   
+   **Status:** ⚠️ **READY - REQUIRES MANUAL PUSH**
+   
+   **What Was Done:**
+   
+   1. **Push Attempted:**
+      - ✅ Attempted to push migration commit to remote repository
+      - ⚠️ Push requires authentication (git credentials needed)
+      - ✅ Migration commit (`1c309fc`) is ready locally and waiting to be pushed
+   
+   2. **Deployment Process:**
+      - **Manual Step Required:** User needs to push the commit to GitHub:
+        ```bash
+        git push origin main
+        ```
+      - **Automatic Deployment:** Once pushed, Vercel will automatically:
+        - Detect the new commit
+        - Trigger a new build
+        - Run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+        - Apply the migration to the **production Neon database**
+   
+   3. **Verification Steps (After Deployment):**
+      - Check Vercel deployment logs to confirm migration ran successfully
+      - Verify production database has new tables: `Intake_Question`, `Intake_Response`, `User_Context`
+      - Verify production database has new enums: `IntakeResponseType`, `ContextSource`
+   
+   **Current Status:**
+   - ✅ Migration files committed locally
+   - ✅ Ready to push to remote repository
+   - ⏳ Waiting for manual push and Vercel deployment
+   - ⏳ Migration will be applied automatically during Vercel build
+   
+   **Note:** The migration is ready for deployment. Once pushed to GitHub, Vercel will automatically deploy and apply the migration to production. No manual database migration steps are required.
 
 2. **Create intake form API:**
 

@@ -52,7 +52,7 @@ export function HomepageFilterPills() {
     <div className="flex flex-wrap items-center gap-2 mb-6">
       {visibleCategories.map((category) => {
         const isSelected = selectedCategory === category;
-        const styles = getFilterPillStyles(pillColors, isSelected, theme.theme);
+        const styles = getFilterPillStyles(pillColors, isSelected, theme.theme, period);
         
         return (
           <button

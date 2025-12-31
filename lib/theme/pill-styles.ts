@@ -234,7 +234,8 @@ export function getSuggestionPillStyles(
   colors: PillColors,
   isPrimary: boolean, // true for primary suggestions, false for secondary
   isSelected: boolean,
-  theme: 'light' | 'dark' = 'light' // Add theme parameter for contrast adjustment
+  theme: 'light' | 'dark' = 'light',
+  period?: TimePeriod // Add period for enhanced text contrast in evening/night
 ): React.CSSProperties {
   const config = PILL_CONFIG.suggestion;
   const opacity = isSelected ? config.fillOpacity.selected : config.fillOpacity.unselected;
@@ -245,7 +246,7 @@ export function getSuggestionPillStyles(
   
   // Adjust colors for theme: darken for light themes, lighten for dark themes
   const adjustedFillColor = adjustColorForTheme(baseFillColor, theme, true);
-  const textColor = adjustTextColorForContrast(baseTextColor, theme);
+  const textColor = adjustTextColorForContrast(baseTextColor, theme, period);
   const borderColor = getBorderColor(baseTextColor, theme);
   
   // Both primary and secondary suggestion pills get borders

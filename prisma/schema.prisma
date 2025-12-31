@@ -23,6 +23,24 @@ enum CategoryType {
   STAGE // early_stage, growth_stage, scale_stage
 }
 
+// Phase 3.10: Intake form enums
+enum IntakeResponseType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  FILE
+  DATE
+  BOOLEAN
+}
+
+enum ContextSource {
+  USER_PROVIDED
+  INFERRED
+  INTAKE_FORM
+  PLATFORM_SYNC
+}
+
 // User model - Clerk user sync
 model User {
   id        String   @id @default(cuid())
@@ -43,6 +61,8 @@ model User {
   conversationFeedbacks  Conversation_Feedback[]
   favoritedChatbots      Favorited_Chatbots[]
   createdChatbotVersions Chatbot_Version[]       @relation("ChatbotVersionCreator")
+  intakeResponses        Intake_Response[]
+  userContexts           User_Context[]           @relation("UserContext")
 }
 
 // Creator model - AI creator profile
@@ -126,6 +146,9 @@ model Chatbot {
   ratingsAggregate  Chatbot_Ratings_Aggregate?
   categories        Chatbot_Category[]
   favoritedBy       Favorited_Chatbots[]
+  intakeQuestions   Intake_Question[]
+  intakeResponses   Intake_Response[]              @relation("IntakeResponseChatbot")
+  userContexts      User_Context[]                @relation("ChatbotContext")
 
   @@index([slug])
   @@index([isPublic])
@@ -209,6 +232,9 @@ model File {
   fileSize  Int
   status    String   @default("PENDING") // 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR'
   createdAt DateTime @default(now())
+
+  // Relations
+  intakeResponses Intake_Response[] @relation("IntakeResponseFile")
 
   @@index([sourceId])
   @@index([creatorId])
@@ -457,4 +483,70 @@ model Chatbot_Version {
   @@unique([chatbotId, versionNumber])
   @@index([chatbotId])
   @@index([activatedAt])
+}
+
+// Phase 3.10: Intake form models
+model Intake_Question {
+  id           String            @id @default(cuid())
+  chatbotId    String
+  chatbot      Chatbot            @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  slug         String
+  questionText String
+  helperText   String?
+  responseType IntakeResponseType
+  displayOrder Int
+  isRequired   Boolean            @default(false)
+
+  responses Intake_Response[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatbotId, slug])
+  @@index([chatbotId])
+}
+
+model Intake_Response {
+  id                      String   @id @default(cuid())
+  intakeQuestionId        String
+  intakeQuestion         Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
+  userId                  String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId               String?
+  chatbot                 Chatbot? @relation("IntakeResponseChatbot", fields: [chatbotId], references: [id], onDelete: Cascade)
+  fileId                  String?
+  file                    File?    @relation("IntakeResponseFile", fields: [fileId], references: [id], onDelete: Cascade)
+  value                   Json
+  reusableAcrossFrameworks Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([intakeQuestionId])
+}
+
+// Phase 3.10: Flexible user context storage (editable via profile settings)
+model User_Context {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserContext", fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId String?  // Null = global context (applies to all chatbots)
+  chatbot   Chatbot? @relation("ChatbotContext", fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  key       String // e.g., 'industry', 'role', 'goals', 'company_size'
+  value     Json   // Flexible value storage
+  source    ContextSource @default(USER_PROVIDED)
+  confidence Float? // 0.0-1.0 for inferred context
+
+  expiresAt DateTime? // Optional expiration for temporary context
+  isVisible Boolean   @default(true)  // User can see this in profile
+  isEditable Boolean   @default(true)  // User can edit this in profile
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chatbotId, key])
+  @@index([userId])
+  @@index([chatbotId])
 }
