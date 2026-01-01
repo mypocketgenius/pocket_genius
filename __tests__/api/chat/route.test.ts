@@ -54,6 +54,12 @@ jest.mock('@/lib/prisma', () => ({
     pill_Usage: {
       create: jest.fn(),
     },
+    user_Context: {
+      findMany: jest.fn(),
+    },
+    chatbot_Version: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -134,6 +140,13 @@ describe('POST /api/chat', () => {
     (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
       id: 'bot-123',
       title: 'Test Bot',
+      currentVersionId: 'version-123',
+      creator: {
+        users: [{ userId: 'user-123', role: 'OWNER' }],
+      },
+      systemPrompt: 'You are a helpful assistant.',
+      configJson: null,
+      ragSettingsJson: null,
     });
     (prisma.conversation.create as jest.Mock).mockResolvedValue({
       id: 'conv-123',
@@ -166,6 +179,8 @@ describe('POST /api/chat', () => {
     (prisma.pill_Usage.create as jest.Mock).mockResolvedValue({
       id: 'usage-123',
     });
+    (prisma.user_Context.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.chatbot_Version.findMany as jest.Mock).mockResolvedValue([]);
   });
 
   describe('happy path', () => {
@@ -185,6 +200,16 @@ describe('POST /api/chat', () => {
       expect(response.headers.get('Content-Type')).toBe('text/event-stream');
       expect(prisma.chatbot.findUnique).toHaveBeenCalledWith({
         where: { id: 'bot-123' },
+        include: {
+          creator: {
+            include: {
+              users: {
+                where: { role: 'OWNER' },
+                take: 1,
+              },
+            },
+          },
+        },
       });
       expect(prisma.conversation.create).toHaveBeenCalled();
       expect(prisma.message.create).toHaveBeenCalled();

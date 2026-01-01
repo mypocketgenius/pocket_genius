@@ -118,7 +118,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Check rate limit (only for authenticated users)
+    // 4. Fetch user context (global + chatbot-specific) - Phase 3.10, Step 6
+    let userContext: Record<string, any> = {};
+    if (dbUserId) {
+      try {
+        const userContexts = await prisma.user_Context.findMany({
+          where: {
+            userId: dbUserId,
+            OR: [
+              { chatbotId: null }, // Global context
+              { chatbotId },        // Chatbot-specific context
+            ],
+            isVisible: true,
+          },
+        });
+        
+        // Build user context object
+        userContext = userContexts.reduce((acc, ctx) => {
+          acc[ctx.key] = ctx.value;
+          return acc;
+        }, {} as Record<string, any>);
+      } catch (error) {
+        // Log error but continue without user context (non-critical)
+        console.error('Error fetching user context:', error);
+        userContext = {};
+      }
+    }
+
+    // 5. Check rate limit (only for authenticated users)
     let remainingMessages = RATE_LIMIT; // Default for anonymous users
     if (dbUserId) {
       const allowed = await checkRateLimit(dbUserId);
@@ -145,7 +172,7 @@ export async function POST(req: Request) {
       remainingMessages = await getRemainingMessages(null);
     }
 
-    // 5. Get or create conversation
+    // 6. Get or create conversation
     let conversationId = providedConversationId;
     if (!conversationId) {
       // Get chatbot version ID (use current version or first version as fallback)
@@ -239,7 +266,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 6. Store user message (with error handling)
+    // 7. Store user message (with error handling)
     let userMessage;
     try {
       userMessage = await prisma.message.create({
@@ -277,7 +304,7 @@ export async function POST(req: Request) {
       throw error;
     }
 
-    // 7. Query RAG for relevant chunks (with error handling)
+    // 8. Query RAG for relevant chunks (with error handling)
     const namespace = `chatbot-${chatbotId}`;
     let retrievedChunks: RetrievedChunk[] = [];
     try {
@@ -318,7 +345,7 @@ export async function POST(req: Request) {
       // Continue with empty chunks - OpenAI will use general knowledge
     }
 
-    // 8. Build context from retrieved chunks
+    // 9. Build context from retrieved chunks
     const context = retrievedChunks
       .map((chunk) => {
         const pageInfo = chunk.page ? `Page ${chunk.page}` : '';
@@ -330,10 +357,10 @@ export async function POST(req: Request) {
       })
       .join('\n\n---\n\n');
 
-    // 9. Extract unique sourceIds for easier querying
+    // 10. Extract unique sourceIds for easier querying
     const sourceIds = [...new Set(retrievedChunks.map((c) => c.sourceId))];
 
-    // 10. Fetch source titles for attribution
+    // 11. Fetch source titles for attribution
     const sourceTitlesMap = new Map<string, string>();
     if (sourceIds.length > 0) {
       try {
@@ -356,7 +383,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 11. Prepare chunks for storage in message context (include sourceTitle for attribution)
+    // 12. Prepare chunks for storage in message context (include sourceTitle for attribution)
     const chunksForContext = retrievedChunks.map((chunk) => ({
       chunkId: chunk.chunkId,
       sourceId: chunk.sourceId,
@@ -367,14 +394,19 @@ export async function POST(req: Request) {
       relevanceScore: chunk.relevanceScore,
     }));
 
-    // 12. Generate streaming response with OpenAI (with error handling)
+    // 13. Generate streaming response with OpenAI (with error handling)
+    // Build system prompt with user context (Phase 3.10, Step 6)
+    const userContextString = Object.keys(userContext).length > 0
+      ? `\n\nUser context: ${JSON.stringify(userContext)}`
+      : '';
+    
     const systemPrompt = retrievedChunks.length > 0
       ? `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:
 
 ${context}
 
-If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.`
-      : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.`;
+If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.${userContextString}`
+      : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.${userContextString}`;
 
     let stream;
     try {
@@ -453,7 +485,7 @@ If the context doesn't contain relevant information to answer the question, say 
             }
           }
 
-          // 14. Store assistant message with context after streaming completes
+          // 15. Store assistant message with context after streaming completes
           try {
             await prisma.message.create({
               data: {
@@ -466,7 +498,7 @@ If the context doesn't contain relevant information to answer the question, say 
               },
             });
 
-            // 15. Update conversation messageCount
+            // 16. Update conversation messageCount
             await prisma.conversation.update({
               where: { id: conversationId },
               data: {
@@ -475,7 +507,7 @@ If the context doesn't contain relevant information to answer the question, say 
               },
             });
 
-            // 16. Update chunk performance counters (only if chunks were retrieved)
+            // 17. Update chunk performance counters (only if chunks were retrieved)
             if (retrievedChunks.length > 0) {
               const month = new Date().getMonth() + 1;
               const year = new Date().getFullYear();
@@ -594,10 +626,10 @@ If the context doesn't contain relevant information to answer the question, say 
       },
     });
 
-    // 16. Calculate reset time for rate limit headers (1 minute from now)
+    // 18. Calculate reset time for rate limit headers (1 minute from now)
     const resetTime = Math.floor((Date.now() + 60 * 1000) / 1000);
     
-    // 17. Return streaming response with rate limit headers and conversation ID
+    // 19. Return streaming response with rate limit headers and conversation ID
     return new Response(readableStream, {
       headers: {
         'Content-Type': 'text/event-stream',

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, SignOutButton, SignInButton, useClerk } from '@clerk/nextjs';
-import { X, Palette, LogOut, User, MessageSquare, Heart, BarChart, FileText, Upload } from 'lucide-react';
+import { X, Palette, LogOut, User, MessageSquare, Heart, BarChart, FileText, Upload, Settings } from 'lucide-react';
 import { ThemeSettings } from './theme-settings';
 import { SideMenuItem } from './side-menu-item';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
@@ -436,7 +436,24 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
             
             {/* Account Section */}
             {isSignedIn && user && (
-              <div className="px-4 pt-2 pb-0">
+              <div className="px-4 pt-2 pb-0 space-y-0">
+                <button
+                  onClick={() => {
+                    router.push('/profile');
+                    onClose();
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors rounded-md"
+                  style={{ color: theme.textColor }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <Settings className="w-5 h-5 opacity-80" style={{ color: theme.textColor }} />
+                  <span className="text-sm font-medium">Profile Settings</span>
+                </button>
                 <button
                   onClick={() => {
                     // Open Clerk's user profile modal

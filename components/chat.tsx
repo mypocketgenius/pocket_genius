@@ -18,6 +18,7 @@ import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
 import { ThemedPage } from './themed-page';
 import { ChatHeader } from './chat-header';
+import { IntakeForm } from './intake-form';
 
 interface Message {
   id: string;
@@ -68,6 +69,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [bookmarkedMessages, setBookmarkedMessages] = useState<Set<string>>(new Set());
   const [pillsVisible, setPillsVisible] = useState<boolean>(true); // Toggle state for pills visibility
   
+  // Phase 3.10: Intake form state
+  const [showIntakeForm, setShowIntakeForm] = useState<boolean | null>(null); // null = checking, true = show form, false = hide form
+  const [checkingIntakeCompletion, setCheckingIntakeCompletion] = useState(true);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
@@ -84,6 +89,33 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const chromeColors = theme.chrome;
   const currentBubbleStyle = theme.bubbleStyles[timeTheme];
   const chromeTextColor = theme.textColor;
+
+  // Phase 3.10: Check intake form completion on mount
+  useEffect(() => {
+    const checkIntakeCompletion = async () => {
+      setCheckingIntakeCompletion(true);
+      try {
+        const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Show intake form if not completed and there are questions
+          // If no questions exist, skip the form
+          setShowIntakeForm(data.hasQuestions && !data.completed);
+        } else {
+          // On error, assume intake is not required (allow chat to proceed)
+          setShowIntakeForm(false);
+        }
+      } catch (error) {
+        console.error('Error checking intake completion:', error);
+        // On error, assume intake is not required (allow chat to proceed)
+        setShowIntakeForm(false);
+      } finally {
+        setCheckingIntakeCompletion(false);
+      }
+    };
+
+    checkIntakeCompletion();
+  }, [chatbotId]);
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -701,6 +733,40 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       }, 3000);
     }
   };
+
+  // Phase 3.10: Show intake form if not completed
+  if (checkingIntakeCompletion) {
+    return (
+      <div className="flex items-center justify-center h-dvh">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showIntakeForm) {
+    return (
+      <div className="flex items-center justify-center h-dvh p-4">
+        <IntakeForm
+          chatbotId={chatbotId}
+          onComplete={() => {
+            setShowIntakeForm(false);
+            // Re-check completion status after form submission
+            fetch(`/api/intake/completion?chatbotId=${chatbotId}`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.completed) {
+                  setShowIntakeForm(false);
+                }
+              })
+              .catch(err => console.error('Error re-checking intake:', err));
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-dvh w-full" style={{ backgroundColor: chromeColors.header }}>
