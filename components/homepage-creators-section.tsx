@@ -22,6 +22,9 @@ export function HomepageCreatorsSection() {
   return (
     <section className="mb-12">
       <div className="mb-6">
+        <p className="text-base font-medium text-muted-foreground mb-4">
+          Unlike general AI, each Advisor is deeply trained on specific expert knowledge and maintains their perspective, giving you focused, authoritative guidance rather than generic responses.
+        </p>
         <h2 className="text-2xl font-bold mb-2">Our Experts</h2>
         <p className="text-muted-foreground">Browse experts and get personalized guidance from their AI Advisors</p>
       </div>
