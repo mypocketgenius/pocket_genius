@@ -896,22 +896,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
-              <div className={`max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+              <div className={`${message.role === 'user' ? 'max-w-[85%] sm:max-w-[75%] lg:max-w-[65%]' : 'w-full'} ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
                 <div
-                  className={`rounded-lg px-4 py-2 message-bubble ${
+                  className={`${message.role === 'user' ? 'rounded-lg message-bubble' : ''} px-4 py-2 ${
                     message.role === 'user' ? 'font-medium' : 'font-normal'
                   }`}
                   style={{
                     background: message.role === 'user' 
                       ? currentBubbleStyle.user 
-                      : currentBubbleStyle.ai,
+                      : 'transparent',
                     color: message.role === 'user' 
                       ? currentBubbleStyle.userText 
                       : currentBubbleStyle.text,
-                    boxShadow: currentBubbleStyle.shadow,
-                    border: `1px solid ${message.role === 'user' 
-                      ? 'rgba(255, 255, 255, 0.2)' 
-                      : 'rgba(255, 255, 255, 0.18)'}`,
+                    boxShadow: message.role === 'user' ? currentBubbleStyle.shadow : 'none',
+                    border: message.role === 'user' 
+                      ? `1px solid rgba(255, 255, 255, 0.2)` 
+                      : 'none',
                   }}
                 >
                   <div className="whitespace-pre-wrap break-words">
@@ -924,7 +924,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       chunkIds={[]} // Will be extracted from context by component
                       chatbotId={chatbotId}
                       messageContext={message.context}
-                      textColor="#1a1a1a"
+                      textColor={currentBubbleStyle.text}
                     />
                   )}
                 </div>
@@ -986,14 +986,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {/* Loading indicator */}
         {isLoading && messages[messages.length - 1]?.role === 'assistant' && 
          messages[messages.length - 1]?.content === '' && (
-          <div className="flex justify-start">
+          <div className="flex justify-start w-full">
             <div 
-              className="message-bubble rounded-lg px-4 py-2"
+              className="px-4 py-2 w-full"
               style={{
-                background: currentBubbleStyle.ai,
+                background: 'transparent',
                 color: currentBubbleStyle.text,
-                boxShadow: currentBubbleStyle.shadow,
-                border: '1px solid rgba(255, 255, 255, 0.18)',
+                boxShadow: 'none',
+                border: 'none',
               }}
             >
               <div className="flex space-x-1">

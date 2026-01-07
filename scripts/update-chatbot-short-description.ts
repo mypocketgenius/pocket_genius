@@ -53,3 +53,4 @@ if (args.length < 2) {
 const [chatbotId, shortDescription] = args;
 updateChatbotShortDescription(chatbotId, shortDescription);
 
+
