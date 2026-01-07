@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useTheme } from '@/lib/theme/theme-context';
+import { getCurrentPeriod, getEffectiveHourForMode } from '@/lib/theme/config';
 
 interface CreatorCardProps {
   creator: {
@@ -33,6 +35,22 @@ interface CreatorCardProps {
  */
 export function CreatorCard({ creator }: CreatorCardProps) {
   const router = useRouter();
+  const theme = useTheme();
+  
+  // Get current period to adjust card styling for night/evening themes
+  const now = new Date();
+  const effectiveHour = getEffectiveHourForMode(theme.mode, now.getHours(), theme.customPeriod);
+  const period = getCurrentPeriod(effectiveHour);
+  const isNightOrEvening = period === 'night' || period === 'evening';
+  
+  // Adjust card styling for night/evening themes (medium contrast)
+  const cardStyle = isNightOrEvening 
+    ? { 
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', // Medium contrast white overlay
+        borderColor: 'rgba(255, 255, 255, 0.12)', // Subtle border that blends with dark background
+        color: theme.textColor, // Use theme text color for readability
+      }
+    : {};
 
   const handleCardClick = () => {
     router.push(`/creators/${creator.slug}`);
@@ -50,6 +68,7 @@ export function CreatorCard({ creator }: CreatorCardProps) {
     <Card
       className="relative cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden group"
       onClick={handleCardClick}
+      style={cardStyle}
     >
       {/* Avatar section */}
       <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden relative">
@@ -71,15 +90,15 @@ export function CreatorCard({ creator }: CreatorCardProps) {
       </div>
 
       {/* Card content */}
-      <div className="p-3 space-y-1.5">
+      <div className="p-3 space-y-1.5" style={isNightOrEvening ? { color: theme.textColor } : {}}>
         {/* Name - truncated to 2 lines */}
-        <h3 className="font-semibold text-lg line-clamp-2">
+        <h3 className="font-semibold text-lg line-clamp-2" style={isNightOrEvening ? { color: theme.textColor } : {}}>
           {creator.name}
         </h3>
 
         {/* Bio snippet - uses shortBio if available, otherwise truncated bio */}
         {getDisplayBio() && (
-          <p className="text-sm text-gray-600 line-clamp-2 -mt-0.5">
+          <p className={`text-sm line-clamp-2 -mt-0.5 ${isNightOrEvening ? '' : 'text-gray-600'}`} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.85 } : {}}>
             {getDisplayBio()}
           </p>
         )}

@@ -22,8 +22,8 @@ export function HomepageCreatorsSection() {
   return (
     <section className="mb-12">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Experts</h2>
-        <p className="text-muted-foreground">Browse experts and their AI chatbots to help with your challenges</p>
+        <h2 className="text-2xl font-bold mb-2">Our Experts</h2>
+        <p className="text-muted-foreground">Browse experts and get personalized guidance from their AI Advisors</p>
       </div>
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">

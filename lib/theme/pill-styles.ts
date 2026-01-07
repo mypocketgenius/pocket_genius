@@ -10,6 +10,7 @@ const BASE_FONT_SIZE = '0.875rem';   // text-sm (14px)
 const PILL_CONFIG = {
   filter: {
     fillOpacity: { unselected: 0.20, selected: 0.35 }, // Increased for better visibility
+    fillOpacityNightEvening: { unselected: 0.30, selected: 0.45 }, // Higher opacity for night/evening themes
     fontWeight: { unselected: '500', selected: '600' }, // Medium → Semibold when selected
     padding: '8px 18px', // Reduced vertical padding for shorter pills
     border: { unselected: '1px', selected: '1px' }, // Border for both states
@@ -78,7 +79,10 @@ export function getFilterPillStyles(
   period?: TimePeriod // Add period for enhanced text contrast in evening/night
 ): React.CSSProperties {
   const config = PILL_CONFIG.filter;
-  const opacity = isSelected ? config.fillOpacity.selected : config.fillOpacity.unselected;
+  // Use higher opacity for night/evening themes to increase contrast
+  const isNightOrEvening = period === 'night' || period === 'evening';
+  const opacityConfig = isNightOrEvening ? config.fillOpacityNightEvening : config.fillOpacity;
+  const opacity = isSelected ? opacityConfig.selected : opacityConfig.unselected;
   const fontWeight = isSelected ? config.fontWeight.selected : config.fontWeight.unselected;
   
   // Adjust colors for theme: darken for light themes, lighten for dark themes

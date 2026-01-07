@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useTheme } from '@/lib/theme/theme-context';
 import { getPillColors } from '@/lib/theme/pill-colors';
 import { getFilterPillStyles } from '@/lib/theme/pill-styles';
-import { getCurrentPeriod } from '@/lib/theme/config';
+import { getCurrentPeriod, getEffectiveHourForMode } from '@/lib/theme/config';
 
 /**
  * HomepageFilterPills Component
@@ -17,7 +17,7 @@ import { getCurrentPeriod } from '@/lib/theme/config';
  * - Unselected: Secondary accent at 15% opacity
  * - Selected: Secondary accent at 30% opacity + 1px border + font weight 600
  * 
- * Categories: All, Strategy, Leadership, Marketing, Personal Growth, Business, Creativity, Philosophy
+ * Categories: All, Strategy, Leadership, Marketing, Sales, Personal Growth, Business, Creativity, Philosophy
  * 
  * @component
  */
@@ -26,9 +26,10 @@ export function HomepageFilterPills() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const theme = useTheme();
   
-  // Get current period for color generation
+  // Get current period for color generation (respects theme mode)
   const now = new Date();
-  const period = getCurrentPeriod(now.getHours());
+  const effectiveHour = getEffectiveHourForMode(theme.mode, now.getHours(), theme.customPeriod);
+  const period = getCurrentPeriod(effectiveHour);
   
   // Get pill colors for current theme
   const pillColors = getPillColors(theme.gradient, theme.textColor, period, theme.theme);
@@ -39,6 +40,7 @@ export function HomepageFilterPills() {
     'Strategy',
     'Leadership',
     'Marketing',
+    'Sales',
     'Personal Growth',
     'Business',
     'Creativity',

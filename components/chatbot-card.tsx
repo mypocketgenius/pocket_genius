@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChatbotDetailModal } from './chatbot-detail-modal';
 import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
+import { useTheme } from '@/lib/theme/theme-context';
+import { getCurrentPeriod, getEffectiveHourForMode } from '@/lib/theme/config';
 
 interface ChatbotCardProps {
   chatbot: {
@@ -72,10 +74,26 @@ export function ChatbotCard({
 }: ChatbotCardProps) {
   const router = useRouter();
   const { isSignedIn } = useAuth();
+  const theme = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Get current period to adjust card styling for night/evening themes
+  const now = new Date();
+  const effectiveHour = getEffectiveHourForMode(theme.mode, now.getHours(), theme.customPeriod);
+  const period = getCurrentPeriod(effectiveHour);
+  const isNightOrEvening = period === 'night' || period === 'evening';
+  
+  // Adjust card styling for night/evening themes (medium contrast)
+  const cardStyle = isNightOrEvening 
+    ? { 
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', // Medium contrast white overlay
+        borderColor: 'rgba(255, 255, 255, 0.12)', // Subtle border that blends with dark background
+        color: theme.textColor, // Use theme text color for readability
+      }
+    : {};
 
   const handleCardClick = () => {
     if (onCardClick) {
@@ -201,19 +219,20 @@ export function ChatbotCard({
       <Card
         className="relative cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden group"
         onClick={handleCardClick}
+        style={cardStyle}
       >
         {/* Favorite button - top right corner */}
         {isSignedIn && (
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-2 right-2 z-10 h-8 w-8 bg-white/80 hover:bg-white"
+            className={`absolute top-2 right-2 z-10 h-8 w-8 ${isNightOrEvening ? 'bg-white/15 hover:bg-white/25' : 'bg-white/80 hover:bg-white'}`}
             onClick={handleFavoriteClick}
             disabled={isTogglingFavorite}
           >
             <Heart
               className={`h-4 w-4 ${
-                isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'
+                isFavorite ? 'fill-red-500 text-red-500' : isNightOrEvening ? 'text-gray-300' : 'text-gray-400'
               }`}
             />
           </Button>
@@ -248,19 +267,22 @@ export function ChatbotCard({
         </div>
 
         {/* Card content */}
-        <div className="p-3 space-y-1.5">
+        <div className="p-3 space-y-1.5" style={isNightOrEvening ? { color: theme.textColor } : {}}>
           {/* Title - truncated to 2 lines */}
-          <h3 className="font-semibold text-lg line-clamp-2">
+          <h3 className={`font-semibold text-lg line-clamp-2 ${isNightOrEvening ? '' : ''}`} style={isNightOrEvening ? { color: theme.textColor } : {}}>
             {chatbot.title}
           </h3>
 
           {/* Creator name - directly underneath title */}
           <div className="text-sm -mt-1">
-            <span className="text-gray-500">by </span>
+            <span className={isNightOrEvening ? '' : 'text-gray-500'} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.8 } : {}}>
+              by{' '}
+            </span>
             <Link
               href={`/creators/${chatbot.creator.slug}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-blue-600 hover:underline font-medium"
+              className={isNightOrEvening ? 'hover:underline font-medium' : 'text-blue-600 hover:underline font-medium'}
+              style={isNightOrEvening ? { color: theme.textColor, opacity: 0.9 } : {}}
             >
               {chatbot.creator.name}
             </Link>
@@ -268,7 +290,7 @@ export function ChatbotCard({
 
           {/* Description - uses shortDescription if available, otherwise truncated description */}
           {getDisplayDescription() && (
-            <p className="text-sm text-gray-600 line-clamp-3">
+            <p className={`text-sm line-clamp-3 ${isNightOrEvening ? '' : 'text-gray-600'}`} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.85 } : {}}>
               {getDisplayDescription()}
             </p>
           )}
@@ -278,15 +300,17 @@ export function ChatbotCard({
             {chatbot.rating && chatbot.rating.ratingCount > 0 ? (
               <div className="flex items-center gap-1.5">
                 {renderStars(chatbot.rating.averageRating)}
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium" style={isNightOrEvening ? { color: theme.textColor } : {}}>
                   {chatbot.rating.averageRating?.toFixed(1)}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className={`text-xs ${isNightOrEvening ? '' : 'text-gray-500'}`} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.75 } : {}}>
                   ({chatbot.rating.ratingCount})
                 </span>
               </div>
             ) : (
-              <span className="text-sm text-gray-500">No ratings yet</span>
+              <span className={`text-sm ${isNightOrEvening ? '' : 'text-gray-500'}`} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.75 } : {}}>
+                No ratings yet
+              </span>
             )}
           </div>
 

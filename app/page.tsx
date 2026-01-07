@@ -59,10 +59,10 @@ function HomeContent() {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Turn Any Expert Into Your Advisor
+            Get Personalized Advice From The World's Best Experts
           </h2>
           <p className="text-muted-foreground mb-6">
-            AI trained on their work. Personalized to your situation.
+            AI advisors built from their insights and teachings. Applied to your situation.
           </p>
         </div>
         
