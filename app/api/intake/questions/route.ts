@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
  * GET /api/intake/questions?chatbotId=xxx
  * 
  * Returns all intake questions for a specific chatbot, ordered by displayOrder.
+ * Questions are fetched through the Chatbot_Intake_Question junction table.
  * No authentication required - questions are public metadata.
  * 
  * Query Parameters:
@@ -20,13 +21,13 @@ import { prisma } from '@/lib/prisma';
  * {
  *   questions: Array<{
  *     id: string;
- *     chatbotId: string;
+ *     chatbotId: string;  // Included for context (matches query parameter)
  *     slug: string;
  *     questionText: string;
  *     helperText: string | null;
  *     responseType: IntakeResponseType;
- *     displayOrder: number;
- *     isRequired: boolean;
+ *     displayOrder: number;  // From junction table
+ *     isRequired: boolean;    // From junction table
  *     createdAt: string;
  *     updatedAt: string;
  *   }>;
@@ -57,10 +58,28 @@ export async function GET(request: Request) {
       );
     }
 
-    const questions = await prisma.intake_Question.findMany({
+    // Fetch questions through junction table
+    const associations = await prisma.chatbot_Intake_Question.findMany({
       where: { chatbotId },
+      include: {
+        intakeQuestion: true,
+      },
       orderBy: { displayOrder: 'asc' },
     });
+
+    // Transform to match expected response format
+    const questions = associations.map((association) => ({
+      id: association.intakeQuestion.id,
+      chatbotId: association.chatbotId, // Included for context
+      slug: association.intakeQuestion.slug,
+      questionText: association.intakeQuestion.questionText,
+      helperText: association.intakeQuestion.helperText,
+      responseType: association.intakeQuestion.responseType,
+      displayOrder: association.displayOrder, // From junction table
+      isRequired: association.isRequired,     // From junction table
+      createdAt: association.intakeQuestion.createdAt,
+      updatedAt: association.intakeQuestion.updatedAt,
+    }));
 
     return NextResponse.json({ questions });
   } catch (error) {
@@ -75,31 +94,27 @@ export async function GET(request: Request) {
 /**
  * POST /api/intake/questions
  * 
- * Creates a new intake question for a chatbot.
- * Requires authentication and chatbot ownership (creator role).
+ * Creates a new intake question independently (without chatbot associations).
+ * Questions are created without chatbot associations. Use the association endpoint
+ * to link questions to chatbots.
+ * Requires authentication.
  * 
  * Request Body:
  * {
- *   chatbotId: string;
  *   slug: string;
  *   questionText: string;
  *   helperText?: string;
  *   responseType: IntakeResponseType;
- *   displayOrder: number;
- *   isRequired?: boolean;
  * }
  * 
  * Response Format:
  * {
  *   question: {
  *     id: string;
- *     chatbotId: string;
  *     slug: string;
  *     questionText: string;
  *     helperText: string | null;
  *     responseType: IntakeResponseType;
- *     displayOrder: number;
- *     isRequired: boolean;
  *     createdAt: string;
  *     updatedAt: string;
  *   };
@@ -132,57 +147,21 @@ export async function POST(request: Request) {
     // 3. Parse request body
     const body = await request.json();
     const {
-      chatbotId,
       slug,
       questionText,
       helperText,
       responseType,
-      displayOrder,
-      isRequired = false,
     } = body;
 
     // 4. Validate required fields
-    if (!chatbotId || !slug || !questionText || !responseType || displayOrder === undefined) {
+    if (!slug || !questionText || !responseType) {
       return NextResponse.json(
-        { error: 'Missing required fields: chatbotId, slug, questionText, responseType, displayOrder' },
+        { error: 'Missing required fields: slug, questionText, responseType' },
         { status: 400 }
       );
     }
 
-    // 5. Verify chatbot exists and user has permission (must be creator)
-    const chatbot = await prisma.chatbot.findUnique({
-      where: { id: chatbotId },
-      include: {
-        creator: {
-          include: {
-            users: {
-              where: { userId: user.id, role: 'OWNER' },
-            },
-          },
-        },
-      },
-    });
-
-    if (!chatbot) {
-      return NextResponse.json(
-        { error: 'Chatbot not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check ownership: user must be creator
-    const isCreator = chatbot.creator.users.some(
-      (cu) => cu.userId === user.id && cu.role === 'OWNER'
-    );
-
-    if (!isCreator) {
-      return NextResponse.json(
-        { error: 'Unauthorized: You must be the chatbot creator' },
-        { status: 403 }
-      );
-    }
-
-    // 6. Validate responseType enum
+    // 5. Validate responseType enum
     const validResponseTypes = ['TEXT', 'NUMBER', 'SELECT', 'MULTI_SELECT', 'FILE', 'DATE', 'BOOLEAN'];
     if (!validResponseTypes.includes(responseType)) {
       return NextResponse.json(
@@ -191,16 +170,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // 7. Create intake question
+    // 6. Create intake question independently (no chatbot associations)
     const question = await prisma.intake_Question.create({
       data: {
-        chatbotId,
         slug,
         questionText,
         helperText: helperText || null,
         responseType,
-        displayOrder,
-        isRequired,
+        createdByUserId: user.id,
       },
     });
 
@@ -208,10 +185,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating intake question:', error);
 
-    // Handle unique constraint violation (duplicate slug for chatbot)
+    // Handle unique constraint violation (duplicate slug - globally unique)
     if (error instanceof Error && error.message.includes('Unique constraint')) {
       return NextResponse.json(
-        { error: 'A question with this slug already exists for this chatbot' },
+        { error: 'Question with this slug already exists' },
         { status: 409 }
       );
     }
@@ -222,5 +199,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
 
 

@@ -133,6 +133,9 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
   
   // Swipe gesture handlers - work when sidebar is open or closed
   useEffect(() => {
+    // Capture ref value at start of effect to avoid stale closure in cleanup
+    const sidebarElement = sidebarRef.current;
+    
     const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
       const screenWidth = window.innerWidth;
@@ -263,10 +266,10 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
-      // Reset transform on cleanup
-      if (sidebarRef.current) {
-        sidebarRef.current.style.transform = '';
-        sidebarRef.current.style.transition = '';
+      // Reset transform on cleanup - use captured ref value from effect start
+      if (sidebarElement) {
+        sidebarElement.style.transform = '';
+        sidebarElement.style.transition = '';
       }
       setIsSwipeActive(false);
     };

@@ -31,11 +31,14 @@ function HomeContent() {
       merged = advisorBoardsGrid.syncFavorites(merged);
       return merged;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     frameworksGrid.chatbots,
     deepDivesGrid.chatbots,
     bodyOfWorkGrid.chatbots,
     advisorBoardsGrid.chatbots,
+    // Note: Grid objects not included - syncFavorites is memoized based on chatbots,
+    // and we're tracking chatbots changes. Including grid objects would cause unnecessary re-runs.
     // Note: `favorites` NOT in dependency array - functional update pattern prevents infinite loops
   ]);
 
@@ -59,7 +62,7 @@ function HomeContent() {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Get Personalized Advice From The World's Best Experts
+            Get Personalized Advice From The World&apos;s Best Experts
           </h2>
           <p className="text-muted-foreground mb-6">
             AI advisors built from their insights and teachings. Applied to your situation.

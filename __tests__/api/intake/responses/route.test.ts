@@ -13,7 +13,13 @@ jest.mock('@/lib/prisma', () => ({
     user: {
       findUnique: jest.fn(),
     },
+    chatbot: {
+      findUnique: jest.fn(),
+    },
     intake_Question: {
+      findUnique: jest.fn(),
+    },
+    chatbot_Intake_Question: {
       findUnique: jest.fn(),
     },
     intake_Response: {
@@ -43,7 +49,14 @@ describe('Intake Responses API', () => {
   const mockQuestion = {
     id: mockQuestionId,
     slug: 'industry',
+  };
+
+  const mockAssociation = {
+    id: 'association-123',
     chatbotId: mockChatbotId,
+    intakeQuestionId: mockQuestionId,
+    displayOrder: 1,
+    isRequired: true,
   };
 
   const mockResponse = {
@@ -113,6 +126,26 @@ describe('Intake Responses API', () => {
       expect(data.error).toContain('Missing required fields');
     });
 
+    it('should return 400 if chatbotId is missing', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+
+      const request = new Request('http://localhost/api/intake/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: mockUserId,
+          intakeQuestionId: mockQuestionId,
+          value: 'Technology',
+        }),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('chatbotId is required');
+    });
+
     it('should return 403 if userId does not match authenticated user', async () => {
       (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
@@ -147,28 +180,49 @@ describe('Intake Responses API', () => {
       expect(data.error).toBe('Intake question not found');
     });
 
-    it('should return 400 if chatbotId does not match question chatbotId', async () => {
+    it('should return 404 if chatbot not found', async () => {
       (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.intake_Question.findUnique as jest.Mock).mockResolvedValue(mockQuestion);
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const invalidBody = { ...mockRequestBody, chatbotId: 'different-chatbot-id' };
       const request = new Request('http://localhost/api/intake/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(invalidBody),
+        body: JSON.stringify(mockRequestBody),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe('Chatbot not found');
+    });
+
+    it('should return 400 if question is not associated with chatbot', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.intake_Question.findUnique as jest.Mock).mockResolvedValue(mockQuestion);
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({ id: mockChatbotId });
+      (prisma.chatbot_Intake_Question.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const request = new Request('http://localhost/api/intake/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mockRequestBody),
       });
       const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toContain('chatbotId does not match');
+      expect(data.error).toBe('Question is not associated with this chatbot');
     });
 
     it('should create intake response and sync to chatbot-specific User_Context', async () => {
       (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.intake_Question.findUnique as jest.Mock).mockResolvedValue(mockQuestion);
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({ id: mockChatbotId });
+      (prisma.chatbot_Intake_Question.findUnique as jest.Mock).mockResolvedValue(mockAssociation);
       (prisma.intake_Response.create as jest.Mock).mockResolvedValue(mockResponse);
       (prisma.user_Context.upsert as jest.Mock).mockResolvedValue({
         id: 'context-123',
@@ -192,6 +246,14 @@ describe('Intake Responses API', () => {
         id: mockResponse.id,
         userId: mockResponse.userId,
         intakeQuestionId: mockResponse.intakeQuestionId,
+      });
+      expect(prisma.chatbot_Intake_Question.findUnique).toHaveBeenCalledWith({
+        where: {
+          intakeQuestionId_chatbotId: {
+            intakeQuestionId: mockQuestionId,
+            chatbotId: mockChatbotId,
+          },
+        },
       });
       expect(prisma.intake_Response.create).toHaveBeenCalled();
       expect(prisma.user_Context.upsert).toHaveBeenCalledWith({
@@ -223,6 +285,8 @@ describe('Intake Responses API', () => {
       (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.intake_Question.findUnique as jest.Mock).mockResolvedValue(mockQuestion);
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({ id: mockChatbotId });
+      (prisma.chatbot_Intake_Question.findUnique as jest.Mock).mockResolvedValue(mockAssociation);
       (prisma.intake_Response.create as jest.Mock).mockResolvedValue(mockResponse);
       (prisma.user_Context.upsert as jest.Mock).mockResolvedValue({
         id: 'context-123',
@@ -258,32 +322,6 @@ describe('Intake Responses API', () => {
       });
     });
 
-    it('should use question chatbotId if chatbotId not provided', async () => {
-      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
-      (prisma.intake_Question.findUnique as jest.Mock).mockResolvedValue(mockQuestion);
-      (prisma.intake_Response.create as jest.Mock).mockResolvedValue(mockResponse);
-      (prisma.user_Context.upsert as jest.Mock).mockResolvedValue({});
-
-      const bodyWithoutChatbotId = {
-        userId: mockUserId,
-        intakeQuestionId: mockQuestionId,
-        value: 'Technology',
-      };
-      const request = new Request('http://localhost/api/intake/responses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyWithoutChatbotId),
-      });
-      const response = await POST(request);
-
-      expect(response.status).toBe(200);
-      expect(prisma.intake_Response.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          chatbotId: mockChatbotId, // Uses question's chatbotId
-        }),
-      });
-    });
 
     it('should return 409 if duplicate response exists', async () => {
       (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
@@ -322,5 +360,7 @@ describe('Intake Responses API', () => {
     });
   });
 });
+
+
 
 

@@ -63,6 +63,7 @@ model User {
   createdChatbotVersions Chatbot_Version[]       @relation("ChatbotVersionCreator")
   intakeResponses        Intake_Response[]
   userContexts           User_Context[]           @relation("UserContext")
+  createdIntakeQuestions Intake_Question[]       @relation("IntakeQuestionCreator")
 }
 
 // Creator model - AI creator profile
@@ -137,18 +138,18 @@ model Chatbot {
   createdAt DateTime @default(now())
 
   // Relations
-  conversations     Conversation[]
-  sources           Source[]
-  chunkPerformances Chunk_Performance[]
-  pills             Pill[]
-  pillUsages        Pill_Usage[]
-  bookmarks         Bookmark[]
-  ratingsAggregate  Chatbot_Ratings_Aggregate?
-  categories        Chatbot_Category[]
-  favoritedBy       Favorited_Chatbots[]
-  intakeQuestions   Intake_Question[]
-  intakeResponses   Intake_Response[]              @relation("IntakeResponseChatbot")
-  userContexts      User_Context[]                @relation("ChatbotContext")
+  conversations              Conversation[]
+  sources                    Source[]
+  chunkPerformances          Chunk_Performance[]
+  pills                      Pill[]
+  pillUsages                 Pill_Usage[]
+  bookmarks                  Bookmark[]
+  ratingsAggregate           Chatbot_Ratings_Aggregate?
+  categories                 Chatbot_Category[]
+  favoritedBy                Favorited_Chatbots[]
+  intakeQuestionAssociations Chatbot_Intake_Question[]
+  intakeResponses            Intake_Response[]              @relation("IntakeResponseChatbot")
+  userContexts               User_Context[]                @relation("ChatbotContext")
 
   @@index([slug])
   @@index([isPublic])
@@ -485,25 +486,40 @@ model Chatbot_Version {
   @@index([activatedAt])
 }
 
-// Phase 3.10: Intake form models
+// Phase 3.10: Intake form models (Updated for many-to-many)
 model Intake_Question {
-  id           String            @id @default(cuid())
-  chatbotId    String
-  chatbot      Chatbot            @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  slug         String
-  questionText String
-  helperText   String?
-  responseType IntakeResponseType
-  displayOrder Int
-  isRequired   Boolean            @default(false)
+  id             String            @id @default(cuid())
+  slug           String            @unique // Global uniqueness
+  questionText   String
+  helperText     String?
+  responseType   IntakeResponseType
+  createdByUserId String
+  createdBy      User              @relation("IntakeQuestionCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
-  responses Intake_Response[]
+  // Relations
+  chatbots       Chatbot_Intake_Question[]
+  responses      Intake_Response[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Junction table for many-to-many relationship between Chatbot and Intake_Question
+model Chatbot_Intake_Question {
+  id              String   @id @default(cuid())
+  chatbotId       String
+  chatbot         Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  intakeQuestionId String
+  intakeQuestion  Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
+  displayOrder    Int
+  isRequired      Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([chatbotId, slug])
+  @@unique([intakeQuestionId, chatbotId])
   @@index([chatbotId])
+  @@index([intakeQuestionId])
 }
 
 model Intake_Response {

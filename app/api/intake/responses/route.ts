@@ -88,13 +88,20 @@ export async function POST(request: Request) {
     // Use authenticated user's ID
     const dbUserId = user.id;
 
-    // 6. Verify intake question exists and get its slug
+    // 6. Validate chatbotId is provided (required for association check)
+    if (!chatbotId) {
+      return NextResponse.json(
+        { error: 'chatbotId is required' },
+        { status: 400 }
+      );
+    }
+
+    // 7. Verify intake question exists and get its slug
     const question = await prisma.intake_Question.findUnique({
       where: { id: intakeQuestionId },
       select: {
         id: true,
         slug: true,
-        chatbotId: true,
       },
     });
 
@@ -105,18 +112,39 @@ export async function POST(request: Request) {
       );
     }
 
-    // 7. If chatbotId provided, verify it matches question's chatbotId
-    if (chatbotId && chatbotId !== question.chatbotId) {
+    // 8. Verify chatbot exists
+    const chatbot = await prisma.chatbot.findUnique({
+      where: { id: chatbotId },
+      select: { id: true },
+    });
+
+    if (!chatbot) {
       return NextResponse.json(
-        { error: 'chatbotId does not match the intake question\'s chatbot' },
+        { error: 'Chatbot not found' },
+        { status: 404 }
+      );
+    }
+
+    // 9. Verify chatbot-question association exists via junction table
+    const association = await prisma.chatbot_Intake_Question.findUnique({
+      where: {
+        intakeQuestionId_chatbotId: {
+          intakeQuestionId: intakeQuestionId,
+          chatbotId: chatbotId,
+        },
+      },
+    });
+
+    if (!association) {
+      return NextResponse.json(
+        { error: 'Question is not associated with this chatbot' },
         { status: 400 }
       );
     }
 
-    // Use question's chatbotId if not provided
-    const finalChatbotId = chatbotId || question.chatbotId;
+    const finalChatbotId = chatbotId;
 
-    // 8. Create intake response
+    // 10. Create intake response
     const response = await prisma.intake_Response.create({
       data: {
         userId: dbUserId,
@@ -127,7 +155,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // 9. Sync to User_Context
+    // 11. Sync to User_Context
     // If reusableAcrossFrameworks is true, set chatbotId to null (global context)
     // Otherwise, use the chatbotId (chatbot-specific context)
     const targetChatbotId = reusableAcrossFrameworks ? null : finalChatbotId;
@@ -174,5 +202,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
 
 

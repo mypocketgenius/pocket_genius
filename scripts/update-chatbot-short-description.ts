@@ -54,3 +54,5 @@ const [chatbotId, shortDescription] = args;
 updateChatbotShortDescription(chatbotId, shortDescription);
 
 
+
+
