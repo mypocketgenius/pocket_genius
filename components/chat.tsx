@@ -947,6 +947,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     justifyContent: 'center',
                     gap: '0.375rem',
                     transition: 'all 0.2s',
+                    padding: '6px 14px', // Reduced height with smaller vertical padding
+                    minHeight: 'unset', // Remove minHeight constraint
                   };
                   
                   return (
@@ -956,7 +958,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       className="hover:opacity-100 active:scale-95"
                     >
                       <Pencil className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                      <span>Your Personal Context</span>
+                      <span>Edit Your Context</span>
                     </button>
                   );
                 })()}
