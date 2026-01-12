@@ -106,7 +106,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         redirectUrl: `/chat/${chatbotId}`,
       });
     }
-  }, [isLoaded, isSignedIn, chatbotId, clerk]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, chatbotId]);
 
   // Phase 3.10: Check intake form completion on mount
   useEffect(() => {
@@ -927,7 +928,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             {intakeCompleted && (
               <div className="mt-4 space-y-3">
                 <p className="text-sm opacity-90">
-                  We've received your responses. Your answers help us apply the author's wisdom to your specific context.
+                  We&apos;ve received your responses. Your answers help us apply the author&apos;s wisdom to your specific context.
                 </p>
                 {(() => {
                   // Get pill styling for subtle button that matches pills

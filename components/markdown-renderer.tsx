@@ -250,7 +250,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         {children}
       </td>
     ),
-  }), [textColor, theme, syntaxStyle, linkColor, linkHoverColor, codeBgColor, blockquoteBorderColor]);
+  }), [textColor, syntaxStyle, linkColor, linkHoverColor, codeBgColor, blockquoteBorderColor]);
   
   return (
     <div className="markdown-content" style={{ color: textColor }}>

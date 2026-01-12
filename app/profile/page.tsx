@@ -18,7 +18,8 @@ import { ThemedHeader } from '@/components/themed-header';
  * - Authentication required (redirects to home if not authenticated)
  * - Displays all user context (global + chatbot-specific)
  * - Allows editing of editable contexts via UserContextEditor component
- * - Groups contexts by global vs chatbot-specific
+ * - Groups contexts by question (key) rather than chatbot
+ * - Fetches intake questions to display proper question text
  */
 export default async function ProfilePage() {
   // 1. Authenticate user
@@ -52,10 +53,33 @@ export default async function ProfilePage() {
       },
     },
     orderBy: [
-      { chatbotId: 'asc' }, // Global context first (null)
       { key: 'asc' },
+      { chatbotId: 'asc' }, // Global context first (null)
     ],
   });
+
+  // 4. Get unique keys from contexts to fetch intake questions
+  const uniqueKeys = [...new Set(userContexts.map((ctx) => ctx.key))];
+
+  // 5. Fetch intake questions for these keys (if they exist)
+  const intakeQuestions = await prisma.intake_Question.findMany({
+    where: {
+      slug: {
+        in: uniqueKeys,
+      },
+    },
+    select: {
+      id: true,
+      slug: true,
+      questionText: true,
+      helperText: true,
+    },
+  });
+
+  // Create a map of slug -> question for easy lookup
+  const questionMap = new Map(
+    intakeQuestions.map((q) => [q.slug, q])
+  );
 
   return (
     <ThemedPageWrapper className="min-h-screen">
@@ -66,7 +90,11 @@ export default async function ProfilePage() {
           Manage your user context information. This information helps personalize
           chatbot responses to better match your needs and preferences.
         </p>
-        <UserContextEditor contexts={userContexts} userId={user.id} />
+        <UserContextEditor 
+          contexts={userContexts} 
+          userId={user.id}
+          questionMap={questionMap}
+        />
       </div>
     </ThemedPageWrapper>
   );
