@@ -90,17 +90,17 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     
     // Lists
     ul: ({ children, ...props }) => (
-      <ul className="list-disc list-inside mb-2 space-y-1 ml-4" {...props}>
+      <ul className="list-disc list-outside mb-2 space-y-1 ml-6 pl-2" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol className="list-decimal list-inside mb-2 space-y-1 ml-4" {...props}>
+      <ol className="list-decimal list-outside mb-2 space-y-1 ml-6 pl-2" {...props}>
         {children}
       </ol>
     ),
     li: ({ children, ...props }) => (
-      <li style={{ color: textColor }} {...props}>
+      <li className="pl-1" style={{ color: textColor }} {...props}>
         {children}
       </li>
     ),
