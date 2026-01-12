@@ -9,7 +9,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { CopyFeedbackModal } from './copy-feedback-modal';
 import { SideMenu } from './side-menu';
-import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu } from 'lucide-react';
+import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu, Pencil } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { StarRating } from './star-rating';
@@ -19,6 +19,9 @@ import { useTheme } from '../lib/theme/theme-context';
 import { ThemedPage } from './themed-page';
 import { ChatHeader } from './chat-header';
 import { IntakeForm } from './intake-form';
+import { getPillColors } from '../lib/theme/pill-colors';
+import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
+import { getCurrentPeriod } from '../lib/theme/config';
 
 interface Message {
   id: string;
@@ -72,6 +75,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Phase 3.10: Intake form state
   const [showIntakeForm, setShowIntakeForm] = useState<boolean | null>(null); // null = checking, true = show form, false = hide form
   const [checkingIntakeCompletion, setCheckingIntakeCompletion] = useState(true);
+  const [intakeCompleted, setIntakeCompleted] = useState<boolean | null>(null); // null = checking, true = completed, false = not completed
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -98,17 +102,21 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
         if (response.ok) {
           const data = await response.json();
-          // Show intake form whenever there are questions (regardless of completion status)
-          // If no questions exist, skip the form
-          setShowIntakeForm(data.hasQuestions);
+          // Show intake form only if there are questions AND they're not completed
+          // If no questions exist or all questions are completed, skip the form
+          setShowIntakeForm(data.hasQuestions && !data.completed);
+          // Track completion status for showing confirmation message
+          setIntakeCompleted(data.completed && data.hasQuestions);
         } else {
           // On error, assume intake is not required (allow chat to proceed)
           setShowIntakeForm(false);
+          setIntakeCompleted(false);
         }
       } catch (error) {
         console.error('Error checking intake completion:', error);
         // On error, assume intake is not required (allow chat to proceed)
         setShowIntakeForm(false);
+        setIntakeCompleted(false);
       } finally {
         setCheckingIntakeCompletion(false);
       }
@@ -748,23 +756,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   if (showIntakeForm) {
     return (
-      <div className="flex items-center justify-center h-dvh p-4">
-        <IntakeForm
-          chatbotId={chatbotId}
-          onComplete={() => {
-            setShowIntakeForm(false);
-            // Re-check completion status after form submission
-            fetch(`/api/intake/completion?chatbotId=${chatbotId}`)
-              .then(res => res.json())
-              .then(data => {
-                if (data.completed) {
-                  setShowIntakeForm(false);
-                }
-              })
-              .catch(err => console.error('Error re-checking intake:', err));
-          }}
-        />
-      </div>
+      <IntakeForm
+        chatbotId={chatbotId}
+        onComplete={() => {
+          setShowIntakeForm(false);
+          // Re-check completion status after form submission
+          fetch(`/api/intake/completion?chatbotId=${chatbotId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.completed) {
+                setShowIntakeForm(false);
+                setIntakeCompleted(true); // Show confirmation message
+              }
+            })
+            .catch(err => console.error('Error re-checking intake:', err));
+        }}
+      />
     );
   }
 
@@ -878,7 +885,44 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             style={{ color: currentBubbleStyle.text }}
           >
             <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm">Ask a question about The Art of War</p>
+            <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
+            {intakeCompleted && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm opacity-90">
+                  We've received your responses. Your answers help us apply the author's wisdom to your specific context.
+                </p>
+                {(() => {
+                  // Get pill styling for subtle button that matches pills
+                  const now = new Date();
+                  const period = getCurrentPeriod(now.getHours());
+                  const pillColors = getPillColors(theme.gradient, theme.textColor, period, theme.theme);
+                  const pillStyles = getSuggestionPillStyles(pillColors, false, false, theme.theme, period);
+                  
+                  // Make it more subtle by reducing opacity
+                  const subtleStyles: React.CSSProperties = {
+                    ...pillStyles,
+                    opacity: 0.7,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.375rem',
+                    transition: 'all 0.2s',
+                  };
+                  
+                  return (
+                    <button
+                      onClick={() => router.push('/profile')}
+                      style={subtleStyles}
+                      className="hover:opacity-100 active:scale-95"
+                    >
+                      <Pencil className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                      <span>Edit your responses</span>
+                    </button>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         )}
 

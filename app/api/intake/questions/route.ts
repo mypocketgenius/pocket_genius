@@ -75,6 +75,7 @@ export async function GET(request: Request) {
       questionText: association.intakeQuestion.questionText,
       helperText: association.intakeQuestion.helperText,
       responseType: association.intakeQuestion.responseType,
+      options: association.intakeQuestion.options, // Options for SELECT and MULTI_SELECT
       displayOrder: association.displayOrder, // From junction table
       isRequired: association.isRequired,     // From junction table
       createdAt: association.intakeQuestion.createdAt,
@@ -151,6 +152,7 @@ export async function POST(request: Request) {
       questionText,
       helperText,
       responseType,
+      options,
     } = body;
 
     // 4. Validate required fields
@@ -170,13 +172,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Create intake question independently (no chatbot associations)
+    // 6. Validate options for SELECT and MULTI_SELECT types
+    if ((responseType === 'SELECT' || responseType === 'MULTI_SELECT') && (!options || !Array.isArray(options) || options.length === 0)) {
+      return NextResponse.json(
+        { error: 'options array is required for SELECT and MULTI_SELECT response types' },
+        { status: 400 }
+      );
+    }
+
+    // 7. Create intake question independently (no chatbot associations)
     const question = await prisma.intake_Question.create({
       data: {
         slug,
         questionText,
         helperText: helperText || null,
         responseType,
+        options: options ? options : null,
         createdByUserId: user.id,
       },
     });

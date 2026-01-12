@@ -493,6 +493,7 @@ model Intake_Question {
   questionText   String
   helperText     String?
   responseType   IntakeResponseType
+  options        Json?             // Options for SELECT and MULTI_SELECT response types
   createdByUserId String
   createdBy      User              @relation("IntakeQuestionCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
 

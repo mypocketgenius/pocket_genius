@@ -316,6 +316,32 @@ export async function POST(req: Request) {
     } catch (error) {
       console.error('RAG query failed:', error);
       
+      // Handle OpenAI API errors (including quota errors)
+      if (error instanceof OpenAI.APIError) {
+        // Quota exceeded (429) or payment required (402)
+        if (error.status === 429 || error.status === 402) {
+          return NextResponse.json(
+            { error: 'OpenAI service quota exceeded. Please check your billing or try again later.' },
+            { status: 503 }
+          );
+        }
+        
+        // Authentication/authorization errors
+        if (error.status === 401 || error.status === 403) {
+          console.error('OpenAI API key issue:', error.message);
+          return NextResponse.json(
+            { error: 'Service configuration error. Please contact support.' },
+            { status: 500 }
+          );
+        }
+        
+        // Other OpenAI API errors
+        return NextResponse.json(
+          { error: 'Service temporarily unavailable. Please try again shortly.' },
+          { status: 503 }
+        );
+      }
+      
       // Handle Pinecone connection errors
       if (error instanceof Error) {
         if (error.message.includes('Pinecone') || error.message.includes('connection')) {
@@ -325,8 +351,16 @@ export async function POST(req: Request) {
           );
         }
         
-        // Handle embedding generation errors (OpenAI API issues)
+        // Handle embedding generation errors (OpenAI API issues) - check message for quota errors
         if (error.message.includes('OpenAI') || error.message.includes('embedding')) {
+          // Check for quota-related messages
+          if (error.message.includes('quota') || error.message.includes('429') || error.message.includes('exceeded')) {
+            return NextResponse.json(
+              { error: 'OpenAI service quota exceeded. Please check your billing or try again later.' },
+              { status: 503 }
+            );
+          }
+          
           return NextResponse.json(
             { error: 'Service temporarily unavailable. Please try again shortly.' },
             { status: 503 }

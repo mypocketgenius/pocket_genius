@@ -4085,6 +4085,96 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Phase 3.10 Update: Many-to-Many Intake Questions & Seed Data ✅ COMPLETE (Jan 12, 2025)
+
+**Status:** ✅ **COMPLETE** (Jan 12, 2025)
+
+**Objective:** Convert intake questions system from one-to-many to many-to-many relationship, enabling questions to be shared across multiple chatbots. Add seed questions for Art of War chatbot.
+
+**Why:** After completing Phase 3.10, we identified that intake questions were tied to individual chatbots, causing duplication. This update enables question reuse across chatbots (e.g., "What is your role?" can be shared), reducing maintenance overhead and improving consistency.
+
+**Prerequisites:**
+- ✅ Phase 3.10 complete (Intake forms system)
+- ✅ No existing intake questions (clean migration)
+
+**What Was Done:**
+
+1. **Database Schema Migration:**
+   - ✅ Converted `Intake_Question` from one-to-many to many-to-many relationship
+   - ✅ Removed `chatbotId`, `displayOrder`, `isRequired` from `Intake_Question` model
+   - ✅ Created `Chatbot_Intake_Question` junction table with:
+     - `chatbotId` (FK to Chatbot)
+     - `intakeQuestionId` (FK to Intake_Question)
+     - `displayOrder` (Int) - per chatbot ordering
+     - `isRequired` (Boolean) - per chatbot requirement
+   - ✅ Updated `slug` uniqueness to global (was per-chatbot)
+   - ✅ Added `createdByUserId` field to track question creators
+   - ✅ Migration file: `prisma/migrations/20260112103644_intake_questions_many_to_many/migration.sql`
+
+2. **API Route Updates:**
+   - ✅ Updated GET `/api/intake/questions?chatbotId=xxx` to join through junction table
+   - ✅ Updated POST `/api/intake/questions` to create questions independently (no chatbot associations)
+   - ✅ Created POST `/api/intake/questions/[questionId]/chatbots` - Associate questions with chatbots
+   - ✅ Created DELETE `/api/intake/questions/[questionId]/chatbots` - Remove associations
+   - ✅ Created PATCH `/api/intake/questions/[questionId]/chatbots` - Update displayOrder/isRequired
+   - ✅ Updated POST `/api/intake/responses` to verify chatbot-question association via junction table
+
+3. **Test Updates:**
+   - ✅ Updated intake questions tests to use junction table structure
+   - ✅ Updated intake responses tests to verify chatbot-question associations
+   - ✅ Created comprehensive test suite for association endpoints (POST/DELETE/PATCH)
+   - ✅ All tests passing (100% pass rate)
+
+4. **Seed Data:**
+   - ✅ Created seed script for Art of War intake questions (`art-of-war-intake-questions.md`)
+   - ✅ Added 5 questions designed for startup employees:
+     1. **Role/Position** (SELECT) - "What is your role in the startup?"
+     2. **Company Stage** (SELECT) - "What stage is your startup currently in?"
+     3. **Primary Challenge** (MULTI_SELECT) - "What is your primary business challenge right now?"
+     4. **Team Size** (SELECT) - "How many people are in your immediate team or department?"
+     5. **Competitive Landscape** (SELECT) - "How would you describe your competitive landscape?"
+   - ✅ Questions designed to personalize Art of War advice based on user context
+   - ✅ All questions marked as required with appropriate display orders
+
+**Key Features:**
+- ✅ Questions can be created independently (no chatbot required)
+- ✅ Questions can be shared across multiple chatbots
+- ✅ Each chatbot can have different `displayOrder` and `isRequired` settings per question
+- ✅ Globally unique slugs (prevents duplicate questions across chatbots)
+- ✅ Question creator tracking (`createdByUserId`)
+- ✅ Authorization: Only chatbot creators can associate questions with their chatbots
+- ✅ Seed questions ready for Art of War chatbot
+
+**Deliverables:**
+- ✅ Database migration: Many-to-many relationship implemented
+- ✅ Updated API routes: Question creation, association, and response submission
+- ✅ Comprehensive test coverage: All endpoints tested and passing
+- ✅ Seed questions: 5 Art of War questions documented and ready for seeding
+- ✅ Documentation: Full implementation plan in `Planning Docs/01-01_intake-questions-many-to-many.md`
+
+**Files Created:**
+- `app/api/intake/questions/[questionId]/chatbots/route.ts` - Association endpoints (POST/DELETE/PATCH)
+- `__tests__/api/intake/questions/[questionId]/chatbots/route.test.ts` - Association endpoint tests
+- `art-of-war-intake-questions.md` - Seed questions documentation
+
+**Files Modified:**
+- `prisma/schema.prisma` - Updated Intake_Question model, added Chatbot_Intake_Question junction table
+- `app/api/intake/questions/route.ts` - Updated GET/POST to work with junction table
+- `app/api/intake/responses/route.ts` - Updated to verify chatbot-question associations
+- `__tests__/api/intake/questions/route.test.ts` - Updated tests for new structure
+- `__tests__/api/intake/responses/route.test.ts` - Updated tests for association verification
+
+**Implementation Details:**
+- Questions are now independent entities that can be reused across chatbots
+- Junction table stores chatbot-specific configuration (displayOrder, isRequired)
+- Authorization ensures only chatbot creators can manage associations
+- Response submission verifies chatbot-question association before accepting responses
+- Seed questions provide example implementation for Art of War chatbot
+
+**Note:** This update improves maintainability by allowing question reuse across chatbots. Common questions like "What is your role?" can be created once and associated with multiple chatbots, reducing duplication and ensuring consistency. The seed questions provide a concrete example of how intake questions can personalize chatbot responses based on user context.
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 ### **CRITICAL FOR ALPHA**

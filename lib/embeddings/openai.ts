@@ -44,11 +44,10 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     // Map response data to array of embedding vectors
     return response.data.map((item) => item.embedding);
   } catch (error) {
-    // Provide helpful error messages
+    // Preserve OpenAI API errors so they can be properly handled upstream
+    // This allows callers to check status codes (e.g., 429 for quota errors)
     if (error instanceof OpenAI.APIError) {
-      throw new Error(
-        `OpenAI API error: ${error.message} (status: ${error.status})`
-      );
+      throw error;
     }
     throw error;
   }
