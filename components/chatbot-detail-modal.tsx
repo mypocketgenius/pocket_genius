@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useAuth, useUser, useClerk } from '@clerk/nextjs';
 import { X, Heart, Star, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -94,6 +94,7 @@ export function ChatbotDetailModal({
   const router = useRouter();
   const { isSignedIn, userId: clerkUserId } = useAuth();
   const { user } = useUser();
+  const clerk = useClerk();
   
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
@@ -215,7 +216,11 @@ export function ChatbotDetailModal({
         onStartChat(chatbot.id);
         onClose();
       } else {
-        router.push('/sign-in');
+        // Open sign-in modal with redirect URL
+        clerk.openSignIn({
+          redirectUrl: `/chat/${chatbot.id}`,
+        });
+        onClose(); // Close chatbot detail modal
       }
     } else {
       // Paid - show disabled button with tooltip (deferred to Beta)

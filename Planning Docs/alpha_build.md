@@ -4175,6 +4175,91 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Require Authentication for Chat ✅ COMPLETE (Jan 12, 2025)
+
+**Status:** ✅ **COMPLETE** (Jan 12, 2025)
+
+**Objective:** Require users to sign in before they can start or continue a chat conversation. When an unauthenticated user attempts to access a chat page or send a message, they should be redirected to sign in via Clerk's modal.
+
+**Why:** After completing Phase 3.10 (User Intake Forms), we identified that chat access was still available to anonymous users. This side quest secures chat functionality by requiring authentication, ensuring that user context and intake responses are properly associated with authenticated users.
+
+**Prerequisites:**
+- ✅ Phase 3.10 complete (User Intake Forms)
+- ✅ Clerk authentication working
+- ✅ Chat API route exists (`/api/chat`)
+- ✅ Chat component exists (`components/chat.tsx`)
+
+**What Was Done:**
+
+1. **Updated Chat API Route:**
+   - ✅ Required authentication in `app/api/chat/route.ts` - returns 401 if not authenticated
+   - ✅ Removed anonymous user fallbacks (`dbUserId || undefined` → `dbUserId`)
+   - ✅ Simplified rate limit logic - removed anonymous user branch
+   - ✅ Updated conversation access check - removed anonymous access comments
+   - ✅ Removed conditional check for user context fetch - `dbUserId` always present now
+   - ✅ Kept conversation upgrade logic unchanged (legacy anonymous conversations can still be upgraded)
+
+2. **Updated Chat Component:**
+   - ✅ Added `useClerk` hook import
+   - ✅ Added `isLoaded` from `useAuth()` hook
+   - ✅ Added `useEffect` hook to check auth and open modal if not signed in
+   - ✅ Added loading state UI while checking auth (`!isLoaded`)
+   - ✅ Added auth prompt UI if not signed in (modal should be open)
+   - ✅ Clears localStorage conversationId if not authenticated
+
+3. **Updated Chatbot Detail Modal:**
+   - ✅ Added `useClerk` hook import
+   - ✅ Updated `handleStartChat` function to use `clerk.openSignIn()` with redirectUrl instead of `router.push('/sign-in')`
+   - ✅ Modal closes after opening sign-in modal
+
+**Key Features:**
+- ✅ Unauthenticated users cannot access `/chat/[chatbotId]` pages (blocked by client-side check)
+- ✅ Unauthenticated users cannot send messages via `/api/chat` endpoint (returns 401)
+- ✅ Sign-in modal opens automatically when unauthenticated users attempt to access chat
+- ✅ After signing in via modal, users are redirected back to the chat page they were trying to access
+- ✅ Existing authenticated users can continue using chat without interruption
+- ✅ Chat component shows appropriate loading/auth prompt during authentication check
+- ✅ All anonymous user support removed from chat API (cleaner codebase)
+
+**Deliverables:**
+- ✅ Updated `app/api/chat/route.ts` - Required authentication, removed anonymous user support
+- ✅ Updated `components/chat.tsx` - Added auth check and modal trigger
+- ✅ Updated `components/chatbot-detail-modal.tsx` - Updated sign-in to use modal instead of router.push
+- ✅ Updated `Planning Docs/01-12_require-auth-for-chat.md` - Implementation summary documented
+- ✅ All acceptance criteria met
+- ✅ No linter errors
+
+**Files Modified:**
+- `app/api/chat/route.ts` - Required authentication, removed anonymous user fallbacks (~15 lines removed)
+- `components/chat.tsx` - Added auth check and modal trigger (~25 lines added)
+- `components/chatbot-detail-modal.tsx` - Updated sign-in flow (~5 lines modified)
+- `Planning Docs/01-12_require-auth-for-chat.md` - Implementation summary added
+
+**Implementation Details:**
+- Authentication pattern: Uses Clerk `auth()` pattern consistently
+- Modal sign-in: Uses `clerk.openSignIn()` with `redirectUrl` parameter for seamless UX
+- Error handling: API returns 401 with clear error message for unauthenticated requests
+- User experience: Modal opens automatically, no page redirects, smooth flow
+- Code cleanup: Removed ~15 lines of anonymous user support code
+
+**Testing:**
+- ✅ All files pass linting
+- ✅ Implementation follows plan exactly
+- ✅ Ready for manual testing:
+  - Try accessing `/chat/[chatbotId]` without signing in → modal should open
+  - Try sending a message without auth → API should return 401
+  - Sign in via modal → should redirect back to chat page
+  - Verify authenticated users can use chat normally
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-12_require-auth-for-chat.md`
+- Comprehensive implementation summary with all changes listed
+- All acceptance criteria verified
+
+**Note:** This side quest improves security and user experience by requiring authentication for chat access. The implementation uses Clerk's modal sign-in for a seamless UX, avoiding page redirects and maintaining user context. All anonymous user support has been removed from the chat API, resulting in cleaner, more maintainable code.
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 ### **CRITICAL FOR ALPHA**

@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useClerk } from '@clerk/nextjs';
 import { CopyFeedbackModal } from './copy-feedback-modal';
 import { SideMenu } from './side-menu';
 import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu, Pencil } from 'lucide-react';
@@ -52,7 +52,8 @@ interface ChatProps {
 export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerk = useClerk();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +95,18 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const chromeColors = theme.chrome;
   const currentBubbleStyle = theme.bubbleStyles[timeTheme];
   const chromeTextColor = theme.textColor;
+
+  // Check auth and open modal if needed
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      // Clear any stored conversation data
+      localStorage.removeItem(`conversationId_${chatbotId}`);
+      // Open sign-in modal with redirect URL
+      clerk.openSignIn({
+        redirectUrl: `/chat/${chatbotId}`,
+      });
+    }
+  }, [isLoaded, isSignedIn, chatbotId, clerk]);
 
   // Phase 3.10: Check intake form completion on mount
   useEffect(() => {
@@ -742,6 +755,30 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       }, 3000);
     }
   };
+
+  // Show loading while checking auth
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center h-dvh">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth prompt if not signed in (modal should be open)
+  if (!isSignedIn) {
+    return (
+      <div className="flex items-center justify-center h-dvh">
+        <div className="text-center">
+          <p className="text-lg mb-4">Please sign in to continue</p>
+          <p className="text-sm text-gray-500">Sign-in modal should open automatically...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Phase 3.10: Show intake form if not completed
   if (checkingIntakeCompletion) {

@@ -49,18 +49,29 @@ const openai = new OpenAI({
  */
 export async function POST(req: Request) {
   try {
-    // 1. Authenticate user (optional for MVP - allow anonymous users)
+    // 1. Authenticate user (REQUIRED)
     const { userId: clerkUserId } = await auth();
-    
-    // Get database user ID if authenticated
-    let dbUserId: string | null = null;
-    if (clerkUserId) {
-      const user = await prisma.user.findUnique({
-        where: { clerkId: clerkUserId },
-        select: { id: true },
-      });
-      dbUserId = user?.id || null;
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
     }
+
+    // Get database user ID (required)
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    const dbUserId = user.id; // Always present, no null
 
     // 2. Parse request body
     const body = await req.json();
@@ -120,56 +131,48 @@ export async function POST(req: Request) {
 
     // 4. Fetch user context (global + chatbot-specific) - Phase 3.10, Step 6
     let userContext: Record<string, any> = {};
-    if (dbUserId) {
-      try {
-        const userContexts = await prisma.user_Context.findMany({
-          where: {
-            userId: dbUserId,
-            OR: [
-              { chatbotId: null }, // Global context
-              { chatbotId },        // Chatbot-specific context
-            ],
-            isVisible: true,
-          },
-        });
-        
-        // Build user context object
-        userContext = userContexts.reduce((acc, ctx) => {
-          acc[ctx.key] = ctx.value;
-          return acc;
-        }, {} as Record<string, any>);
-      } catch (error) {
-        // Log error but continue without user context (non-critical)
-        console.error('Error fetching user context:', error);
-        userContext = {};
-      }
+    try {
+      const userContexts = await prisma.user_Context.findMany({
+        where: {
+          userId: dbUserId,
+          OR: [
+            { chatbotId: null }, // Global context
+            { chatbotId },        // Chatbot-specific context
+          ],
+          isVisible: true,
+        },
+      });
+      
+      // Build user context object
+      userContext = userContexts.reduce((acc, ctx) => {
+        acc[ctx.key] = ctx.value;
+        return acc;
+      }, {} as Record<string, any>);
+    } catch (error) {
+      // Log error but continue without user context (non-critical)
+      console.error('Error fetching user context:', error);
+      userContext = {};
     }
 
-    // 5. Check rate limit (only for authenticated users)
-    let remainingMessages = RATE_LIMIT; // Default for anonymous users
-    if (dbUserId) {
-      const allowed = await checkRateLimit(dbUserId);
-      remainingMessages = await getRemainingMessages(dbUserId);
+    // 5. Check rate limit (dbUserId always present now)
+    const allowed = await checkRateLimit(dbUserId);
+    const remainingMessages = await getRemainingMessages(dbUserId);
+    
+    if (!allowed) {
+      // Calculate reset time (1 minute from now)
+      const resetTime = Math.floor((Date.now() + 60 * 1000) / 1000);
       
-      if (!allowed) {
-        // Calculate reset time (1 minute from now)
-        const resetTime = Math.floor((Date.now() + 60 * 1000) / 1000);
-        
-        return NextResponse.json(
-          { error: 'Rate limit exceeded. Please wait a moment before sending another message.' },
-          { 
-            status: 429,
-            headers: {
-              'X-RateLimit-Limit': RATE_LIMIT.toString(),
-              'X-RateLimit-Remaining': '0',
-              'X-RateLimit-Reset': resetTime.toString(),
-            },
-          }
-        );
-      }
-    } else {
-      // For anonymous users, get remaining (always RATE_LIMIT for now)
-      remainingMessages = await getRemainingMessages(null);
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please wait a moment before sending another message.' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': RATE_LIMIT.toString(),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': resetTime.toString(),
+          },
+        }
+      );
     }
 
     // 6. Get or create conversation
@@ -213,7 +216,7 @@ export async function POST(req: Request) {
         data: {
           chatbotId,
           chatbotVersionId,
-          userId: dbUserId || undefined,
+          userId: dbUserId, // Always present
           status: 'active',
           messageCount: 0,
         },
@@ -240,12 +243,11 @@ export async function POST(req: Request) {
         );
       }
 
-      // Verify conversation belongs to user (if authenticated)
+      // Verify conversation belongs to user
       // Allow access if:
-      // 1. Conversation has no userId (anonymous) - anyone can access
+      // 1. Conversation has no userId (legacy anonymous) - upgrade ownership below
       // 2. Conversation userId matches current user
-      // 3. Current user is anonymous - can access anonymous conversations
-      if (conversation.userId && dbUserId && conversation.userId !== dbUserId) {
+      if (conversation.userId && conversation.userId !== dbUserId) {
         return NextResponse.json(
           { error: 'Unauthorized access to conversation' },
           { status: 403 }
@@ -272,7 +274,7 @@ export async function POST(req: Request) {
       userMessage = await prisma.message.create({
         data: {
           conversationId,
-          userId: dbUserId || undefined,
+          userId: dbUserId, // Always present
           role: 'user',
           content: lastMessage.content,
         },
@@ -524,7 +526,7 @@ If the context doesn't contain relevant information to answer the question, say 
             await prisma.message.create({
               data: {
                 conversationId,
-                userId: dbUserId || undefined,
+                userId: dbUserId, // Always present
                 role: 'assistant',
                 content: fullResponse,
                 context: { chunks: chunksForContext },
