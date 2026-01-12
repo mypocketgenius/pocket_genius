@@ -11,7 +11,7 @@ import { prisma } from '@/lib/prisma';
  * 
  * Checks if the current authenticated user has completed the intake form for a chatbot.
  * Returns true if:
- * - User has answered all required questions for the chatbot
+ * - User has answered all questions (required and optional) for the chatbot
  * - OR there are no intake questions for the chatbot
  * 
  * Query Parameters:
@@ -22,7 +22,9 @@ import { prisma } from '@/lib/prisma';
  *   completed: boolean;
  *   hasQuestions: boolean;
  *   answeredCount?: number;
- *   totalRequiredCount?: number;
+ *   totalCount?: number;
+ *   requiredCount?: number;
+ *   answeredRequiredCount?: number;
  * }
  */
 export async function GET(request: Request) {
@@ -64,22 +66,31 @@ export async function GET(request: Request) {
       );
     }
 
-    // 4. Get all intake questions for the chatbot
-    const questions = await prisma.intake_Question.findMany({
+    // 4. Get all intake questions for the chatbot through junction table
+    const associations = await prisma.chatbot_Intake_Question.findMany({
       where: { chatbotId },
-      select: {
-        id: true,
-        isRequired: true,
+      include: {
+        intakeQuestion: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
     // If no questions exist, intake is considered "completed"
-    if (questions.length === 0) {
+    if (associations.length === 0) {
       return NextResponse.json({
         completed: true,
         hasQuestions: false,
       });
     }
+
+    // Transform associations to get question IDs and isRequired from junction table
+    const questions = associations.map((association) => ({
+      id: association.intakeQuestion.id,
+      isRequired: association.isRequired, // From junction table
+    }));
 
     // 5. Get all intake responses for this user and chatbot
     const responses = await prisma.intake_Response.findMany({
@@ -94,14 +105,18 @@ export async function GET(request: Request) {
 
     const answeredQuestionIds = new Set(responses.map(r => r.intakeQuestionId));
     
-    // 6. Check if all required questions are answered
+    // 6. Check if all questions are answered (not just required ones)
+    // Show form if there are any unanswered questions, regardless of whether they're required
+    const allQuestionsAnswered = questions.every(q => answeredQuestionIds.has(q.id));
+    
+    // Also check required questions separately for reporting
     const requiredQuestions = questions.filter(q => q.isRequired);
     const answeredRequiredQuestions = requiredQuestions.filter(q => 
       answeredQuestionIds.has(q.id)
     );
 
-    const completed = requiredQuestions.length === 0 || 
-                      answeredRequiredQuestions.length === requiredQuestions.length;
+    // Mark as completed only if ALL questions (required and optional) are answered
+    const completed = allQuestionsAnswered;
 
     return NextResponse.json({
       completed,
@@ -119,7 +134,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
-
-
-

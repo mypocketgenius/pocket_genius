@@ -98,9 +98,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
         if (response.ok) {
           const data = await response.json();
-          // Show intake form if not completed and there are questions
+          // Show intake form whenever there are questions (regardless of completion status)
           // If no questions exist, skip the form
-          setShowIntakeForm(data.hasQuestions && !data.completed);
+          setShowIntakeForm(data.hasQuestions);
         } else {
           // On error, assume intake is not required (allow chat to proceed)
           setShowIntakeForm(false);

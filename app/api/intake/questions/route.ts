@@ -184,6 +184,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ question });
   } catch (error) {
     console.error('Error creating intake question:', error);
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
 
     // Handle unique constraint violation (duplicate slug - globally unique)
     if (error instanceof Error && error.message.includes('Unique constraint')) {
@@ -193,8 +195,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Return more detailed error in development
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
     return NextResponse.json(
-      { error: 'Failed to create intake question' },
+      { 
+        error: 'Failed to create intake question',
+        ...(isDevelopment && { details: errorMessage })
+      },
       { status: 500 }
     );
   }
