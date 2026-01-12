@@ -175,3 +175,13 @@
   opacity: 0.7;
 }
 
+/* Markdown content styling */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content pre {
+  /* SyntaxHighlighter handles its own styling */
+  /* Overflow handled by component wrapper */
+}
+

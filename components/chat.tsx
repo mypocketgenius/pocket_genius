@@ -22,6 +22,7 @@ import { IntakeForm } from './intake-form';
 import { getPillColors } from '../lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
 import { getCurrentPeriod } from '../lib/theme/config';
+import { MarkdownRenderer } from './markdown-renderer';
 
 interface Message {
   id: string;
@@ -912,12 +913,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                   
                   return (
                     <button
-                      onClick={() => router.push('/profile')}
+                      onClick={() => window.open('/profile', '_blank', 'noopener,noreferrer')}
                       style={subtleStyles}
                       className="hover:opacity-100 active:scale-95"
                     >
                       <Pencil className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                      <span>Edit your responses</span>
+                      <span>Your Personal Context</span>
                     </button>
                   );
                 })()}
@@ -958,9 +959,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       : 'none',
                   }}
                 >
-                  <div className="whitespace-pre-wrap break-words">
-                    {message.content || (message.role === 'assistant' && isLoading ? '...' : '')}
-                  </div>
+                  {message.role === 'assistant' ? (
+                    <MarkdownRenderer 
+                      content={message.content || (isLoading ? '...' : '')} 
+                      textColor={currentBubbleStyle.text}
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">
+                      {message.content}
+                    </div>
+                  )}
                   
                   {/* Phase 4: Source attribution - inside message bubble at the end */}
                   {message.role === 'assistant' && message.context && (

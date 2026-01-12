@@ -4,6 +4,8 @@
 // Displays source names from message context
 
 import { Prisma } from '@prisma/client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 interface SourceAttributionProps {
   chunkIds: string[];
@@ -33,6 +35,7 @@ interface SourceAttributionProps {
  * Features:
  * - Extracts source names from message.context.chunks
  * - Displays comma-separated list: "Sources: The Art of War, Leadership Principles"
+ * - Adds "Your Personal Context" link if user has completed intake questions
  * - Small, muted text style (text-xs text-gray-500)
  * - Positioned below message actions (Copy/Save buttons)
  * - Handles missing source data gracefully (returns null if no sources)
@@ -40,7 +43,7 @@ interface SourceAttributionProps {
  * 
  * @param {SourceAttributionProps} props - Component props
  * @param {string[]} props.chunkIds - Array of chunk IDs from message context
- * @param {string} props.chatbotId - ID of the chatbot (for future use)
+ * @param {string} props.chatbotId - ID of the chatbot (for checking intake completion)
  * @param {Prisma.JsonValue} [props.messageContext] - Message.context from database (contains chunks array)
  * 
  * @returns {JSX.Element | null} Source attribution text or null if no sources found
@@ -51,6 +54,29 @@ export function SourceAttribution({
   messageContext,
   textColor = '#4b5563', // Default gray-600, but will be overridden by dynamic color
 }: SourceAttributionProps) {
+  const [hasCompletedIntake, setHasCompletedIntake] = useState<boolean>(false);
+
+  // Check if user has completed intake questions for this chatbot
+  useEffect(() => {
+    const checkIntakeCompletion = async () => {
+      try {
+        const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Set to true if intake is completed AND there are questions
+          setHasCompletedIntake(data.completed && data.hasQuestions);
+        } else {
+          setHasCompletedIntake(false);
+        }
+      } catch (error) {
+        console.error('Error checking intake completion:', error);
+        setHasCompletedIntake(false);
+      }
+    };
+
+    checkIntakeCompletion();
+  }, [chatbotId]);
+
   // Extract source names from message context
   const getSourceNames = (): string[] => {
     if (!messageContext || typeof messageContext !== 'object') {
@@ -79,15 +105,44 @@ export function SourceAttribution({
 
   const sourceNames = getSourceNames();
 
-  // Don't render if no sources found
-  if (sourceNames.length === 0) {
+  // Don't render if no sources found and intake not completed
+  // If intake is completed but no sources, we still want to show "Your Personal Context"
+  if (sourceNames.length === 0 && !hasCompletedIntake) {
     return null;
   }
+
+  // Determine link color (slightly brighter than text color for visibility)
+  const linkColor = textColor || '#4b5563';
+  const linkHoverColor = '#2563eb'; // Blue hover color
 
   return (
     <div className="mt-2 pt-2 text-xs" style={{ color: textColor, opacity: 0.8 }}>
       <span className="font-medium">Sources:</span>{' '}
-      <span>{sourceNames.join(', ')}</span>
+      {sourceNames.length > 0 && (
+        <>
+          <span>{sourceNames.join(', ')}</span>
+          {hasCompletedIntake && ', '}
+        </>
+      )}
+      {hasCompletedIntake && (
+        <Link
+          href="/profile"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:no-underline transition-all"
+          style={{
+            color: linkColor,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = linkHoverColor;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = linkColor;
+          }}
+        >
+          Your Personal Context
+        </Link>
+      )}
     </div>
   );
 }
