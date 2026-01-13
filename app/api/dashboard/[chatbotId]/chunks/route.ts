@@ -44,7 +44,9 @@ export async function GET(
     const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
     const sortBy = searchParams.get('sortBy') || 'timesUsed';
     const order = searchParams.get('order') || 'desc';
-    const minTimesUsed = parseInt(searchParams.get('minTimesUsed') || '5', 10);
+    // Default to 1 to show all chunks that have been used at least once
+    // This ensures early-stage data is visible before chunks accumulate 5+ uses
+    const minTimesUsed = parseInt(searchParams.get('minTimesUsed') || '1', 10);
     const fetchText = searchParams.get('fetchText') === 'true';
 
     // Validate parameters
@@ -76,24 +78,20 @@ export async function GET(
       );
     }
 
-    // 4. Get current month and year for filtering
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
-
-    // 5. Calculate pagination
+    // 4. Calculate pagination
     const skip = (page - 1) * pageSize;
 
-    // 6. Fetch chunk performance records
+    // 5. Fetch chunk performance records
     // Show chunks that either:
     // - Have been used >= minTimesUsed times, OR
     // - Have feedback (helpfulCount > 0 OR notHelpfulCount > 0)
     // This ensures chunks with feedback are always visible, even if they haven't been used much
+    // NOTE: Removed month/year filter to show all chunks across all time periods
+    // Chunk_Performance tracks data by month/year, so same chunk may appear multiple times
+    // (one record per month/year combination)
     const where = {
       AND: [
         { chatbotId },
-        { month },
-        { year },
         {
           OR: [
             { timesUsed: { gte: minTimesUsed } },

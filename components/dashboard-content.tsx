@@ -83,7 +83,7 @@ export default function DashboardContent({ chatbotId, chatbotTitle }: DashboardC
         pageSize: '20',
         sortBy,
         order,
-        minTimesUsed: '5',
+        minTimesUsed: '1', // Show all chunks that have been used at least once
         // Only fetch text from Pinecone on initial dashboard view
         // After that, use cached chunkText from database
         fetchText: (!hasInitialLoad).toString(),
