@@ -24,8 +24,6 @@ Phase 0.1 (Feedback API Fix)
   ↓
 Phase 3.3, 3.4, 3.5 (Advanced Feedback)
   ↓
-Phase 4.1 (Sentiment Analysis)
-  ↓
 Phase 4.2, 4.3 (Dashboard & Content Gaps)
   ↓
 Phase 3.7, 3.8 (UI/UX & Multiple Chatbots)
@@ -33,7 +31,7 @@ Phase 3.7, 3.8 (UI/UX & Multiple Chatbots)
 Phase 7.1, 7.2, 7.3 (Deployment)
 ```
 
-**Critical Path:** 0.1 → 3.3-3.5 → 4.1 → 4.2  
+**Critical Path:** 0.1 → 3.3-3.5 → 4.2  
 **Parallel Path:** 3.7, 3.8 can be done alongside Phase 4 tasks
 
 ---
@@ -53,13 +51,10 @@ app/
 │   │   └── responses/route.ts          # NEW in Phase 3.10
 │   ├── user-context/route.ts           # NEW in Phase 3.10
 │   ├── jobs/
-│   │   ├── attribute-sentiment/route.ts    # NEW in Phase 4.1
 │   │   ├── aggregate-source-performance/   # NEW in Phase 4.2
 │   │   │   route.ts
 │   │   └── aggregate-content-gaps/         # NEW in Phase 4.3
 │   │       route.ts
-│   └── analysis/
-│       └── sentiment/route.ts          # NEW in Phase 4.1
 ├── profile/
 │   └── page.tsx                        # NEW in Phase 3.10 (user context settings)
 │
@@ -77,8 +72,6 @@ components/
     └── version-history.tsx            # NEW in Phase 3.9 (optional)
 
 lib/
-├── analysis/
-│   └── sentiment.ts                    # NEW in Phase 4.1
 └── chatbot/
     └── versioning.ts                   # NEW in Phase 3.9
 
@@ -4264,255 +4257,134 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ### **CRITICAL FOR ALPHA**
 
-#### Phase 4.1: Sentiment Analysis Job ✅ ALPHA
+#### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
-**Objective:** Implement async sentiment analysis of user messages
+**Objective:** Add required database models and fields for Phase 4 analytics
 
-**Why needed for Alpha:** Foundation for content intelligence, informs what's working
+**Status:** ⚠️ **REQUIRED BEFORE PHASE 4.2**
 
-**Prerequisites:**
-- ✅ Message_Analysis table exists in schema
-- ✅ OpenAI API key configured
-- ✅ Chunk_Performance table supports sentiment fields (`satisfactionSum`, `satisfactionCount`, `confusionCount`, etc.)
+**Why needed:** Phase 4.2 and 4.3 depend on these database models. Must be completed before any analytics implementation.
 
 **Tasks:**
 
-1. **Create sentiment analysis utility:**
+1. **Add Content_Gap model:**
 
-   **`lib/analysis/sentiment.ts`:**
-   ```typescript
-   import OpenAI from 'openai';
-   import { env } from '@/lib/env';
-   
-   const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-   
-   export interface SentimentAnalysis {
-     sentiment: {
-       satisfaction: number;  // 0-1
-       confusion: number;     // 0-1
-       frustration: number;   // 0-1
-     };
-     intent: 'question' | 'clarification' | 'followup' | 'gratitude' | 'complaint';
-   }
-   
-   export async function analyzeMessageSentiment(
-     userMessage: string,
-     previousBotMessage?: string
-   ): Promise<SentimentAnalysis> {
-     const prompt = `Analyze this user message and respond with ONLY a JSON object (no markdown, no explanation):
-
-User message: "${userMessage}"
-${previousBotMessage ? `Previous bot response: "${previousBotMessage}"` : ''}
-
-Return JSON with:
-{
-  "sentiment": {
-    "satisfaction": 0.0-1.0,
-    "confusion": 0.0-1.0,
-    "frustration": 0.0-1.0
-  },
-  "intent": "question" | "clarification" | "followup" | "gratitude" | "complaint"
-}`;
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Content_Gap {
+     id              String   @id @default(cuid())
+     chatbotId       String
+     chatbot         Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+     topicRequested  String   // Short topic summary
+     specificQuestion String  // Full user question
+     requestCount    Int      @default(1)
+     lastRequestedAt DateTime @default(now())
+     formatRequested String[] @default([]) // ['scripts', 'examples', etc.]
+     userContexts    Json?    // Array of user situations
+     status          String   @default("open") // 'open' | 'addressed' | 'closed'
+     createdAt       DateTime @default(now())
+     updatedAt       DateTime @updatedAt
      
-     const response = await openai.chat.completions.create({
-       model: 'gpt-4o-mini',  // Cheaper for analysis
-       messages: [{ role: 'user', content: prompt }],
-       temperature: 0,
-     });
-     
-     const content = response.choices[0].message.content!;
-     return JSON.parse(content);
+     @@unique([chatbotId, topicRequested])
+     @@index([chatbotId, status])
    }
    ```
 
-2. **Create sentiment analysis API route:**
+2. **Add Source_Performance model:**
 
-   **`app/api/analysis/sentiment/route.ts`:**
-   ```typescript
-   import { prisma } from '@/lib/prisma';
-   import { analyzeMessageSentiment } from '@/lib/analysis/sentiment';
-   
-   export async function POST(request: Request) {
-     const { messageId } = await request.json();
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Source_Performance {
+     id                String   @id @default(cuid())
+     sourceId          String
+     source            Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+     chatbotId         String
+     chatbot           Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
      
-     const message = await prisma.message.findUnique({
-       where: { id: messageId },
-       include: {
-         conversation: {
-           include: {
-             messages: {
-               orderBy: { createdAt: 'asc' },
-             },
-           },
-         },
-       },
-     });
+     // Aggregated from chunks
+     totalUses         Int      @default(0)
+     uniqueUsers       Int      @default(0)
+     avgSatisfactionRate Float  @default(0)
      
-     if (!message || message.role !== 'user') {
-       return Response.json({ error: 'Invalid message' }, { status: 400 });
-     }
+     // Feedback aggregation
+     totalHelpful      Int      @default(0)
+     totalNotHelpful   Int      @default(0)
+     totalCopies       Int      @default(0)
      
-     // Find previous bot message
-     const messages = message.conversation.messages;
-     const userMessageIndex = messages.findIndex(m => m.id === messageId);
-     const previousBotMessage = messages
-       .slice(0, userMessageIndex)
-       .reverse()
-       .find(m => m.role === 'assistant');
+     // Time period
+     month             Int
+     year              Int
      
-     // Analyze sentiment
-     const analysis = await analyzeMessageSentiment(
-       message.content,
-       previousBotMessage?.content
-     );
+     createdAt         DateTime @default(now())
+     updatedAt         DateTime @updatedAt
      
-     // Store analysis
-     await prisma.message_Analysis.create({
-       data: {
-         messageId,
-         analysis,
-       },
-     });
-     
-     return Response.json({ success: true, analysis });
+     @@unique([sourceId, chatbotId, month, year])
+     @@index([chatbotId, month, year])
+     @@index([sourceId])
    }
    ```
 
-3. **Create attribution job (links sentiment → chunks):**
+3. **Update Chatbot model to add relations:**
 
-   **`app/api/jobs/attribute-sentiment/route.ts`:**
-   ```typescript
-   import { prisma } from '@/lib/prisma';
-   
-   export async function POST(request: Request) {
-     // Get unprocessed messages with analysis
-     const analyses = await prisma.message_Analysis.findMany({
-       where: {
-         attributed: false,  // Only process unattributed analyses
-       },
-       include: {
-         message: {
-           include: {
-             conversation: {
-               include: {
-                 messages: {
-                   orderBy: { createdAt: 'asc' },
-                 },
-               },
-             },
-           },
-         },
-       },
-       take: 100,  // Process in batches
-     });
-     
-     for (const analysis of analyses) {
-       const userMessage = analysis.message;
-       const messages = userMessage.conversation.messages;
-       
-       // Find previous bot message
-       const userMessageIndex = messages.findIndex(m => m.id === userMessage.id);
-       const previousBotMessage = messages
-         .slice(0, userMessageIndex)
-         .reverse()
-         .find(m => m.role === 'assistant');
-       
-       if (!previousBotMessage?.context) continue;
-       
-       const context = previousBotMessage.context as any;
-       const chunks = context.chunks || [];
-       
-       if (chunks.length === 0) continue;
-       
-       // Get sentiment from analysis
-       const sentiment = analysis.analysis as any;
-       
-       // Attribution with position weighting
-       const totalWeight = chunks.reduce((sum: number, _: any, idx: number) => 
-         sum + (1 / (idx + 1)), 0
-       );
-       
-       const month = new Date().getMonth() + 1;
-       const year = new Date().getFullYear();
-       
-       // Update each chunk's performance
-       for (let i = 0; i < chunks.length; i++) {
-         const chunk = chunks[i];
-         const weight = (1 / (i + 1)) / totalWeight;
-         
-         await prisma.chunk_Performance.upsert({
-           where: {
-             chunkId_chatbotId_month_year: {
-               chunkId: chunk.chunkId,
-               chatbotId: userMessage.conversation.chatbotId,
-               month,
-               year,
-             },
-           },
-           create: {
-             chunkId: chunk.chunkId,
-             sourceId: chunk.sourceId,
-             chatbotId: userMessage.conversation.chatbotId,
-             month,
-             year,
-             satisfactionSum: sentiment.sentiment.satisfaction * weight,
-             satisfactionCount: 1,
-             confusionCount: sentiment.sentiment.confusion > 0.6 ? 1 : 0,
-             clarificationCount: sentiment.intent === 'clarification' ? 1 : 0,
-             responseCount: 1,
-           },
-           update: {
-             satisfactionSum: { increment: sentiment.sentiment.satisfaction * weight },
-             satisfactionCount: { increment: 1 },
-             confusionCount: { increment: sentiment.sentiment.confusion > 0.6 ? 1 : 0 },
-             clarificationCount: { increment: sentiment.intent === 'clarification' ? 1 : 0 },
-             responseCount: { increment: 1 },
-           },
-         });
-       }
-       
-       // Mark analysis as attributed
-       await prisma.message_Analysis.update({
-         where: { id: analysis.id },
-         data: { attributed: true },
-       });
-     }
-     
-     return Response.json({ processed: analyses.length });
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Chatbot {
+     // ... existing fields ...
+     contentGaps       Content_Gap[]
+     sourcePerformance Source_Performance[]
    }
    ```
 
-4. **Set up Vercel Cron for analysis:**
+4. **Update Source model to add relation:**
 
-   Update `vercel.json`:
-   ```json
-   {
-     "crons": [
-       {
-         "path": "/api/jobs/attribute-sentiment",
-         "schedule": "*/15 * * * *"  // Every 15 minutes
-       }
-     ]
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Source {
+     // ... existing fields ...
+     sourcePerformance Source_Performance[]
    }
    ```
 
-5. **Trigger sentiment analysis after user messages:**
+**Migration Steps:**
 
-   Update chat API (`app/api/chat/route.ts`) to trigger sentiment analysis job after storing user message (non-blocking).
+**Step 1a: Update Development Database (Local)**
+- Ensure your `.env.local` points to your **development Neon branch**
+- Run migration locally (creates migration files + applies to dev DB):
+  ```bash
+  npx prisma migrate dev --name add_phase4_analytics_models
+  npx prisma generate
+  ```
+- This updates your **development Neon database** and creates migration files in `prisma/migrations/`
+
+**Step 1b: Commit Migration Files**
+- Commit the new migration files to git:
+  ```bash
+  git add prisma/migrations/
+  git commit -m "Add Phase 4 analytics models migration"
+  ```
+
+**Step 1c: Deploy to Production (Vercel)**
+- Push to your repository and deploy to Vercel
+- Vercel will automatically run `prisma migrate deploy` during build (using production `DATABASE_URL` from Vercel env vars)
+- This applies the migration to your **production Neon database**
 
 **Deliverables:**
-- ✅ Sentiment analysis with GPT-4o-mini
-- ✅ Message_Analysis table populated
-- ✅ Attribution job links sentiment → chunks
-- ✅ Chunk_Performance counters updated with sentiment
-- ✅ Cron job runs every 15 minutes
+- ✅ All models added to schema
+- ✅ Migration files created
+- ✅ Prisma Client regenerated
+- ✅ Migration applied to development database
+- ✅ Migration ready for production deployment
 
 **Testing:**
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing checklist complete
+- [ ] Migration runs successfully
+- [ ] All new fields queryable
+- [ ] Indexes created correctly
+- [ ] Relations work correctly (Content_Gap and Source_Performance)
+
+**⚠️ IMPORTANT:** Complete Phase 4.0 before moving to Phase 4.2 or 4.3.
 
 ---
+
 
 #### Phase 4.2: Enhanced Creator Dashboard ✅ ALPHA (Basic Version)
 
@@ -4521,9 +4393,9 @@ Return JSON with:
 **Why needed for Alpha:** Shows which public domain works resonate most with users
 
 **Prerequisites:**
-- ✅ Sentiment analysis job running
-- ✅ Chunk_Performance table has sentiment data
+- ✅ Phase 4.0 complete (Schema migration)
 - ✅ Format preferences data from "need more" feedback
+- ✅ Chunk_Performance table has feedback data (helpfulCount, notHelpfulCount, satisfactionRate)
 
 **Tasks:**
 
@@ -4595,6 +4467,7 @@ Return JSON with:
      const year = new Date().getFullYear();
      
      // Get underperforming chunks
+     // Note: chunkText and chunkMetadata are nullable - fetch from Pinecone if missing
      const underperforming = await prisma.$queryRaw<any[]>`
        SELECT 
          "chunkId",
@@ -4602,16 +4475,10 @@ Return JSON with:
          "chunkText",
          "chunkMetadata",
          "timesUsed",
-         CASE 
-           WHEN "satisfactionCount" > 0 
-           THEN "satisfactionSum" / "satisfactionCount" 
-           ELSE NULL 
-         END as "avgSatisfaction",
-         CASE 
-           WHEN "responseCount" > 0 
-           THEN "confusionCount"::float / "responseCount" 
-           ELSE NULL 
-         END as "confusionRate",
+         "satisfactionRate" as "avgSatisfaction",
+         -- Note: confusionRate removed - no direct equivalent from feedback data
+         -- If confusion metrics needed later, could use: notHelpfulCount / (helpfulCount + notHelpfulCount)
+         -- but this measures dissatisfaction, not confusion specifically
          "needsScriptsCount",
          "needsExamplesCount",
          "needsStepsCount"
@@ -4620,8 +4487,8 @@ Return JSON with:
          AND "month" = ${month}
          AND "year" = ${year}
          AND "timesUsed" >= 10
-         AND "satisfactionCount" > 0
-         AND "satisfactionSum" / "satisfactionCount" < 3.0
+         AND "satisfactionRate" > 0
+         AND "satisfactionRate" < 0.6
        ORDER BY "timesUsed" DESC
        LIMIT 10
      `;
@@ -4634,11 +4501,7 @@ Return JSON with:
          "chunkText",
          "chunkMetadata",
          "timesUsed",
-         CASE 
-           WHEN "satisfactionCount" > 0 
-           THEN "satisfactionSum" / "satisfactionCount" 
-           ELSE NULL 
-         END as "avgSatisfaction",
+         "satisfactionRate" as "avgSatisfaction",
          "copyToUseNowCount",
          "helpfulCount"
        FROM "Chunk_Performance"
@@ -4646,11 +4509,15 @@ Return JSON with:
          AND "month" = ${month}
          AND "year" = ${year}
          AND "timesUsed" >= 10
-         AND "satisfactionCount" > 0
-         AND "satisfactionSum" / "satisfactionCount" >= 4.0
+         AND "satisfactionRate" > 0
+         AND "satisfactionRate" >= 0.8
        ORDER BY "avgSatisfaction" DESC, "copyToUseNowCount" DESC
        LIMIT 10
      `;
+     
+     // Note: chunkText and chunkMetadata are nullable fields
+     // If missing, fetch from Pinecone and cache in Chunk_Performance for future use
+     // For Alpha, we'll display what's available and fetch on-demand if needed
      
      return (
        <div className="space-y-8">
@@ -4684,11 +4551,6 @@ Return JSON with:
                  </div>
                  
                  <div className="flex gap-4 text-sm">
-                   {chunk.confusionRate > 0.3 && (
-                     <span className="text-orange-600">
-                       {Math.round(chunk.confusionRate * 100)}% confusion rate
-                     </span>
-                   )}
                    {chunk.needsScriptsCount > 0 && (
                      <span className="text-blue-600">
                        {chunk.needsScriptsCount} need scripts
@@ -4957,10 +4819,6 @@ Return JSON with:
    {
      "crons": [
        {
-         "path": "/api/jobs/attribute-sentiment",
-         "schedule": "*/15 * * * *"  // Every 15 minutes
-       },
-       {
          "path": "/api/jobs/aggregate-source-performance",
          "schedule": "0 3 * * *"      // Daily at 3 AM UTC
        }
@@ -4979,7 +4837,7 @@ Return JSON with:
 - ✅ Format preferences widget showing aggregate stats
 - ✅ Underperforming chunks with actual text displayed
 - ✅ Top performing chunks with copy metrics
-- ✅ Sentiment-based metrics displayed
+- ✅ Feedback-based metrics displayed (using satisfactionRate from helpful/not helpful)
 - ✅ Source_Performance table created
 - ✅ Nightly aggregation job
 - ✅ Dashboard shows source-level metrics
@@ -4999,7 +4857,7 @@ Return JSON with:
 **Why needed for Alpha:** Identifies missing content in public domain works
 
 **Prerequisites:**
-- ✅ Content_Gap table exists in schema
+- ✅ Phase 4.0 complete (Schema migration - Content_Gap table exists)
 - ✅ "Need more" feedback being collected
 
 **Tasks:**
@@ -5014,22 +4872,71 @@ Return JSON with:
      const thirtyDaysAgo = new Date();
      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
      
-     // Get all "need more" feedback from last 30 days
-     const feedback = await prisma.message_Feedback.findMany({
+     // ⚠️ IMPORTANT: Feedback is stored in Event model, not Message_Feedback
+     // Message_Feedback table was removed in Phase 2 migration
+     // Feedback is stored as Event records with eventType: 'user_message' and metadata JSON
+     
+     // Get all "need more" and "not_helpful" feedback events from last 30 days
+     const events = await prisma.event.findMany({
        where: {
-         feedbackType: { in: ['need_more', 'not_helpful'] },
+         eventType: 'user_message',
          createdAt: { gte: thirtyDaysAgo },
        },
+     });
+     
+     // Filter events by feedbackType in metadata (Prisma doesn't support JSON path queries)
+     const feedbackEvents = events.filter((evt) => {
+       const metadata = evt.metadata as any;
+       const feedbackType = metadata?.feedbackType;
+       return feedbackType === 'need_more' || feedbackType === 'not_helpful';
+     });
+     
+     if (feedbackEvents.length === 0) {
+       return Response.json({ message: 'No feedback to process' });
+     }
+     
+     // Fetch messages and conversations for filtered events
+     const messageIds = feedbackEvents
+       .map((evt) => {
+         const metadata = evt.metadata as any;
+         return metadata?.messageId;
+       })
+       .filter((id): id is string => !!id);
+     
+     const messages = await prisma.message.findMany({
+       where: { id: { in: messageIds } },
        include: {
-         message: {
-           include: { conversation: true },
+         conversation: {
+           select: {
+             id: true,
+             chatbotId: true,
+           },
          },
        },
      });
      
-     if (feedback.length === 0) {
-       return Response.json({ message: 'No feedback to process' });
-     }
+     // Create a map of messageId -> message for quick lookup
+     const messageMap = new Map(messages.map((m) => [m.id, m]));
+     
+     // Combine events with their messages
+     const feedback = feedbackEvents
+       .map((evt) => {
+         const metadata = evt.metadata as any;
+         const messageId = metadata?.messageId;
+         const message = messageMap.get(messageId);
+         
+         if (!message) return null;
+         
+         return {
+           event: evt,
+           message,
+           metadata,
+           needsMore: metadata?.needsMore || [],
+           specificSituation: metadata?.specificSituation || null,
+           userId: evt.userId,
+         };
+       })
+       .filter((f): f is NonNullable<typeof f> => f !== null);
      
      // Group by chatbot and simple keyword matching
      const byChatbot = feedback.reduce((acc, f) => {
@@ -5064,11 +4971,13 @@ Return JSON with:
            case_studies: 0,
          };
          
-         group.forEach((f: any) => {
-           if (f.needsMore?.includes('scripts')) formatCounts.scripts++;
-           if (f.needsMore?.includes('examples')) formatCounts.examples++;
-           if (f.needsMore?.includes('steps')) formatCounts.steps++;
-           if (f.needsMore?.includes('case_studies')) formatCounts.case_studies++;
+         group.forEach((f) => {
+           if (Array.isArray(f.needsMore)) {
+             if (f.needsMore.includes('scripts')) formatCounts.scripts++;
+             if (f.needsMore.includes('examples')) formatCounts.examples++;
+             if (f.needsMore.includes('steps')) formatCounts.steps++;
+             if (f.needsMore.includes('case_studies')) formatCounts.case_studies++;
+           }
          });
          
          const formatRequested = Object.entries(formatCounts)
@@ -5077,9 +4986,9 @@ Return JSON with:
          
          // Collect user contexts
          const userContexts = group
-           .filter((f: any) => f.specificSituation)
-           .map((f: any) => ({
-             userId: f.userId,
+           .filter((f) => f.specificSituation)
+           .map((f) => ({
+             userId: f.userId || null,
              situation: f.specificSituation,
            }));
          
@@ -5098,14 +5007,14 @@ Return JSON with:
              requestCount: group.length,
              lastRequestedAt: new Date(),
              formatRequested,
-             userContexts,
+             userContexts: userContexts.length > 0 ? userContexts : undefined,
              status: 'open',
            },
            update: {
              requestCount: { increment: group.length },
              lastRequestedAt: new Date(),
              formatRequested,
-             userContexts: { push: userContexts },
+             userContexts: userContexts.length > 0 ? userContexts : undefined,
            },
          });
          
@@ -5119,6 +5028,8 @@ Return JSON with:
      });
    }
    ```
+   
+   **⚠️ IMPORTANT:** This implementation uses the `Event` model (not `Message_Feedback`) because feedback is stored as Event records with `eventType: 'user_message'` and feedback data in the `metadata` JSON field. This matches the current implementation in `/api/feedback/message`.
 
 2. **Add to Vercel cron:**
 
@@ -5126,10 +5037,6 @@ Return JSON with:
    ```json
    {
      "crons": [
-       {
-         "path": "/api/jobs/attribute-sentiment",
-         "schedule": "*/15 * * * *"  // Every 15 minutes
-       },
        {
          "path": "/api/jobs/aggregate-content-gaps",
          "schedule": "0 2 * * *"      // Daily at 2 AM UTC
@@ -5398,7 +5305,6 @@ Return JSON with:
 - [ ] Phase 0.1 complete (feedback API fast)
 - [ ] All advanced feedback features working
 - [ ] Multiple public domain chatbots created
-- [ ] Sentiment analysis running
 - [ ] Dashboard shows source performance
 - [ ] Content gaps identified
 - [ ] UI polished and mobile-responsive
@@ -5450,7 +5356,7 @@ If critical issues arise in production:
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence
-- [ ] Phase 4.1: Sentiment Analysis Job
+- [ ] Phase 4.0: Schema Migration for Analytics ⚠️ **REQUIRED FIRST**
 - [ ] Phase 4.2: Enhanced Creator Dashboard (with Source Performance)
 - [ ] Phase 4.3: Content Gap Aggregation (basic)
 
