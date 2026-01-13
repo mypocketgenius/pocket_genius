@@ -19,15 +19,17 @@ export interface ChatbotOwnershipResult {
 }
 
 /**
- * Verifies that the authenticated user owns the specified chatbot
+ * Verifies that the authenticated user has access to the specified chatbot dashboard
  * 
  * This function:
  * 1. Authenticates the user via Clerk
  * 2. Gets the database user ID
  * 3. Verifies the chatbot exists
- * 4. Checks if the user is a member of the creator that owns the chatbot
+ * 4. Checks if the user has access via:
+ *    - publicDashboard = true (public access for all authenticated users) OR
+ *    - User is a member of the creator that owns the chatbot
  * 
- * @param chatbotId - The ID of the chatbot to verify ownership for
+ * @param chatbotId - The ID of the chatbot to verify access for
  * @returns ChatbotOwnershipResult if authorized
  * @throws Error with appropriate message if unauthorized or chatbot not found
  * 
@@ -76,13 +78,14 @@ export async function verifyChatbotOwnership(
     throw new Error('User not found');
   }
 
-  // 3. Verify chatbot exists and user owns it (via Creator_User)
+  // 3. Verify chatbot exists and check access (publicDashboard OR ownership)
   const chatbot = await prisma.chatbot.findUnique({
     where: { id: chatbotId },
     select: {
       id: true,
       title: true,
       creatorId: true,
+      publicDashboard: true,
       creator: {
         select: {
           users: {
@@ -98,8 +101,11 @@ export async function verifyChatbotOwnership(
     throw new Error('Chatbot not found');
   }
 
-  // 4. Check if user is a member of the creator
-  if (!chatbot.creator.users || chatbot.creator.users.length === 0) {
+  // 4. Check access: publicDashboard OR user is a member of the creator
+  const hasPublicAccess = chatbot.publicDashboard === true;
+  const hasOwnership = chatbot.creator.users && chatbot.creator.users.length > 0;
+
+  if (!hasPublicAccess && !hasOwnership) {
     throw new Error('Unauthorized: You do not have access to this chatbot');
   }
 

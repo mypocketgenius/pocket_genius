@@ -115,6 +115,7 @@ model Chatbot {
   imageUrl         String?
   isPublic       Boolean      @default(false)
   allowAnonymous Boolean      @default(false)
+  publicDashboard Boolean      @default(false) // If true, dashboard is accessible to all authenticated users
   type           ChatbotType?
   priceCents     Int          @default(0)
   currency       String       @default("USD")
@@ -155,6 +156,7 @@ model Chatbot {
   @@index([isPublic])
   @@index([isActive])
   @@index([type])
+  @@index([publicDashboard])
 }
 
 // Phase 3.7.1: Category model - For categorizing chatbots
@@ -463,7 +465,7 @@ model Chatbot_Version {
   vectorNamespace String
   configJson      Json?
   ragSettingsJson Json?
-  ingestionRunIds String[]
+  ingestionRunIds String[] @default([])
   allowAnonymous  Boolean     @default(false)
   priceCents      Int
   currency        String

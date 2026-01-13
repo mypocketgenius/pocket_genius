@@ -20,6 +20,7 @@ export interface Chatbot {
   priceCents: number;
   currency: string;
   allowAnonymous: boolean;
+  publicDashboard: boolean;
   creator: {
     id: string;
     slug: string;

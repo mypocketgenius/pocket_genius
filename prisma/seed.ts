@@ -108,6 +108,7 @@ async function main() {
       isPublic: true,
       isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,
+      publicDashboard: true, // Dashboard accessible to all authenticated users
       type: 'DEEP_DIVE',
       priceCents: 0,
       currency: 'USD',
@@ -122,6 +123,7 @@ async function main() {
       isPublic: true,
       isActive: true, // Ensure chatbot is active and visible on homepage
       allowAnonymous: true,
+      publicDashboard: true, // Dashboard accessible to all authenticated users
       type: 'DEEP_DIVE',
       priceCents: 0,
       currency: 'USD',

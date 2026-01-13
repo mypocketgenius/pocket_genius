@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChatbotType, CategoryType } from '@/lib/types/chatbot';
+import { useTheme } from '@/lib/theme/theme-context';
+import { getCurrentPeriod, getEffectiveHourForMode } from '@/lib/theme/config';
 
 interface ChatbotDetailModalProps {
   chatbot: {
@@ -31,6 +33,7 @@ interface ChatbotDetailModalProps {
     priceCents: number;
     currency: string;
     allowAnonymous: boolean;
+    publicDashboard: boolean;
     creator: {
       id: string;
       slug: string;
@@ -95,6 +98,13 @@ export function ChatbotDetailModal({
   const { isSignedIn, userId: clerkUserId } = useAuth();
   const { user } = useUser();
   const clerk = useClerk();
+  const theme = useTheme();
+  
+  // Get current period to adjust styling for night/evening themes
+  const now = new Date();
+  const effectiveHour = getEffectiveHourForMode(theme.mode, now.getHours(), theme.customPeriod);
+  const period = getCurrentPeriod(effectiveHour);
+  const isNightOrEvening = period === 'night' || period === 'evening';
   
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
@@ -243,6 +253,45 @@ export function ChatbotDetailModal({
     return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  // Format relative time (e.g., "2 hours ago", "3 days ago")
+  const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'just now';
+    }
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
+    }
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+    }
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+    }
+    
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks} ${diffInWeeks === 1 ? 'week' : 'weeks'} ago`;
+    }
+    
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) {
+      return `${diffInMonths} ${diffInMonths === 1 ? 'month' : 'months'} ago`;
+    }
+    
+    const diffInYears = Math.floor(diffInDays / 365);
+    return `${diffInYears} ${diffInYears === 1 ? 'year' : 'years'} ago`;
+  };
+
   // Group categories by type
   const groupedCategories = chatbot.categories.reduce(
     (acc, cat) => {
@@ -295,14 +344,14 @@ export function ChatbotDetailModal({
           
           return (
             <div key={star} className="flex items-center gap-2 text-sm">
-              <span className="w-8">{star}★</span>
-              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <span className="w-8" style={{ color: theme.textColor }}>{star}★</span>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: isNightOrEvening ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }}>
                 <div
                   className="h-full bg-yellow-400 transition-all"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              <span className="w-16 text-right text-gray-600">
+              <span className="w-16 text-right" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.8 : 0.7 }}>
                 {percentage.toFixed(0)}% ({count})
               </span>
             </div>
@@ -312,35 +361,66 @@ export function ChatbotDetailModal({
     );
   };
 
+  // Theme styles for the modal content
+  const modalContentStyle: React.CSSProperties = {
+    background: `linear-gradient(135deg, ${theme.gradient.start}, ${theme.gradient.end})`,
+    color: theme.textColor,
+    borderColor: theme.chrome.border,
+    transition: 'background 2s ease, color 2s ease, border-color 2s ease',
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-3xl max-h-[90vh] overflow-y-auto"
+        style={modalContentStyle}
+      >
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <DialogTitle className="text-2xl font-bold mb-2">
-                {chatbot.title}
-              </DialogTitle>
-              {chatbot.type && (
-                <Badge variant="secondary" className="mt-1">
-                  {formatChatbotType(chatbot.type)}
-                </Badge>
-              )}
+              <div className="flex items-center gap-2 mb-2">
+                <DialogTitle className="text-2xl font-bold" style={{ color: theme.textColor }}>
+                  {chatbot.title}
+                </DialogTitle>
+                {isSignedIn && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleToggleFavorite}
+                    disabled={isTogglingFavorite}
+                    className="h-8 w-8"
+                  >
+                    {isTogglingFavorite ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Heart
+                        className={`h-4 w-4 ${
+                          isFavorite ? 'fill-red-500 text-red-500' : ''
+                        }`}
+                      />
+                    )}
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {chatbot.type && (
+                  <Badge variant="secondary">
+                    {formatChatbotType(chatbot.type)}
+                  </Badge>
+                )}
+                {chatbot.priceCents === 0 && (
+                  <Badge variant="default" className="bg-green-600 hover:bg-green-600">
+                    Free
+                  </Badge>
+                )}
+              </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
           </div>
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
           {/* Creator Section */}
-          <div className="flex items-start gap-3">
+          <div className="flex items-center gap-3">
             {chatbot.creator.avatarUrl ? (
               <div className="relative w-12 h-12 rounded-full overflow-hidden">
                 <Image
@@ -363,6 +443,7 @@ export function ChatbotDetailModal({
                 href={`/creators/${chatbot.creator.slug}`}
                 className="text-lg font-semibold hover:underline"
                 onClick={onClose}
+                style={{ color: theme.textColor }}
               >
                 {chatbot.creator.name}
               </Link>
@@ -372,8 +453,8 @@ export function ChatbotDetailModal({
           {/* Description */}
           {chatbot.description && (
             <div>
-              <h3 className="font-semibold mb-2">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap">
+              <h3 className="font-semibold mb-2" style={{ color: theme.textColor }}>Description</h3>
+              <p className="whitespace-pre-wrap" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.9 : 0.85 }}>
                 {chatbot.description}
               </p>
             </div>
@@ -382,21 +463,21 @@ export function ChatbotDetailModal({
           {/* Categories */}
           {chatbot.categories.length > 0 && (
             <div>
-              <h3 className="font-semibold mb-2">Categories</h3>
-              <div className="space-y-3">
+              <h3 className="font-semibold mb-2" style={{ color: theme.textColor }}>Categories</h3>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {(['ROLE', 'CHALLENGE', 'STAGE'] as CategoryType[]).map(
                   (type) => {
                     const cats = groupedCategories[type];
                     if (!cats || cats.length === 0) return null;
                     
                     return (
-                      <div key={type}>
-                        <span className="text-sm font-medium text-gray-600 capitalize">
+                      <div key={type} className="flex items-center gap-2">
+                        <span className="text-sm font-medium capitalize whitespace-nowrap" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.8 : 0.7 }}>
                           {type.toLowerCase()}:
                         </span>
-                        <div className="flex flex-wrap gap-2 mt-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {cats.map((cat) => (
-                            <Badge key={cat.id} variant="outline">
+                            <Badge key={cat.id} variant="outline" className="text-xs">
                               {cat.label}
                             </Badge>
                           ))}
@@ -409,34 +490,30 @@ export function ChatbotDetailModal({
             </div>
           )}
 
-          {/* Rating Section */}
-          {chatbot.rating && chatbot.rating.ratingCount > 0 ? (
-            <div>
-              <h3 className="font-semibold mb-2">Ratings</h3>
-              <div className="flex items-center gap-3">
-                {renderStars(chatbot.rating.averageRating)}
-                <span className="text-lg font-semibold">
-                  {chatbot.rating.averageRating?.toFixed(1)}
-                </span>
-                <span className="text-gray-600">
-                  ({chatbot.rating.ratingCount}{' '}
-                  {chatbot.rating.ratingCount === 1 ? 'review' : 'reviews'})
-                </span>
-              </div>
-              {renderRatingDistribution()}
-            </div>
-          ) : (
-            <div>
-              <h3 className="font-semibold mb-2">Ratings</h3>
-              <p className="text-gray-600">No ratings yet</p>
-            </div>
-          )}
-
-          {/* Reviews List */}
+          {/* Ratings & Reviews Section */}
           <div>
-            <h3 className="font-semibold mb-3">Reviews</h3>
+            <h3 className="font-semibold mb-3" style={{ color: theme.textColor }}>Ratings & Reviews</h3>
+            {chatbot.rating && chatbot.rating.ratingCount > 0 ? (
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  {renderStars(chatbot.rating.averageRating)}
+                  <span className="text-lg font-semibold" style={{ color: theme.textColor }}>
+                    {chatbot.rating.averageRating?.toFixed(1)}
+                  </span>
+                  <span style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.8 : 0.7 }}>
+                    ({chatbot.rating.ratingCount}{' '}
+                    {chatbot.rating.ratingCount === 1 ? 'review' : 'reviews'})
+                  </span>
+                </div>
+                {renderRatingDistribution()}
+              </>
+            ) : (
+              <p className="mb-3" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.8 : 0.7 }}>No ratings yet</p>
+            )}
+
+            {/* Reviews List */}
             {isLoadingReviews && reviews.length === 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-4 mt-4">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="space-y-2">
                     <Skeleton className="h-4 w-32" />
@@ -446,32 +523,34 @@ export function ChatbotDetailModal({
                 ))}
               </div>
             ) : reviewsError ? (
-              <p className="text-red-600">{reviewsError}</p>
+              <p className="text-red-600 mt-4">{reviewsError}</p>
             ) : reviews.length === 0 ? (
-              <p className="text-gray-600">No reviews yet</p>
+              chatbot.rating && chatbot.rating.ratingCount > 0 ? null : (
+                <p className="mt-4" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.8 : 0.7 }}>No reviews yet</p>
+              )
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 mt-4">
                 {reviews.map((review) => (
                   <div key={review.id} className="border-b pb-4 last:border-0">
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium" style={{ color: theme.textColor }}>
                           {review.userName || 'Anonymous'}
                         </span>
                         {review.rating && renderStars(review.rating)}
-                      </div>
-                      {review.timeSaved && (
-                        <span className="text-sm text-gray-600">
-                          {review.timeSaved}
+                        <span className="text-xs" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.7 : 0.6 }}>
+                          {formatRelativeTime(review.createdAt)}
                         </span>
-                      )}
+                      </div>
                     </div>
                     {review.comment && (
-                      <p className="text-gray-700 text-sm">{review.comment}</p>
+                      <p className="text-sm mb-2" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.9 : 0.85 }}>{review.comment}</p>
                     )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(review.createdAt).toLocaleDateString()}
-                    </p>
+                    {review.timeSaved && (
+                      <p className="text-xs" style={{ color: theme.textColor, opacity: isNightOrEvening ? 0.7 : 0.6 }}>
+                        Saved {review.timeSaved.toLowerCase()}
+                      </p>
+                    )}
                   </div>
                 ))}
                 {hasMoreReviews && (
@@ -495,21 +574,6 @@ export function ChatbotDetailModal({
             )}
           </div>
 
-          {/* Pricing Section */}
-          <div>
-            <h3 className="font-semibold mb-2">Pricing</h3>
-            <div className="flex items-center gap-4">
-              <Badge variant={chatbot.priceCents === 0 ? 'default' : 'secondary'}>
-                {formatPrice()}
-              </Badge>
-              <span className="text-sm text-gray-600">
-                {chatbot.allowAnonymous
-                  ? 'Anonymous users allowed'
-                  : 'Login required'}
-              </span>
-            </div>
-          </div>
-
           {/* Actions */}
           <div className="flex items-center gap-3 pt-4 border-t">
             <Button
@@ -525,24 +589,15 @@ export function ChatbotDetailModal({
             >
               {chatbot.priceCents > 0 ? 'Payment Coming Soon' : 'Start Chat'}
             </Button>
-            {isSignedIn && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleToggleFavorite}
-                disabled={isTogglingFavorite}
-                className="h-10 w-10"
-              >
-                {isTogglingFavorite ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Heart
-                    className={`h-4 w-4 ${
-                      isFavorite ? 'fill-red-500 text-red-500' : ''
-                    }`}
-                  />
-                )}
-              </Button>
+            {isSignedIn && chatbot.publicDashboard && (
+              <Link href={`/dashboard/${chatbot.id}`} onClick={onClose}>
+                <Button
+                  variant="outline"
+                  size="lg"
+                >
+                  View Dashboard
+                </Button>
+              </Link>
             )}
           </div>
         </div>
