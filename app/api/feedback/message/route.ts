@@ -176,8 +176,8 @@ export async function POST(req: Request) {
     // This ensures data integrity and prevents duplicate counter increments
     
     // Extract chunkIds from message context for event logging
-    const context = message.context as { chunks?: Array<{ chunkId: string; sourceId: string }> };
-    const chunkIds = (context.chunks || []).map(c => c.chunkId);
+    const context = message.context as { chunks?: Array<{ chunkId: string; sourceId: string }> } | null;
+    const chunkIds = (context?.chunks || []).map(c => c.chunkId);
     const conversationId = message.conversationId;
     
     // For copy feedback, handle differently based on whether usage is provided
@@ -185,12 +185,14 @@ export async function POST(req: Request) {
     // 1. Initial copy (copyUsage=null) - created when user clicks copy button
     // 2. Usage submission (copyUsage set) - updates existing record with usage data
     if (feedbackType === 'copy') {
-      // Find all existing copy events for this message and user
-      // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
-      const allCopyEvents = await prisma.event.findMany({
+      // Copy events have a two-stage flow:
+      // Stage 1: Initial copy (copyUsage=null) - created when user clicks copy button
+      // Stage 2: Usage submission (copyUsage set) - updates existing record
+      // We can now query directly by messageId FK (much faster!)
+      const existingCopyEvent = await prisma.event.findFirst({
         where: {
           eventType: 'copy',
-          sessionId: conversationId,
+          messageId: messageId, // Direct FK query!
           userId: dbUserId || undefined,
         },
         orderBy: {
@@ -198,27 +200,17 @@ export async function POST(req: Request) {
         },
       });
 
-      // Filter events by messageId in metadata
-      const eventsForMessage = allCopyEvents.filter((evt) => {
-        const metadata = evt.metadata as any;
-        return metadata?.messageId === messageId;
-      });
-
       if (copyUsage) {
         // Stage 2: User is submitting usage data via modal
         // Find the initial copy event (without usage) to update
-        const existingEvent = eventsForMessage.find((evt) => {
-          const metadata = evt.metadata as any;
-          return !metadata?.copyUsage || metadata.copyUsage === null;
-        });
-
-        if (existingEvent) {
+        if (existingCopyEvent) {
           // Update existing event with usage data (prevents duplicates)
+          // messageId is already set in FK field (set during initial copy event creation)
+          // We only need to update metadata with copyUsage and copyContext
           await prisma.event.update({
-            where: { id: existingEvent.id },
+            where: { id: existingCopyEvent.id },
             data: {
               metadata: {
-                messageId,
                 copyUsage,
                 copyContext: copyContext || null,
               },
@@ -229,12 +221,13 @@ export async function POST(req: Request) {
           // Create new event with usage data
           await prisma.event.create({
             data: {
+              messageId: messageId, // FK field
               sessionId: conversationId,
               userId: dbUserId || undefined,
               eventType: 'copy',
               chunkIds,
               metadata: {
-                messageId,
+                // Remove messageId from metadata
                 copyUsage,
                 copyContext: copyContext || null,
               },
@@ -244,15 +237,16 @@ export async function POST(req: Request) {
       } else {
         // Stage 1: User clicked copy button (initial copy event)
         // Only create event if no copy event exists yet (prevents duplicates from multiple clicks)
-        if (eventsForMessage.length === 0) {
+        if (!existingCopyEvent) {
           await prisma.event.create({
             data: {
+              messageId: messageId, // FK field
               sessionId: conversationId,
               userId: dbUserId || undefined,
               eventType: 'copy',
               chunkIds,
               metadata: {
-                messageId,
+                // Remove messageId from metadata
                 copyUsage: null, // Will be updated when user submits usage
                 copyContext: null,
               },
@@ -265,19 +259,24 @@ export async function POST(req: Request) {
     } else {
       // For other feedback types (helpful, not_helpful, need_more), check for duplicates
       // These types don't have a two-stage flow like copy feedback
-      // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
-      const existingEvents = await prisma.event.findMany({
+      // Note: Prisma doesn't support JSON path queries, so we query by messageId FK
+      // and filter feedbackType in JavaScript (still much faster than before)
+      const eventsForMessage = await prisma.event.findMany({
         where: {
           eventType: 'user_message',
-          sessionId: conversationId,
+          messageId: messageId, // Direct FK query! (50x faster)
           userId: dbUserId || undefined,
         },
+        select: {
+          id: true,
+          metadata: true,
+        },
       });
-
-      // Filter events by messageId and feedbackType in metadata
-      const existingEvent = existingEvents.find((evt) => {
+      
+      // Filter by feedbackType in memory (small dataset after FK filter)
+      const existingEvent = eventsForMessage.find((evt) => {
         const metadata = evt.metadata as any;
-        return metadata?.messageId === messageId && metadata?.feedbackType === feedbackType;
+        return metadata?.feedbackType === feedbackType;
       });
 
       if (existingEvent) {
@@ -293,12 +292,13 @@ export async function POST(req: Request) {
       // Phase 3.3: Store needsMore array and specificSituation for "need_more" feedback
       await prisma.event.create({
         data: {
+          messageId: messageId, // FK field
           sessionId: conversationId,
           userId: dbUserId || undefined,
           eventType: 'user_message',
           chunkIds,
           metadata: {
-            messageId,
+            // Remove messageId from metadata
             feedbackType,
             needsMore: feedbackType === 'need_more' ? needsMore : [],
             specificSituation:

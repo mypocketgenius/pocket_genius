@@ -49,13 +49,14 @@ describe('POST /api/jobs/update-chunk-performance', () => {
       const month = now.getMonth() + 1;
       const year = now.getFullYear();
 
-      // Mock Events
+      // Mock Events (with messageId FK field)
       (prisma.event.findMany as jest.Mock).mockResolvedValue([
         {
           id: 'event-1',
           eventType: 'copy',
+          messageId: 'msg-1', // FK field
           chunkIds: ['chunk-1', 'chunk-2'],
-          metadata: { copyUsage: 'use_now', messageId: 'msg-1' },
+          metadata: { copyUsage: 'use_now' }, // messageId removed from metadata
           sessionId: 'conv-1',
         },
       ]);
@@ -277,8 +278,9 @@ describe('POST /api/jobs/update-chunk-performance', () => {
         {
           id: 'event-1',
           eventType: 'copy',
+          messageId: 'msg-1', // FK field
           chunkIds: ['chunk-1'],
-          metadata: { copyUsage: 'reference', messageId: 'msg-1' },
+          metadata: { copyUsage: 'reference' }, // messageId removed from metadata
           sessionId: 'conv-1',
         },
       ]);
@@ -310,8 +312,9 @@ describe('POST /api/jobs/update-chunk-performance', () => {
         {
           id: 'event-1',
           eventType: 'copy',
+          messageId: 'msg-1', // FK field
           chunkIds: ['chunk-new'],
-          metadata: { copyUsage: 'use_now', messageId: 'msg-1' },
+          metadata: { copyUsage: 'use_now' }, // messageId removed from metadata
           sessionId: 'conv-1',
         },
       ]);
@@ -486,8 +489,9 @@ describe('POST /api/jobs/update-chunk-performance', () => {
         {
           id: 'event-1',
           eventType: 'copy',
+          messageId: 'msg-1', // FK field
           chunkIds: ['chunk-1'],
-          metadata: { copyUsage: 'use_now', messageId: 'msg-1' },
+          metadata: { copyUsage: 'use_now' }, // messageId removed from metadata
           sessionId: 'conv-1',
         },
       ]);

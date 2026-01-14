@@ -119,13 +119,12 @@ export async function POST(req: Request) {
     try {
       await prisma.event.create({
         data: {
+          messageId: messageId, // FK field
           sessionId: message.conversationId,
           userId: user.id,
           eventType: 'bookmark',
           chunkIds: Array.isArray(chunkIds) ? chunkIds : [],
-          metadata: {
-            messageId,
-          },
+          metadata: {}, // No messageId in metadata
         },
       });
     } catch (error) {

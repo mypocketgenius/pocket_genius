@@ -58,23 +58,19 @@ export default async function DebugPage({ params }: DebugPageProps) {
     });
     const messageIds = messages.map((m) => m.id);
 
-    // Fetch all user_message events for these conversations
-    // Note: Prisma doesn't support JSON path queries, so we fetch and filter in JavaScript
-    const allFeedbackEvents = await prisma.event.findMany({
+    // Fetch all user_message events for these messages
+    // Direct FK query using messageId (much faster than filtering in JavaScript!)
+    const feedbackForMessages = await prisma.event.findMany({
       where: {
         eventType: 'user_message',
+        messageId: { in: messageIds }, // Direct FK query!
         sessionId: { in: conversationIds },
       },
       select: {
         id: true,
+        messageId: true,
         metadata: true,
       },
-    });
-
-    // Filter events by messageId in metadata and count by feedbackType
-    const feedbackForMessages = allFeedbackEvents.filter((evt) => {
-      const metadata = evt.metadata as any;
-      return metadata?.messageId && messageIds.includes(metadata.messageId);
     });
 
     const totalFeedback = feedbackForMessages.length;

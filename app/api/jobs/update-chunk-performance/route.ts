@@ -64,6 +64,7 @@ export async function POST(req: Request) {
       select: {
         id: true,
         eventType: true,
+        messageId: true, // ADD: Include messageId
         chunkIds: true,
         metadata: true,
         sessionId: true,

@@ -63,13 +63,15 @@ describe('POST /api/events', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.eventId).toBe('event-1');
+      // Verify messageId is extracted from metadata and stored in FK field
       expect(prisma.event.create).toHaveBeenCalledWith({
         data: {
+          messageId: 'msg-123', // FK field (extracted from metadata)
           sessionId: 'session-123',
           userId: null,
           eventType: 'copy',
           chunkIds: ['chunk-1'],
-          metadata: { messageId: 'msg-123' },
+          metadata: null, // Clean metadata (messageId removed, empty object converted to null)
         },
       });
     });
@@ -112,6 +114,18 @@ describe('POST /api/events', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
+      // Verify event created with messageId FK
+      expect(prisma.event.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          messageId: 'msg-123', // FK field
+          eventType: 'bookmark',
+        }),
+      });
+      // Verify messageId not in metadata
+      const createCall = (prisma.event.create as jest.Mock).mock.calls[0][0];
+      if (createCall.data.metadata && typeof createCall.data.metadata === 'object') {
+        expect(createCall.data.metadata.messageId).toBeUndefined();
+      }
       expect(prisma.bookmark.create).toHaveBeenCalled();
     });
 
@@ -153,6 +167,109 @@ describe('POST /api/events', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(prisma.bookmark.create).not.toHaveBeenCalled(); // Duplicate prevented
+    });
+
+    it('should extract messageId from metadata and store in FK field', async () => {
+      const mockEvent = { id: 'event-1' };
+      (prisma.event.create as jest.Mock).mockResolvedValue(mockEvent);
+
+      const request = new Request('http://localhost/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'expansion_followup',
+          sessionId: 'session-123',
+          metadata: {
+            messageId: 'msg-456',
+            result: 'success',
+            expansion_type: 'example',
+          },
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      
+      // Verify messageId extracted from metadata and stored in FK
+      expect(prisma.event.create).toHaveBeenCalledWith({
+        data: {
+          messageId: 'msg-456', // FK field
+          sessionId: 'session-123',
+          userId: null,
+          eventType: 'expansion_followup',
+          chunkIds: [],
+          metadata: {
+            // messageId removed from metadata
+            result: 'success',
+            expansion_type: 'example',
+          },
+        },
+      });
+    });
+
+    it('should handle events without messageId (conversation_pattern)', async () => {
+      const mockEvent = { id: 'event-1' };
+      (prisma.event.create as jest.Mock).mockResolvedValue(mockEvent);
+
+      const request = new Request('http://localhost/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'conversation_pattern',
+          sessionId: 'session-123',
+          metadata: {
+            pattern: 'question_loop',
+          },
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      
+      // Verify messageId is null (no messageId for conversation_pattern)
+      expect(prisma.event.create).toHaveBeenCalledWith({
+        data: {
+          messageId: null, // No messageId FK
+          sessionId: 'session-123',
+          userId: null,
+          eventType: 'conversation_pattern',
+          chunkIds: [],
+          metadata: {
+            pattern: 'question_loop',
+          },
+        },
+      });
+    });
+
+    it('should convert empty metadata object to null', async () => {
+      const mockEvent = { id: 'event-1' };
+      (prisma.event.create as jest.Mock).mockResolvedValue(mockEvent);
+
+      const request = new Request('http://localhost/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'copy',
+          sessionId: 'session-123',
+          metadata: {
+            messageId: 'msg-123',
+          },
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      
+      // Verify empty metadata converted to null after removing messageId
+      const createCall = (prisma.event.create as jest.Mock).mock.calls[0][0];
+      expect(createCall.data.metadata).toBeNull();
     });
   });
 

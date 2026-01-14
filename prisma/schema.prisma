@@ -281,6 +281,7 @@ model Message {
 
   // Relations
   bookmarks Bookmark[]
+  events    Event[] @relation("EventMessage")
 
   @@index([conversationId])
   @@index([sourceIds])
@@ -381,14 +382,17 @@ model Pill_Usage {
 // Phase 1: Feedback UX System Update
 model Event {
   id        String   @id @default(cuid())
+  messageId String?  // Optional FK (some events don't have messages)
+  message   Message? @relation("EventMessage", fields: [messageId], references: [id], onDelete: Cascade)
   sessionId String? // Conversation ID
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  eventType String // 'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission'
+  eventType String // 'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission' | 'user_message'
   chunkIds  String[] @default([])
-  metadata  Json? // Event-specific data
+  metadata  Json? // Event-specific data (no longer stores messageId)
   timestamp DateTime @default(now())
 
+  @@index([messageId]) // Critical for query performance
   @@index([sessionId])
   @@index([userId])
   @@index([eventType])

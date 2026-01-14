@@ -93,21 +93,40 @@ export async function POST(req: Request) {
     }
 
     // 3. Create Event record
+    // Extract messageId from metadata if present (for expansion_followup, gap_submission, etc.)
+    const eventMetadata = metadata || {};
+    const messageId = eventMetadata?.messageId;
+    
+    // Remove messageId from metadata (simplified logic)
+    // If messageId exists and metadata is an object, filter it out
+    const cleanMetadata = messageId && typeof eventMetadata === 'object'
+      ? Object.fromEntries(Object.entries(eventMetadata).filter(([k]) => k !== 'messageId'))
+      : eventMetadata;
+    
+    // Handle empty object case - convert {} to null for cleaner Prisma storage
+    const finalMetadata = (cleanMetadata && typeof cleanMetadata === 'object' && Object.keys(cleanMetadata).length === 0)
+      ? null
+      : cleanMetadata;
+    
     const event = await prisma.event.create({
       data: {
+        messageId: messageId || null, // FK field (handles expansion_followup, gap_submission, etc.)
+        // Note: If messageId references a non-existent Message, FK constraint will reject the insert
+        // This is correct behavior - ensure messageId is valid before creating events
         sessionId: sessionId || null,
         userId: dbUserId,
         eventType,
         chunkIds: Array.isArray(chunkIds) ? chunkIds : [],
-        metadata: metadata || {},
+        metadata: finalMetadata, // Clean metadata without messageId
       },
     });
 
     // 4. If bookmark event, also create Bookmark record
-    if (eventType === 'bookmark' && metadata.messageId) {
+    // Use messageId from FK field (extracted above)
+    if (eventType === 'bookmark' && messageId) {
       // Verify message exists
       const message = await prisma.message.findUnique({
-        where: { id: metadata.messageId },
+        where: { id: messageId }, // Use FK field
         select: { id: true, conversationId: true },
       });
 
@@ -123,7 +142,7 @@ export async function POST(req: Request) {
           const existingBookmark = await prisma.bookmark.findUnique({
             where: {
               messageId_userId: {
-                messageId: metadata.messageId,
+                messageId: messageId, // Use FK field
                 userId: dbUserId,
               },
             },
@@ -132,11 +151,11 @@ export async function POST(req: Request) {
           if (!existingBookmark) {
             await prisma.bookmark.create({
               data: {
-                messageId: metadata.messageId,
+                messageId: messageId, // Use FK field
                 userId: dbUserId,
                 chatbotId: conversation.chatbotId,
                 chunkIds: Array.isArray(chunkIds) ? chunkIds : [],
-                notes: metadata.notes || null,
+                notes: (eventMetadata as any)?.notes || null,
               },
             });
           }
