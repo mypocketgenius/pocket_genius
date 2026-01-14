@@ -171,6 +171,7 @@ export async function GET(req: Request) {
         priceCents: chatbot.priceCents,
         currency: chatbot.currency,
         allowAnonymous: chatbot.allowAnonymous,
+        publicDashboard: chatbot.publicDashboard,
         createdAt: chatbot.createdAt.toISOString(),
         creator: {
           id: chatbot.creator.id,

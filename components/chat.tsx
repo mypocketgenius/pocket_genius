@@ -1001,7 +1001,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 >
                   {message.role === 'assistant' ? (
                     <MarkdownRenderer 
-                      content={message.content || (isLoading ? '...' : '')} 
+                      content={message.content || ''} 
                       textColor={currentBubbleStyle.text}
                     />
                   ) : (

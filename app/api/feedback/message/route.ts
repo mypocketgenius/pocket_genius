@@ -324,7 +324,7 @@ export async function POST(req: Request) {
     }
 
     // 6. Extract chunks from message context (reuse context variable declared earlier)
-    const chunks = context.chunks || [];
+    const chunks = context?.chunks || [];
 
     // For 'need_more' feedback, we need chunks to update counters
     // For 'helpful'/'not_helpful', we also need chunks
