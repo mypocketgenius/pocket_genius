@@ -40,9 +40,38 @@ try {
   });
   console.log('✅ Migrations applied successfully.');
 } catch (error: any) {
+  const errorMessage = error.message || error.toString();
+  const errorOutput = error.stdout || error.stderr || '';
+
+  // Check if this is a connection error (P1001)
+  const isConnectionError =
+    errorMessage.includes('P1001') ||
+    errorMessage.includes("Can't reach database server") ||
+    errorMessage.includes('connect ECONNREFUSED') ||
+    errorMessage.includes('timeout') ||
+    errorOutput.includes('P1001');
+
+  if (isConnectionError) {
+    console.error('\n' + '='.repeat(70));
+    console.error('❌ DATABASE CONNECTION FAILED');
+    console.error('='.repeat(70));
+    console.error('\n🔍 This error typically occurs when:');
+    console.error('   • Your network blocks port 5432 (PostgreSQL)');
+    console.error('   • Common on university/corporate WiFi');
+    console.error('   • DNS works, HTTPS works, but PostgreSQL port is blocked\n');
+
+    console.error('💡 QUICK FIXES:\n');
+    console.error('1. Connect to VPN, then retry: npm run build');
+    console.error('2. Switch to mobile hotspot, then retry: npm run build');
+    console.error('3. Run diagnostic: npx tsx scripts/test-db-connection.ts\n');
+
+    console.error('📚 For detailed solutions, see: NETWORK_CONNECTION_TROUBLESHOOTING.md');
+    console.error('='.repeat(70) + '\n');
+  }
+
   // If migrate status fails, try running migrate deploy anyway
   // (might be a connection issue, not a migration issue)
-  if (error.message?.includes('migrate status')) {
+  if (errorMessage?.includes('migrate status') && !isConnectionError) {
     console.log('⚠️  Could not check migration status. Running migrate deploy anyway...');
     try {
       execSync('npx prisma migrate deploy', {
@@ -50,12 +79,33 @@ try {
         stdio: 'inherit',
       });
       console.log('✅ Migrations applied successfully.');
-    } catch (deployError) {
-      console.error('❌ Migration deploy failed:', deployError);
+    } catch (deployError: any) {
+      const deployMessage = deployError.message || deployError.toString();
+      const deployOutput = deployError.stdout || deployError.stderr || '';
+      const isDeployConnectionError =
+        deployMessage.includes('P1001') ||
+        deployMessage.includes("Can't reach database server") ||
+        deployOutput.includes('P1001');
+
+      if (isDeployConnectionError) {
+        console.error('\n' + '='.repeat(70));
+        console.error('❌ DATABASE CONNECTION FAILED');
+        console.error('='.repeat(70));
+        console.error('\n💡 QUICK FIXES:\n');
+        console.error('1. Connect to VPN, then retry: npm run build');
+        console.error('2. Switch to mobile hotspot, then retry: npm run build');
+        console.error('3. Run diagnostic: npx tsx scripts/test-db-connection.ts\n');
+        console.error('📚 For detailed solutions, see: NETWORK_CONNECTION_TROUBLESHOOTING.md');
+        console.error('='.repeat(70) + '\n');
+      } else {
+        console.error('❌ Migration deploy failed:', deployError);
+      }
       process.exit(1);
     }
   } else {
-    console.error('❌ Error:', error.message);
+    if (!isConnectionError) {
+      console.error('❌ Error:', errorMessage);
+    }
     process.exit(1);
   }
 }

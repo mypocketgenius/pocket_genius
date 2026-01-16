@@ -12,6 +12,7 @@ import { env } from '@/lib/env';
 import { queryRAG, type RetrievedChunk } from '@/lib/rag/query';
 import { checkRateLimit, getRemainingMessages, RATE_LIMIT } from '@/lib/rate-limit';
 import { logPillUsage } from '@/lib/pills/log-usage';
+import { generateFollowUpPills } from '@/lib/follow-up-pills/generate-pills';
 
 // Initialize OpenAI client with type-safe API key
 const openai = new OpenAI({
@@ -521,18 +522,96 @@ If the context doesn't contain relevant information to answer the question, say 
             }
           }
 
-          // 15. Store assistant message with context after streaming completes
+          // 15. Generate follow-up pills first, then store message once with complete data
+          let followUpPills: string[] = [];
           try {
-            await prisma.message.create({
+            // Fetch user's intake responses for this chatbot
+            let intakeResponses: Array<{ question: string; answer: string }> = [];
+            try {
+              const responses = await prisma.intake_Response.findMany({
+                where: {
+                  userId: dbUserId,
+                  chatbotId: chatbot.id,
+                },
+                include: {
+                  intakeQuestion: {
+                    select: {
+                      questionText: true,
+                    },
+                  },
+                },
+              });
+              
+              // Format intake responses as question/answer pairs
+              intakeResponses = responses.map((response) => {
+                // Extract answer from JSON value
+                let answerText = '';
+                if (response.value && typeof response.value === 'object') {
+                  const value = response.value as any;
+                  if (Array.isArray(value)) {
+                    answerText = value.join(', ');
+                  } else if (typeof value === 'string') {
+                    answerText = value;
+                  } else if (value.text) {
+                    answerText = value.text;
+                  } else {
+                    answerText = JSON.stringify(value);
+                  }
+                } else if (typeof response.value === 'string') {
+                  answerText = response.value;
+                }
+                
+                return {
+                  question: response.intakeQuestion.questionText,
+                  answer: answerText,
+                };
+              });
+            } catch (intakeError) {
+              // Log but don't fail - intake responses are optional
+              console.warn('Error fetching intake responses for pill generation:', intakeError);
+            }
+            
+            const pillsResult = await generateFollowUpPills({
+              assistantResponse: fullResponse,
+              configJson: chatbot.configJson as Record<string, any> | null,
+              chatbotId: chatbot.id,
+              conversationId,
+              intakeResponses: intakeResponses.length > 0 ? intakeResponses : undefined,
+            });
+            followUpPills = pillsResult.pills;
+          } catch (pillError) {
+            // Log pill generation errors but don't fail the request (graceful degradation)
+            console.error('Error generating follow-up pills:', pillError);
+            followUpPills = [];
+          }
+
+          // 15. Store assistant message ONCE with complete data (chunks in context + pills in separate field)
+          try {
+            const assistantMessage = await prisma.message.create({
               data: {
                 conversationId,
                 userId: dbUserId, // Always present
                 role: 'assistant',
                 content: fullResponse,
-                context: { chunks: chunksForContext },
+                context: { 
+                  chunks: chunksForContext,
+                  // Note: followUpPills NOT stored in context - stored in separate field below
+                },
+                followUpPills: followUpPills, // Separate field for pills (not in RAG context)
                 sourceIds,
               },
             });
+
+            // Send pills to frontend via structured prefix (no regex needed)
+            // Send AFTER message creation so we have the messageId
+            // Format: __PILLS__{json} - easy to parse with indexOf and substring
+            if (followUpPills.length > 0) {
+              const pillsDataJson = JSON.stringify({
+                messageId: assistantMessage.id,
+                pills: followUpPills,
+              });
+              controller.enqueue(encoder.encode(`\n\n__PILLS__${pillsDataJson}`));
+            }
 
             // 16. Update conversation messageCount
             await prisma.conversation.update({

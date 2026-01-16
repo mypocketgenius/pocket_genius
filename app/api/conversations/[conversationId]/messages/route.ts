@@ -81,6 +81,7 @@ export async function GET(
         createdAt: true,
         context: true, // Phase 4: Include context for source attribution
         sourceIds: true, // Phase 4: Include sourceIds to enrich context with source titles
+        followUpPills: true, // Follow-up pills (separate from RAG context)
       },
       orderBy: {
         createdAt: 'asc',
@@ -167,6 +168,7 @@ export async function GET(
         content: msg.content,
         createdAt: msg.createdAt,
         context: enrichedContext, // Phase 4: Include enriched context for source attribution
+        followUpPills: msg.followUpPills || [], // Follow-up pills (separate from RAG context)
       };
     });
 

@@ -276,6 +276,7 @@ model Message {
   role           String // 'user' | 'assistant'
   content        String
   context        Json? // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
+  followUpPills String[]     @default([]) // Follow-up pills (separate from RAG context)
   sourceIds      String[]     @default([]) // Extracted from context.chunks for easier querying
   createdAt      DateTime     @default(now())
 

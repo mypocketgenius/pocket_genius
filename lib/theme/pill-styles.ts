@@ -19,14 +19,14 @@ const PILL_CONFIG = {
   action: {
     fillOpacity: { unselected: 0.35, selected: 0.40 }, // Increased significantly for better visibility
     fontWeight: '600', // Semibold
-    padding: '10px 18px',
+    padding: '6px 18px', // Reduced vertical padding for shorter pills
     border: '1px', // Add border for action pills
     borderOpacity: 0.70, // Border opacity for action pills (increased for visibility)
   },
   suggestion: {
     fillOpacity: { unselected: 0.20, selected: 0.28 }, // Increased for better visibility
     fontWeight: '400', // Regular
-    padding: '10px 16px',
+    padding: '6px 16px', // Reduced vertical padding for shorter pills
     border: { primary: '1px', secondary: '1px' }, // Both primary and secondary have borders
     borderOpacity: 0.70, // Border opacity for suggestion pills
   },

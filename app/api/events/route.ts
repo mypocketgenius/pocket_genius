@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma';
  * - conversation_pattern: Detected by background job
  * - expansion_followup: Follow-up after expansion response
  * - gap_submission: Gap submission from user
+ * - follow_up_pill_click: Follow-up pill clicked (contextual pills below messages)
  * 
  * @example
  * ```typescript
@@ -43,7 +44,7 @@ import { prisma } from '@/lib/prisma';
  * 
  * @param {Request} req - Next.js request object
  * @param {Object} req.body - Request body
- * @param {'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission'} req.body.eventType - Type of event (required)
+ * @param {'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission' | 'follow_up_pill_click'} req.body.eventType - Type of event (required)
  * @param {string} [req.body.sessionId] - Conversation/session ID
  * @param {string[]} [req.body.chunkIds=[]] - Array of chunk IDs from message context
  * @param {Object} [req.body.metadata={}] - Event-specific metadata:
@@ -51,6 +52,7 @@ import { prisma } from '@/lib/prisma';
  *   - For expansion_followup: { result: 'satisfied' | 'unsatisfied', expansion_type: string, messageId: string }
  *   - For gap_submission: { trigger: string, expansion_type?: string, text: string, messageId: string }
  *   - For conversation_pattern: { pattern_type: string }
+ *   - For follow_up_pill_click: { pillText: string, messageId: string }
  * 
  * @returns {Promise<NextResponse>} JSON response with success status and eventId
  * @throws {400} If eventType is invalid or missing
@@ -84,7 +86,7 @@ export async function POST(req: Request) {
     } = body;
 
     // Validate eventType
-    const validEventTypes = ['copy', 'bookmark', 'conversation_pattern', 'expansion_followup', 'gap_submission'];
+    const validEventTypes = ['copy', 'bookmark', 'conversation_pattern', 'expansion_followup', 'gap_submission', 'follow_up_pill_click'];
     if (!eventType || !validEventTypes.includes(eventType)) {
       return NextResponse.json(
         { error: `eventType must be one of: ${validEventTypes.join(', ')}` },

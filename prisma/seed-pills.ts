@@ -69,108 +69,85 @@ async function main() {
 
   console.log('✅ Created feedback pill: Not helpful');
 
-  // Expansion pills
-  const examplePill = await prisma.pill.upsert({
+  // Expansion pills - Updated Jan 15, 2026
+  // Delete old expansion pills by ID (cascade deletes Pill_Usage records)
+  const oldPillIds = [
+    'pill_how_to_use_system',
+    'pill_say_more_system',
+    'pill_who_done_system',
+  ];
+
+  console.log('\n🗑️  Deleting old expansion pills...');
+  const deleteResult = await prisma.pill.deleteMany({
     where: {
-      id: 'pill_example_system',
+      id: {
+        in: oldPillIds,
+      },
     },
-    update: {
-      pillType: 'expansion',
-      label: 'Give me an example',
-      prefillText: 'Give me an example',
-      displayOrder: 1,
-      isActive: true,
-    },
-    create: {
-      id: 'pill_example_system',
-      chatbotId: null, // System pill
-      pillType: 'expansion',
-      label: 'Give me an example',
-      prefillText: 'Give me an example',
-      displayOrder: 1,
-      isActive: true,
+  });
+  console.log(`✅ Deleted ${deleteResult.count} old expansion pills`);
+
+  // Verify cascade delete worked (no orphaned Pill_Usage records)
+  const remainingUsages = await prisma.pill_Usage.count({
+    where: {
+      pillId: {
+        in: oldPillIds,
+      },
     },
   });
 
-  console.log('✅ Created expansion pill: Give me an example');
+  if (remainingUsages > 0) {
+    throw new Error(`Expected 0 Pill_Usage records after cascade delete, found ${remainingUsages}`);
+  }
+  console.log('✅ Verified cascade delete: No orphaned Pill_Usage records');
 
-  const howToUsePill = await prisma.pill.upsert({
-    where: {
-      id: 'pill_how_to_use_system',
-    },
-    update: {
-      pillType: 'expansion',
-      label: 'How would I actually use this?',
-      prefillText: 'How would I actually use this?',
-      displayOrder: 2,
-      isActive: true,
-    },
-    create: {
-      id: 'pill_how_to_use_system',
-      chatbotId: null, // System pill
-      pillType: 'expansion',
-      label: 'How would I actually use this?',
-      prefillText: 'How would I actually use this?',
-      displayOrder: 2,
-      isActive: true,
-    },
-  });
+  // Define all 5 expansion pills (4 new + 1 existing) with labels and prefillText
+  // prefillText matches label exactly for consistency
+  const allExpansionPills = [
+    { id: 'pill_evidence_system', label: "What's the evidence", prefillText: "What's the evidence" },
+    { id: 'pill_template_system', label: "Give me a template", prefillText: "Give me a template" },
+    { id: 'pill_edge_cases_system', label: "What are the edge cases", prefillText: "What are the edge cases" },
+    { id: 'pill_steps_system', label: "Break this into steps", prefillText: "Break this into steps" },
+    { id: 'pill_example_system', label: "Give me an example", prefillText: "Give me an example" },
+  ];
 
-  console.log('✅ Created expansion pill: How would I actually use this?');
+  // Randomize displayOrder for all 5 pills (1-5, shuffled)
+  const displayOrders = [1, 2, 3, 4, 5];
+  const shuffledOrders = displayOrders.sort(() => Math.random() - 0.5);
 
-  const sayMorePill = await prisma.pill.upsert({
-    where: {
-      id: 'pill_say_more_system',
-    },
-    update: {
-      pillType: 'expansion',
-      label: 'Say more about this',
-      prefillText: 'Say more about this',
-      displayOrder: 3,
-      isActive: true,
-    },
-    create: {
-      id: 'pill_say_more_system',
-      chatbotId: null, // System pill
-      pillType: 'expansion',
-      label: 'Say more about this',
-      prefillText: 'Say more about this',
-      displayOrder: 3,
-      isActive: true,
-    },
-  });
-
-  console.log('✅ Created expansion pill: Say more about this');
-
-  const whoDonePill = await prisma.pill.upsert({
-    where: {
-      id: 'pill_who_done_system',
-    },
-    update: {
-      pillType: 'expansion',
-      label: "Who's done this?",
-      prefillText: "Who's done this?",
-      displayOrder: 4,
-      isActive: true,
-    },
-    create: {
-      id: 'pill_who_done_system',
-      chatbotId: null, // System pill
-      pillType: 'expansion',
-      label: "Who's done this?",
-      prefillText: "Who's done this?",
-      displayOrder: 4,
-      isActive: true,
-    },
-  });
-
-  console.log('✅ Created expansion pill: Who\'s done this?');
+  console.log('\n🌱 Creating expansion pills with randomized display order...');
+  
+  // Upsert all pills (upsert handles both create and update for "Give me an example")
+  for (let i = 0; i < allExpansionPills.length; i++) {
+    const pill = allExpansionPills[i];
+    await prisma.pill.upsert({
+      where: { id: pill.id },
+      update: {
+        label: pill.label,
+        prefillText: pill.prefillText,
+        displayOrder: shuffledOrders[i],
+        pillType: 'expansion',
+        isActive: true,
+      },
+      create: {
+        id: pill.id,
+        chatbotId: null, // System pill
+        pillType: 'expansion',
+        label: pill.label,
+        prefillText: pill.prefillText,
+        displayOrder: shuffledOrders[i],
+        isActive: true,
+      },
+    });
+    console.log(`✅ Created/updated expansion pill: ${pill.label} (displayOrder: ${shuffledOrders[i]})`);
+  }
 
   console.log('\n🎉 Pill seed completed successfully!');
   console.log('\nSummary:');
   console.log(`  - Feedback pills: 2 (Helpful, Not helpful)`);
-  console.log(`  - Expansion pills: 4 (Example, How to use, Say more, Who's done)`);
+  console.log(`  - Expansion pills: 5 (Evidence, Template, Edge Cases, Steps, Example)`);
   console.log(`  - All pills are system pills (chatbotId: NULL)`);
+  console.log(`  - Display order randomized to prevent selection bias`);
   console.log('\nNext steps:');
   console.log('  - System pills are now available for all chatbots');
   console.log('  - Chatbot-specific suggested question pills can be added via API or Prisma Studio');

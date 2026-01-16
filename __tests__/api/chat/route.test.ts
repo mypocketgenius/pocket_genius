@@ -77,6 +77,10 @@ jest.mock('@/lib/pills/log-usage', () => ({
   logPillUsage: jest.fn(),
 }));
 
+jest.mock('@/lib/follow-up-pills/generate-pills', () => ({
+  generateFollowUpPills: jest.fn(),
+}));
+
 jest.mock('@clerk/nextjs/server', () => ({
   auth: jest.fn(),
 }));
@@ -181,6 +185,10 @@ describe('POST /api/chat', () => {
     });
     (prisma.user_Context.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.chatbot_Version.findMany as jest.Mock).mockResolvedValue([]);
+    (generateFollowUpPills as jest.Mock).mockResolvedValue({
+      pills: [],
+      generationTimeMs: 100,
+    });
   });
 
   describe('happy path', () => {
@@ -624,6 +632,295 @@ describe('POST /api/chat', () => {
 
       expect(response.status).toBe(503);
       expect(data.error).toContain('Database connection error');
+    });
+  });
+
+  describe('follow-up pills integration', () => {
+    it('should call generateFollowUpPills module after streaming completes', async () => {
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: 'assistant-msg-123',
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: [],
+      });
+
+      (generateFollowUpPills as jest.Mock).mockResolvedValue({
+        pills: ['Question 1', 'Question 2'],
+        generationTimeMs: 500,
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      expect(generateFollowUpPills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assistantResponse: 'Test response.',
+          configJson: null,
+          chatbotId: 'bot-123',
+          conversationId: 'conv-123',
+        })
+      );
+    });
+
+    it('should store pills in message.followUpPills field (separate from RAG context)', async () => {
+      const mockPills = ['Tell me more', 'Give examples', 'How to apply'];
+      (generateFollowUpPills as jest.Mock).mockResolvedValue({
+        pills: mockPills,
+        generationTimeMs: 600,
+      });
+
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: 'assistant-msg-123',
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: mockPills,
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      await POST(request);
+
+      // Verify message.create was called with pills in followUpPills field
+      const assistantMessageCall = (prisma.message.create as jest.Mock).mock.calls.find(
+        (call: any[]) => call[0].data.role === 'assistant'
+      );
+
+      expect(assistantMessageCall).toBeDefined();
+      expect(assistantMessageCall[0].data.followUpPills).toEqual(mockPills);
+      // Verify pills are NOT in context field (context is for RAG chunks only)
+      expect(assistantMessageCall[0].data.context).not.toHaveProperty('followUpPills');
+      expect(assistantMessageCall[0].data.context).toHaveProperty('chunks');
+    });
+
+    it('should send pills via structured prefix __PILLS__{json} after message creation', async () => {
+      const mockPills = ['Question 1', 'Question 2'];
+      const mockMessageId = 'assistant-msg-456';
+      
+      (generateFollowUpPills as jest.Mock).mockResolvedValue({
+        pills: mockPills,
+        generationTimeMs: 400,
+      });
+
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: mockMessageId,
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: mockPills,
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      // Read the stream to verify pills prefix is sent
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let streamContent = '';
+      
+      if (reader) {
+        let done = false;
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          done = streamDone;
+          if (value) {
+            streamContent += decoder.decode(value, { stream: true });
+          }
+        }
+      }
+
+      // Verify pills prefix is in stream
+      expect(streamContent).toContain('__PILLS__');
+      const pillsMatch = streamContent.match(/__PILLS__({.+})/);
+      expect(pillsMatch).toBeTruthy();
+      
+      if (pillsMatch) {
+        const pillsData = JSON.parse(pillsMatch[1]);
+        expect(pillsData.messageId).toBe(mockMessageId);
+        expect(pillsData.pills).toEqual(mockPills);
+      }
+    });
+
+    it('should handle pill generation failures gracefully (graceful degradation)', async () => {
+      (generateFollowUpPills as jest.Mock).mockRejectedValue(new Error('Pill generation failed'));
+
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: 'assistant-msg-123',
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: [],
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      const response = await POST(request);
+
+      // Request should still succeed even if pill generation fails
+      expect(response.status).toBe(200);
+      // Message should be stored with empty pills array
+      const assistantMessageCall = (prisma.message.create as jest.Mock).mock.calls.find(
+        (call: any[]) => call[0].data.role === 'assistant'
+      );
+      expect(assistantMessageCall[0].data.followUpPills).toEqual([]);
+    });
+
+    it('should not send pills prefix when pills array is empty', async () => {
+      (generateFollowUpPills as jest.Mock).mockResolvedValue({
+        pills: [],
+        generationTimeMs: 100,
+      });
+
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: 'assistant-msg-123',
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: [],
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      // Read the stream to verify pills prefix is NOT sent
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let streamContent = '';
+      
+      if (reader) {
+        let done = false;
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          done = streamDone;
+          if (value) {
+            streamContent += decoder.decode(value, { stream: true });
+          }
+        }
+      }
+
+      // Verify pills prefix is NOT in stream when pills are empty
+      expect(streamContent).not.toContain('__PILLS__');
+    });
+
+    it('should pass configJson to generateFollowUpPills when chatbot has custom config', async () => {
+      const customConfig = {
+        enableFollowUpPills: true,
+        followUpPillsPrompt: 'Custom prompt for pills',
+      };
+
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: 'bot-123',
+        title: 'Test Bot',
+        currentVersionId: 'version-123',
+        creator: {
+          users: [{ userId: 'user-123', role: 'OWNER' }],
+        },
+        systemPrompt: 'You are a helpful assistant.',
+        configJson: customConfig,
+        ragSettingsJson: null,
+      });
+
+      (prisma.message.create as jest.Mock).mockResolvedValueOnce({
+        id: 'user-msg-123',
+        conversationId: 'conv-123',
+        role: 'user',
+        content: 'Test message',
+      }).mockResolvedValueOnce({
+        id: 'assistant-msg-123',
+        conversationId: 'conv-123',
+        role: 'assistant',
+        content: 'Test response',
+        followUpPills: [],
+      });
+
+      (generateFollowUpPills as jest.Mock).mockResolvedValue({
+        pills: ['Question 1'],
+        generationTimeMs: 300,
+      });
+
+      const request = new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Test message' }],
+          chatbotId: 'bot-123',
+        }),
+      });
+
+      await POST(request);
+
+      expect(generateFollowUpPills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configJson: customConfig,
+        })
+      );
     });
   });
 });

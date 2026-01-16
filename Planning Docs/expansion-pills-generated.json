@@ -1,0 +1,67 @@
+{
+  "pills": [
+    {
+      "label": "Show me proof",
+      "rationale": "This pill captures the universal need for validation and evidence across all content types. Users always want to know if claims are backed by research, data, or real-world validation. Unlike contextual pills that ask about specific topics, this addresses the meta-question of credibility that applies universally. Creators get a clear signal: users need more evidence, research citations, or validation in their content.",
+      "universalityScore": 5,
+      "userUtilityScore": 5,
+      "signalClarityScore": 5,
+      "nonOverlapScore": 5,
+      "actionabilityScore": 5,
+      "contentGapSignal": "X users need more proof, evidence, research citations, or validation in this content",
+      "contentTypeMapped": "Proof",
+      "exampleUsage": "After reading about a business strategy, user clicks to see research studies or case data supporting the claim."
+    },
+    {
+      "label": "Give me a template",
+      "rationale": "This pill addresses the universal need for structured, reusable formats that users can immediately apply. Whether it's a business plan, workout routine, or conversation script, users frequently need templates. This is distinct from contextual pills because it's about format/structure rather than topic-specific content. Creators learn they need to provide more actionable, copy-paste-ready formats.",
+      "universalityScore": 5,
+      "userUtilityScore": 5,
+      "signalClarityScore": 5,
+      "nonOverlapScore": 5,
+      "actionabilityScore": 5,
+      "contentGapSignal": "X users need templates, scripts, checklists, or structured formats they can use immediately",
+      "contentTypeMapped": "Format",
+      "exampleUsage": "User reads about negotiation tactics and clicks to get a conversation script template they can use."
+    },
+    {
+      "label": "What if this doesn't work?",
+      "rationale": "This pill captures the universal need to understand edge cases, risks, and alternatives. Users always want to know what could go wrong or what alternatives exist, regardless of the specific topic. This is fundamentally different from contextual pills which ask about the topic itself - this asks about failure modes and edge cases. Creators get clear feedback that they need more troubleshooting, risk analysis, or alternative approaches.",
+      "universalityScore": 5,
+      "userUtilityScore": 5,
+      "signalClarityScore": 5,
+      "nonOverlapScore": 5,
+      "actionabilityScore": 5,
+      "contentGapSignal": "X users need more information about edge cases, risks, troubleshooting, or alternative approaches",
+      "contentTypeMapped": "Edge Cases",
+      "exampleUsage": "After learning a productivity technique, user clicks to understand when it might fail or what alternatives exist."
+    },
+    {
+      "label": "Break this into steps",
+      "rationale": "This pill addresses the universal need for structured, sequential implementation guidance. Users always benefit from step-by-step breakdowns, regardless of whether the content is about business, self-help, or strategy. Unlike contextual pills that might ask topic-specific questions, this requests structural transformation of any content into actionable steps. Creators learn they need more implementation guides and sequential instructions.",
+      "universalityScore": 5,
+      "userUtilityScore": 5,
+      "signalClarityScore": 5,
+      "nonOverlapScore": 5,
+      "actionabilityScore": 5,
+      "contentGapSignal": "X users need more step-by-step implementation guides and sequential instructions",
+      "contentTypeMapped": "Application",
+      "exampleUsage": "User reads about a marketing concept and clicks to see it broken down into a clear 5-step implementation process."
+    },
+    {
+      "label": "Who's done this successfully?",
+      "rationale": "This pill captures the universal need for real-world validation through case studies and success stories. Users want to see proof that concepts work in practice, which applies across all content types. This is distinct from contextual pills because it's about finding examples/validation rather than understanding the concept itself. Creators get clear feedback that they need more case studies, success stories, or real-world examples.",
+      "universalityScore": 5,
+      "userUtilityScore": 5,
+      "signalClarityScore": 5,
+      "nonOverlapScore": 5,
+      "actionabilityScore": 5,
+      "contentGapSignal": "X users need more case studies, success stories, or real-world examples of this working",
+      "contentTypeMapped": "Examples",
+      "exampleUsage": "After learning about a leadership principle, user clicks to see companies or leaders who successfully applied it."
+    }
+  ],
+  "summary": "This set of 5 expansion pills collectively addresses universal user needs that transcend specific message content: validation (proof), structure (templates), risk awareness (edge cases), implementation (steps), and real-world validation (case studies). Each pill maps to a distinct content gap category creators can act on, provides clear signals when aggregated, and captures needs that contextual pills cannot address since contextual pills are message-specific. Together, they cover the spectrum of universal user intents: understanding credibility, needing formats, anticipating problems, requiring structure, and seeking validation. All pills are short (3-6 words), natural-sounding, and immediately actionable for both users and creators."
+}
+
+

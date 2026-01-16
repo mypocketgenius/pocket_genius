@@ -4400,6 +4400,11 @@ If the context doesn't contain relevant information to answer the question, say 
 
 **Why needed:** Phase 4.2 and 4.3 depend on these database models. Must be completed before any analytics implementation.
 
+**⚠️ UPDATED (Jan 15, 2026):** Content gap aggregation now uses `Pill_Usage` model instead of `Event` model. This provides:
+- **More direct data source** - Expansion pills are the structured signal of content gaps
+- **Better tracking** - Links directly to Pill model via `expansionPillId`
+- **Clearer analytics** - Each gap type maps to a specific expansion pill (evidence, template, edge_cases, steps, example)
+
 **Tasks:**
 
 1. **Add Content_Gap model:**
@@ -4410,18 +4415,29 @@ If the context doesn't contain relevant information to answer the question, say 
      id              String   @id @default(cuid())
      chatbotId       String
      chatbot         Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-     topicRequested  String   // Short topic summary
-     specificQuestion String  // Full user question
+     topicRequested  String   // Short topic summary (from message content)
+     specificQuestion String  // Full user question (from sentText in Pill_Usage)
      requestCount    Int      @default(1)
      lastRequestedAt DateTime @default(now())
-     formatRequested String[] @default([]) // ['scripts', 'examples', etc.]
+     
+     // Map to expansion pill types (aggregated from Pill_Usage)
+     expansionPillType String? // 'evidence' | 'template' | 'edge_cases' | 'steps' | 'example'
+     expansionPillId   String? // FK to Pill.id (for direct pill tracking)
+     pill              Pill?    @relation("ContentGapPill", fields: [expansionPillId], references: [id])
+     
+     // Format preferences now map to expansion pills (derived from expansionPillType)
+     formatRequested String[] @default([]) // Derived from expansionPillType
+     
      userContexts    Json?    // Array of user situations
+     relatedChunkIds String[] @default([]) // Chunks that partially addressed this (from Pill_Usage.sourceChunkIds)
      status          String   @default("open") // 'open' | 'addressed' | 'closed'
      createdAt       DateTime @default(now())
      updatedAt       DateTime @updatedAt
      
-     @@unique([chatbotId, topicRequested])
+     @@unique([chatbotId, topicRequested, expansionPillType]) // Include pill type - allows tracking multiple gap types per topic (e.g., same topic can have both 'evidence' and 'template' gaps)
      @@index([chatbotId, status])
+     @@index([expansionPillType])
+     @@index([expansionPillId])
    }
    ```
 
@@ -4477,6 +4493,16 @@ If the context doesn't contain relevant information to answer the question, say 
    model Source {
      // ... existing fields ...
      sourcePerformance Source_Performance[]
+   }
+   ```
+
+5. **Update Pill model to add relation:**
+
+   **`prisma/schema.prisma`:**
+   ```prisma
+   model Pill {
+     // ... existing fields ...
+     contentGaps Content_Gap[] @relation("ContentGapPill")
    }
    ```
 
@@ -4536,37 +4562,63 @@ If the context doesn't contain relevant information to answer the question, say 
 
 1. **Create format preferences widget:**
 
+   **⚠️ UPDATED (Jan 15, 2026):** Format preferences now aggregate from `Pill_Usage` model where `pill.pillType === 'expansion'`. This uses the new expansion pills:
+   - "What's the evidence" → Evidence format
+   - "Give me a template" → Template format  
+   - "What are the edge cases" → Edge Cases format
+   - "Break this into steps" → Steps format
+   - "Give me an example" → Example format
+
+   This replaces the previous approach using `Chunk_Performance.needsScriptsCount`, `needsExamplesCount`, etc.
+
    **`components/dashboard/format-preferences.tsx`:**
    ```typescript
    import { prisma } from '@/lib/prisma';
    
    export async function FormatPreferencesWidget({ chatbotId }: { chatbotId: string }) {
-     const month = new Date().getMonth() + 1;
-     const year = new Date().getFullYear();
+     const thirtyDaysAgo = new Date();
+     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
      
-     const result = await prisma.chunk_Performance.aggregate({
-       where: { chatbotId, month, year },
-       _sum: {
-         needsScriptsCount: true,
-         needsExamplesCount: true,
-         needsStepsCount: true,
-         needsCaseStudyCount: true,
+     // Query expansion pill usage from last 30 days
+     const pillUsages = await prisma.pill_Usage.findMany({
+       where: {
+         chatbotId,
+         timestamp: { gte: thirtyDaysAgo },
+         pill: {
+           pillType: 'expansion',
+         },
+       },
+       include: {
+         pill: {
+           select: {
+             label: true,
+           },
+         },
        },
      });
      
-     const total = (result._sum.needsScriptsCount || 0) +
-                   (result._sum.needsExamplesCount || 0) +
-                   (result._sum.needsStepsCount || 0) +
-                   (result._sum.needsCaseStudyCount || 0);
+     // Map pill labels to display names
+     const pillTypeMap: Record<string, string> = {
+       "What's the evidence": 'Evidence',
+       "Give me a template": 'Template',
+       "What are the edge cases": 'Edge Cases',
+       "Break this into steps": 'Steps',
+       "Give me an example": 'Example',
+     };
+     
+     const counts = pillUsages.reduce((acc, usage) => {
+       const type = pillTypeMap[usage.pill.label] || 'Other';
+       acc[type] = (acc[type] || 0) + 1;
+       return acc;
+     }, {} as Record<string, number>);
+     
+     const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
      
      if (total === 0) return null;
      
-     const formats = [
-       { name: 'Scripts', count: result._sum.needsScriptsCount || 0 },
-       { name: 'Examples', count: result._sum.needsExamplesCount || 0 },
-       { name: 'Steps', count: result._sum.needsStepsCount || 0 },
-       { name: 'Case Studies', count: result._sum.needsCaseStudyCount || 0 },
-     ].sort((a, b) => b.count - a.count);
+     const formats = Object.entries(counts)
+       .map(([name, count]) => ({ name, count }))
+       .sort((a, b) => b.count - a.count);
      
      return (
        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
@@ -4583,7 +4635,7 @@ If the context doesn't contain relevant information to answer the question, say 
            ))}
          </div>
          <p className="mt-4 text-sm text-blue-900">
-           <strong>Recommendation:</strong> Create more {formats[0].name.toLowerCase()}-based content
+           <strong>Recommendation:</strong> Create more {formats[0]?.name.toLowerCase()}-based content
          </p>
        </div>
      );
@@ -5002,162 +5054,154 @@ If the context doesn't contain relevant information to answer the question, say 
    **`app/api/jobs/aggregate-content-gaps/route.ts`:**
    ```typescript
    import { prisma } from '@/lib/prisma';
-   
+
    export async function POST(request: Request) {
      const thirtyDaysAgo = new Date();
      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
      
-     // ⚠️ IMPORTANT: Feedback is stored in Event model, not Message_Feedback
-     // Message_Feedback table was removed in Phase 2 migration
-     // Feedback is stored as Event records with eventType: 'user_message' and metadata JSON
-     // 
-     // ✅ UPDATED (Jan 14, 2026): Now uses messageId FK field instead of metadata.messageId
-     // This provides 50x faster queries by using direct FK queries instead of filtering in JavaScript
-     
-     // Query events with messageId directly (much faster than before)
-     // Note: Prisma doesn't support JSON path queries, so filter feedbackType in JavaScript
-     const eventsWithMessages = await prisma.event.findMany({
+     // Query expansion pill usage from last 30 days
+     const pillUsages = await prisma.pill_Usage.findMany({
        where: {
-         eventType: 'user_message',
-         messageId: { not: null }, // Only events with messages (FK query is fast!)
-         timestamp: { gte: thirtyDaysAgo }, // Event model uses 'timestamp' field, not 'createdAt'
+         timestamp: { gte: thirtyDaysAgo },
+         pill: {
+           pillType: 'expansion',
+         },
        },
-       select: {
-         id: true,
-         messageId: true,
-         metadata: true,
-         userId: true,
-         timestamp: true, // Event model uses 'timestamp' field, not 'createdAt'
-       },
-     });
-     
-     // Filter by feedbackType in memory (small dataset after FK filter)
-     const feedbackEvents = eventsWithMessages.filter((evt) => {
-       const metadata = evt.metadata as any;
-       const feedbackType = metadata?.feedbackType;
-       return feedbackType === 'need_more' || feedbackType === 'not_helpful';
-     });
-     
-     if (feedbackEvents.length === 0) {
-       return Response.json({ message: 'No feedback to process' });
-     }
-     
-     // Extract messageIds from FK field (no longer from metadata)
-     const messageIds = feedbackEvents
-       .map((evt) => evt.messageId)
-       .filter((id): id is string => !!id);
-     
-     const messages = await prisma.message.findMany({
-       where: { id: { in: messageIds } },
        include: {
-         conversation: {
+         pill: {
            select: {
              id: true,
-             chatbotId: true,
+             label: true,
+           },
+         },
+         chatbot: {
+           select: {
+             id: true,
            },
          },
        },
      });
      
-     // Create a map of messageId -> message for quick lookup
-     const messageMap = new Map(messages.map((m) => [m.id, m]));
+     if (pillUsages.length === 0) {
+       return Response.json({ message: 'No expansion pill usage to process' });
+     }
      
-     // Combine events with their messages
-     const feedback = feedbackEvents
-       .map((evt) => {
-         const metadata = evt.metadata as any;
-         const messageId = evt.messageId; // Use FK field instead of metadata
-         const message = messageMap.get(messageId);
-         
-         if (!message) return null;
-         
-         return {
-           event: evt,
-           message,
-           metadata,
-           needsMore: metadata?.needsMore || [],
-           specificSituation: metadata?.specificSituation || null,
-           userId: evt.userId,
+     // Map pill labels to expansionPillType
+     const pillTypeMap: Record<string, string> = {
+       "What's the evidence": 'evidence',
+       "Give me a template": 'template',
+       "What are the edge cases": 'edge_cases',
+       "Break this into steps": 'steps',
+       "Give me an example": 'example',
+     };
+     
+     // Group by chatbot and pill
+     const byChatbotAndPill = pillUsages.reduce((acc, usage) => {
+       const key = `${usage.chatbotId}_${usage.pillId}`;
+       if (!acc[key]) {
+         acc[key] = {
+           chatbotId: usage.chatbotId,
+           pillId: usage.pillId,
+           pillLabel: usage.pill.label,
+           expansionPillType: pillTypeMap[usage.pill.label] || null,
+           usages: [],
          };
-       })
-       .filter((f): f is NonNullable<typeof f> => f !== null);
-     
-     // Group by chatbot and simple keyword matching
-     const byChatbot = feedback.reduce((acc, f) => {
-       const chatbotId = f.message.conversation.chatbotId;
-       if (!acc[chatbotId]) acc[chatbotId] = [];
-       acc[chatbotId].push(f);
+       }
+       acc[key].usages.push(usage);
        return acc;
-     }, {} as Record<string, typeof feedback>);
+     }, {} as Record<string, any>);
      
      let totalGapsProcessed = 0;
      
-     // Process each chatbot - simple clustering by message content similarity
-     for (const [chatbotId, chatbotFeedback] of Object.entries(byChatbot)) {
-       // Simple grouping by first few words of message
-       const grouped = chatbotFeedback.reduce((acc, f) => {
-         const key = f.message.content.substring(0, 50).toLowerCase();
-         if (!acc[key]) acc[key] = [];
-         acc[key].push(f);
-         return acc;
-       }, {} as Record<string, typeof chatbotFeedback>);
+     // Process each chatbot/pill combination
+     for (const [key, group] of Object.entries(byChatbotAndPill)) {
+       const { chatbotId, pillId, pillLabel, expansionPillType, usages } = group;
        
-       for (const [key, group] of Object.entries(grouped)) {
-         if (group.length < 2) continue; // Skip single requests
+       // Group by topic
+       // ⚠️ TODO: Use better grouping strategy than first 50 chars
+       // Better approaches:
+       // - Embedding-based similarity clustering
+       // - Normalized keyword grouping
+       // - Hash of normalized text for better uniqueness
+       const byTopic = usages.reduce((acc, usage) => {
+         // Use first 50 chars of sentText as topic key (temporary - improve when implementing)
+         const topicKey = usage.sentText.substring(0, 50).toLowerCase();
+         if (!acc[topicKey]) {
+           acc[topicKey] = [];
+         }
+         acc[topicKey].push(usage);
+         return acc;
+       }, {} as Record<string, typeof usages>);
+       
+       // Create/update Content_Gap for each topic
+       for (const [topicKey, topicUsages] of Object.entries(byTopic)) {
+         if (topicUsages.length < 2) continue; // Skip single requests
          
-         const representativeQuestion = group[0].message.content;
-         
-         // Count format preferences
-         const formatCounts = {
-           scripts: 0,
-           examples: 0,
-           steps: 0,
-           case_studies: 0,
-         };
-         
-         group.forEach((f) => {
-           if (Array.isArray(f.needsMore)) {
-             if (f.needsMore.includes('scripts')) formatCounts.scripts++;
-             if (f.needsMore.includes('examples')) formatCounts.examples++;
-             if (f.needsMore.includes('steps')) formatCounts.steps++;
-             if (f.needsMore.includes('case_studies')) formatCounts.case_studies++;
-           }
-         });
-         
-         const formatRequested = Object.entries(formatCounts)
-           .filter(([_, count]) => count > 0)
-           .map(([format, _]) => format);
+         const representativeUsage = topicUsages[0];
+         const topicRequested = representativeUsage.sentText.substring(0, 200);
          
          // Collect user contexts
-         const userContexts = group
-           .filter((f) => f.specificSituation)
-           .map((f) => ({
-             userId: f.userId || null,
-             situation: f.specificSituation,
+         const userContexts = topicUsages
+           .filter(u => u.userId)
+           .map(u => ({
+             userId: u.userId,
+             sentText: u.sentText,
            }));
          
+         // Collect related chunk IDs (chunks that didn't satisfy)
+         const relatedChunkIds = Array.from(
+           new Set(
+             topicUsages.flatMap(u => u.sourceChunkIds || [])
+           )
+         );
+         
+         // Determine formatRequested from expansionPillType
+         const formatRequested = expansionPillType ? [expansionPillType] : [];
+         
          // Upsert Content_Gap
+         // Note: Must fetch existing record first to merge relatedChunkIds arrays
+         const existing = await prisma.content_Gap.findUnique({
+           where: {
+             chatbotId_topicRequested_expansionPillType: {
+               chatbotId,
+               topicRequested,
+               expansionPillType: expansionPillType || '',
+             },
+           },
+         });
+         
+         const mergedChunkIds = existing
+           ? Array.from(new Set([...existing.relatedChunkIds, ...relatedChunkIds]))
+           : relatedChunkIds;
+         
          await prisma.content_Gap.upsert({
            where: {
-             chatbotId_topicRequested: {
+             chatbotId_topicRequested_expansionPillType: {
                chatbotId,
-               topicRequested: representativeQuestion.substring(0, 200),
+               topicRequested,
+               expansionPillType: expansionPillType || '',
              },
            },
            create: {
              chatbotId,
-             topicRequested: representativeQuestion.substring(0, 200),
-             specificQuestion: representativeQuestion,
-             requestCount: group.length,
+             topicRequested,
+             specificQuestion: representativeUsage.sentText,
+             requestCount: topicUsages.length,
              lastRequestedAt: new Date(),
+             expansionPillType,
+             expansionPillId: pillId,
              formatRequested,
              userContexts: userContexts.length > 0 ? userContexts : undefined,
+             relatedChunkIds: mergedChunkIds,
              status: 'open',
            },
            update: {
-             requestCount: { increment: group.length },
+             requestCount: { increment: topicUsages.length },
              lastRequestedAt: new Date(),
-             formatRequested,
+             expansionPillType, // Update if changed
+             expansionPillId: pillId, // Update if changed
+             formatRequested, // Update if changed
+             relatedChunkIds: mergedChunkIds, // Merge arrays
              userContexts: userContexts.length > 0 ? userContexts : undefined,
            },
          });
@@ -5173,14 +5217,23 @@ If the context doesn't contain relevant information to answer the question, say 
    }
    ```
    
-   **⚠️ IMPORTANT:** This implementation uses the `Event` model (not `Message_Feedback`) because feedback is stored as Event records with `eventType: 'user_message'` and feedback data in the `metadata` JSON field. This matches the current implementation in `/api/feedback/message`.
+   **⚠️ UPDATED (Jan 15, 2026):** This implementation now uses the `Pill_Usage` model instead of the `Event` model. This provides:
+   - **More direct data source** - Expansion pills are the structured signal of content gaps
+   - **Better tracking** - Links directly to Pill model via `expansionPillId`
+   - **Clearer analytics** - Each gap type maps to a specific expansion pill (evidence, template, edge_cases, steps, example)
+   - **Simpler queries** - No need to filter Event records or extract data from JSON metadata
    
-   **✅ UPDATED (Jan 14, 2026):** This code now uses the `messageId` FK field (added in migration `20260114112937_add_messageid_to_event`) instead of extracting `messageId` from metadata. This provides:
-   - **50x faster queries** - Direct FK queries instead of filtering all events in JavaScript
-   - **Better performance** - Database-level index on messageId enables efficient filtering
-   - **Cleaner code** - No need to extract messageId from metadata JSON
+   **Key Changes:**
+   - Queries `Pill_Usage` where `pill.pillType === 'expansion'`
+   - Groups by `pillId` first, then by topic (sentText)
+   - Maps pill labels to `expansionPillType` using pillTypeMap
+   - Tracks `relatedChunkIds` from `sourceChunkIds` field
+   - Links to Pill model via `expansionPillId` FK
    
-   **Note:** Prisma doesn't support JSON path queries, so we still filter `feedbackType` in JavaScript after the FK query (still much faster than before since we're filtering a smaller dataset).
+   **Note on Topic Grouping:** The current implementation uses first 50 chars of `sentText` as a simple grouping strategy. When implementing, consider better approaches:
+   - Embedding-based similarity clustering
+   - Normalized keyword grouping  
+   - Hash of normalized text for better uniqueness
 
 2. **Add to Vercel cron:**
 
@@ -5308,6 +5361,27 @@ If the context doesn't contain relevant information to answer the question, say 
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Manual testing checklist complete
+
+---
+
+#### Phase 4.4: Expansion Pills Update ✅ COMPLETE (Jan 15, 2026)
+
+**Objective:** Updated expansion pills to better align with content gap analytics
+
+**Status:** ✅ **COMPLETE** - Expansion pills updated, Phase 4 planning docs updated
+
+**What Changed:**
+- Replaced 3 old expansion pills with 4 new ones
+- Kept "Give me an example" pill
+- New pills: "What's the evidence", "Give me a template", "What are the edge cases", "Break this into steps"
+- Updated Phase 4.0, 4.2, and 4.3 to use Pill_Usage model with new pills
+
+**Impact on Phase 4:**
+- Phase 4.0: Content_Gap model includes `expansionPillType` and `expansionPillId` fields
+- Phase 4.2: FormatPreferencesWidget aggregates from Pill_Usage with new pill types
+- Phase 4.3: Content gap aggregation uses Pill_Usage instead of Event model
+
+**See:** `Planning Docs/01-15_update-expansion-pills.md` for implementation details
 
 ---
 

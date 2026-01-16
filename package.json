@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:db-connection": "npx tsx scripts/test-db-connection.ts"
   },
   "prisma": {
     "seed": "npx dotenv-cli -e .env.local -- npx tsx prisma/seed.ts"

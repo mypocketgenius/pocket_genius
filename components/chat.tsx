@@ -23,6 +23,7 @@ import { getPillColors } from '../lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
 import { getCurrentPeriod } from '../lib/theme/config';
 import { MarkdownRenderer } from './markdown-renderer';
+import { FollowUpPills } from './follow-up-pills';
 
 interface Message {
   id: string;
@@ -30,11 +31,22 @@ interface Message {
   content: string;
   createdAt?: Date;
   context?: Prisma.JsonValue; // Message context for source attribution
+  followUpPills?: string[]; // Follow-up pills (separate from RAG context)
 }
 
 interface ChatProps {
   chatbotId: string;
   chatbotTitle: string;
+}
+
+/**
+ * Helper function for type-safe chunk access from context
+ * Extracts chunk IDs from message context for event logging
+ */
+function getChunkIds(context: Prisma.JsonValue | undefined): string[] {
+  if (!context) return [];
+  const ctx = context as { chunks?: Array<{ chunkId: string }> } | null;
+  return ctx?.chunks?.map(c => c.chunkId) || [];
 }
 
 /**
@@ -110,7 +122,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   }, [isLoaded, isSignedIn, chatbotId]);
 
   // Phase 3.10: Check intake form completion on mount
+  // Only check after authentication is loaded and user is signed in
   useEffect(() => {
+    // Wait for auth to be loaded and user to be signed in before checking
+    if (!isLoaded || !isSignedIn) {
+      return;
+    }
+
     const checkIntakeCompletion = async () => {
       setCheckingIntakeCompletion(true);
       try {
@@ -138,7 +156,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
 
     checkIntakeCompletion();
-  }, [chatbotId]);
+  }, [chatbotId, isLoaded, isSignedIn]);
 
   // Get conversationId from URL params or localStorage on mount
   useEffect(() => {
@@ -199,6 +217,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           content: msg.content,
           createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
           context: msg.context || undefined, // Phase 4: Include context for source attribution
+          followUpPills: msg.followUpPills || undefined, // Follow-up pills (separate from RAG context)
         }));
 
         setMessages(loadedMessages);
@@ -368,6 +387,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let streamedContent = '';
+      const PILLS_PREFIX = '__PILLS__';
 
       // Read stream chunks
       try {
@@ -376,16 +396,59 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          streamedContent += chunk;
-
-          // Update assistant message with streamed content
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: streamedContent }
-                : msg
-            )
-          );
+          
+          // Check if chunk contains pills event (structured prefix)
+          if (chunk.includes(PILLS_PREFIX)) {
+            const pillsIndex = chunk.indexOf(PILLS_PREFIX);
+            const contentPart = chunk.substring(0, pillsIndex);
+            const pillsPart = chunk.substring(pillsIndex + PILLS_PREFIX.length);
+            
+            // Append content part normally (if any) - this is the actual message content
+            if (contentPart.trim()) {
+              streamedContent += contentPart;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: streamedContent }
+                    : msg
+                )
+              );
+            }
+            
+            // Parse pills JSON (structured data, no regex needed)
+            try {
+              const pillsData = JSON.parse(pillsPart);
+              const { messageId, pills } = pillsData;
+              
+              if (Array.isArray(pills)) {
+                // Update message with pills using assistantMessageId (temporary ID)
+                // The message will be reloaded with real database ID later, but pills are attached now
+                // Pills stored in separate followUpPills field (not in RAG context)
+                console.log('Received follow-up pills:', { messageId, pillsCount: pills.length, assistantMessageId });
+                setMessages((prev) => prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        followUpPills: pills, // Separate field, not in RAG context
+                      }
+                    : msg
+                ));
+              }
+            } catch (parseError) {
+              console.error('Error parsing pills event:', parseError);
+              console.error('Pills part that failed:', pillsPart);
+            }
+          } else {
+            // Normal content chunk - append to streamed content
+            streamedContent += chunk;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, content: streamedContent }
+                  : msg
+              )
+            );
+          }
         }
       } catch (streamError) {
         console.error('Error reading stream:', streamError);
@@ -443,6 +506,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               content: msg.content,
               createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
               context: msg.context || undefined, // Phase 4: Include context for source attribution
+              followUpPills: msg.followUpPills || undefined, // Follow-up pills (separate from RAG context)
             }));
             
             setMessages(loadedMessages);
@@ -1009,6 +1073,50 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       {message.content}
                     </div>
                   )}
+                  
+                  {/* Follow-up pills - below message content, before source attribution */}
+                  {message.role === 'assistant' && (() => {
+                    // Pills are stored in separate followUpPills field (not in RAG context)
+                    const pills = message.followUpPills || [];
+                    const chunkIds = getChunkIds(message.context);
+                    
+                    if (pills.length === 0) return null;
+                    
+                    return (
+                      <FollowUpPills
+                        pills={pills}
+                        messageId={message.id}
+                        conversationId={conversationId || ''}
+                        chunkIds={chunkIds}
+                        onPillClick={async (pillText) => {
+                          // Prefill input
+                          setInput(pillText);
+                          inputRef.current?.focus();
+                          
+                          // Log event
+                          // Note: Events API extracts messageId from metadata, so include it there
+                          try {
+                            await fetch('/api/events', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                eventType: 'follow_up_pill_click',
+                                sessionId: conversationId || '',
+                                chunkIds: chunkIds,
+                                metadata: { 
+                                  pillText,
+                                  messageId: message.id, // Events API extracts this from metadata
+                                },
+                              }),
+                            });
+                          } catch (error) {
+                            console.error('Error logging follow-up pill click:', error);
+                          }
+                        }}
+                        disabled={isLoading}
+                      />
+                    );
+                  })()}
                   
                   {/* Phase 4: Source attribution - inside message bubble at the end */}
                   {message.role === 'assistant' && message.context && (
