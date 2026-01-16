@@ -4253,6 +4253,114 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Follow-Up Pills (Contextual Follow-Up Questions) ✅ COMPLETE (Jan 16, 2025)
+
+**Status:** ✅ **COMPLETE** (Jan 16, 2025)
+
+**Objective:** Implement AI-generated follow-up pills that appear directly below each assistant message. These pills are dynamically generated based on the specific message content and provide natural conversation continuations.
+
+**Why:** After completing Phase 3.10 (User Intake Forms), we identified an opportunity to improve conversation flow by providing contextual follow-up questions directly below assistant messages. This enhances user engagement and helps users continue conversations naturally without having to think of their next question.
+
+**Prerequisites:**
+- ✅ Phase 3.10 complete (User Intake Forms)
+- ✅ Chat API route exists (`/api/chat`)
+- ✅ Chat component exists (`components/chat.tsx`)
+- ✅ Message model exists
+
+**What Was Done:**
+
+1. **Database Schema Migration:**
+   - ✅ Added `followUpPills String[] @default([])` field to Message model
+   - ✅ Migration file: `prisma/migrations/20260116154547_add_follow_up_pills_to_message/migration.sql`
+   - ✅ Field stores pills separately from RAG context (cleaner separation)
+
+2. **Backend Implementation:**
+   - ✅ Created `lib/follow-up-pills/generate-pills.ts` module (118 lines)
+   - ✅ Pill generation uses GPT-4o with JSON mode for reliable structured output
+   - ✅ Feature toggle support (`enableFollowUpPills: false` per chatbot)
+   - ✅ Custom prompt support (`followUpPillsPrompt` in configJson)
+   - ✅ Graceful error handling (returns empty array on failure)
+   - ✅ Generation time tracking for monitoring
+   - ✅ Updated `app/api/chat/route.ts` to generate pills after streaming completes
+   - ✅ Pills stored in `message.followUpPills` field (separate from RAG context)
+   - ✅ Pills sent via structured prefix `__PILLS__{json}` after message creation
+   - ✅ Updated `app/api/events/route.ts` to support `follow_up_pill_click` event type
+
+3. **Frontend Implementation:**
+   - ✅ Created `components/follow-up-pills.tsx` component (67 lines)
+   - ✅ Theme-aware styling using existing pill design system
+   - ✅ Horizontal scrollable layout for multiple pills
+   - ✅ Click handler for input prefill and event logging
+   - ✅ Updated `components/chat.tsx` to:
+     - Parse pills from stream events (`__PILLS__{json}`)
+     - Render pills below message content (before source attribution)
+     - Handle pill clicks (prefill input + log event)
+     - Extract pills from loaded messages
+
+4. **Testing:**
+   - ✅ Created `__tests__/lib/follow-up-pills/generate-pills.test.ts` (25+ test cases)
+   - ✅ Updated `__tests__/api/chat/route.test.ts` (6 integration test cases)
+   - ✅ Created `__tests__/components/follow-up-pills.test.tsx` (20+ component test cases)
+   - ✅ Created `Planning Docs/01-15_contextual-followup-pills-manual-testing.md` (15 manual test scenarios)
+   - ✅ All 50+ tests passing (100% pass rate)
+
+**Key Features:**
+- ✅ Follow-up pills appear below assistant messages (before source attribution)
+- ✅ Pills are AI-generated (2-4 unique questions per message)
+- ✅ Pills prefills input on click (does not send immediately)
+- ✅ Pills persist for all assistant messages (not just most recent)
+- ✅ Visual consistency with suggested pills (secondaryAccent color with border)
+- ✅ Reliable generation using JSON mode (no parsing failures)
+- ✅ Graceful degradation (message displays even if pill generation fails)
+- ✅ Non-blocking performance (pills appear ~500ms-1s after streaming completes)
+- ✅ Event logging (clicking pills logs `follow_up_pill_click` events)
+
+**Implementation Details:**
+- **Two-call approach:** First call streams main response, second call generates pills with JSON mode
+- **Store once approach:** Generate pills first, then store message with complete data (simpler than update approach)
+- **Separate field:** Pills stored in `followUpPills` field (not in RAG `context` field) - cleaner separation
+- **Feature enabled by default:** Pills generated for all chatbots unless `enableFollowUpPills: false` is set
+- **Custom prompts:** Chatbot-specific prompts via `configJson.followUpPillsPrompt` (optional)
+- **Structured prefix:** Pills sent via `__PILLS__{json}` format (no regex needed, easy parsing)
+
+**Deliverables:**
+- ✅ Database migration: `followUpPills` field added to Message model
+- ✅ Pill generation module: `lib/follow-up-pills/generate-pills.ts`
+- ✅ Follow-up pills component: `components/follow-up-pills.tsx`
+- ✅ Chat route integration: Pills generated and sent via stream
+- ✅ Events API: `follow_up_pill_click` event type support
+- ✅ Comprehensive test coverage: 50+ tests passing
+- ✅ Manual testing checklist: 15 test scenarios documented
+
+**Files Created:**
+- `lib/follow-up-pills/generate-pills.ts` - Pill generation module (118 lines)
+- `components/follow-up-pills.tsx` - Follow-up pills component (67 lines)
+- `__tests__/lib/follow-up-pills/generate-pills.test.ts` - Unit tests (400+ lines)
+- `__tests__/components/follow-up-pills.test.tsx` - Component tests (300+ lines)
+- `Planning Docs/01-15_contextual-followup-pills-manual-testing.md` - Manual testing checklist (400+ lines)
+- `prisma/migrations/20260116154547_add_follow_up_pills_to_message/migration.sql` - Database migration
+
+**Files Modified:**
+- `prisma/schema.prisma` - Added `followUpPills` field to Message model
+- `app/api/chat/route.ts` - Integrated pill generation and storage
+- `app/api/events/route.ts` - Added `follow_up_pill_click` event type
+- `components/chat.tsx` - Added pill parsing, rendering, and click handling
+- `__tests__/api/chat/route.test.ts` - Added integration tests
+
+**Test Results:**
+- ✅ **50+ tests passing** (100% pass rate)
+- ✅ Unit tests: 25+ test cases covering all code paths
+- ✅ Integration tests: 6 test cases verifying chat route integration
+- ✅ Component tests: 20+ test cases covering component behavior
+- ✅ Manual testing: 15 comprehensive scenarios documented
+
+**Known Limitations:**
+- **Missing Creator UI:** Custom prompts (`followUpPillsPrompt`) and feature toggle (`enableFollowUpPills`) require direct database editing via `configJson` field (acceptable for MVP, UI can be added in future iteration)
+
+**Note:** This side quest significantly improves conversation flow by providing contextual follow-up questions directly below assistant messages. The implementation uses a two-call approach (stream response, then generate pills) for optimal UX, with pills appearing smoothly after the user already sees the response. All pills are stored in a separate field from RAG context, maintaining clean separation of concerns.
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 ### **CRITICAL FOR ALPHA**

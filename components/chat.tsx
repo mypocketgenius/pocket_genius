@@ -9,6 +9,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth, useClerk } from '@clerk/nextjs';
 import { CopyFeedbackModal } from './copy-feedback-modal';
 import { SideMenu } from './side-menu';
+import { ChatbotSettingsModal } from './chatbot-settings-modal';
 import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu, Pencil } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
@@ -76,6 +77,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState('');
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   
   // Phase 4: Pill system state
   const [pills, setPills] = useState<PillType[]>([]);
@@ -889,6 +891,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         error={error}
         onBack={() => router.back()}
         onMenuClick={() => setSideMenuOpen(true)}
+        onSettingsClick={() => setSettingsModalOpen(true)}
         isSignedIn={isSignedIn}
       />
 
@@ -1426,6 +1429,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         isOpen={sideMenuOpen} 
         onClose={() => setSideMenuOpen(false)}
         onOpen={() => setSideMenuOpen(true)}
+      />
+
+      {/* Chatbot Settings Modal */}
+      <ChatbotSettingsModal
+        chatbotId={chatbotId}
+        open={settingsModalOpen}
+        onOpenChange={setSettingsModalOpen}
       />
     </div>
   );

@@ -1,9 +1,9 @@
 'use client';
 
 // Phase 2: Star rating component
-// Displays 5-star rating with pulse animation and follow-up modal
+// Displays 5-star rating with follow-up modal
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Star } from 'lucide-react';
 
 interface StarRatingProps {
@@ -34,15 +34,13 @@ interface StarRatingProps {
  * 
  * Features:
  * - Inactive (muted) until first message sent (messageCount > 0)
- * - After first message: Stars begin subtle pulse/flash animation
- * - Animation stops after 10 seconds OR when user hovers/interacts
  * - Click a star to rate (1-5) → Opens follow-up modal
  * - Follow-up modal includes:
  *   - "What were you trying to accomplish?" (textarea)
  *   - "Did you get what you needed?" (Yes/Partially/No)
  *   - "What's still missing?" (conditional, if Partially/No)
  *   - "How much time did this save you?" (select dropdown)
- * - Once rated: Stars fill to show rating, animation stops
+ * - Once rated: Stars fill to show rating
  * - User can change rating by clicking different star (re-opens follow-up modal)
  * - Updates Conversation_Feedback table and Chatbot_Ratings_Aggregate
  * 
@@ -70,8 +68,6 @@ export function StarRating({
 }: StarRatingProps) {
   const [rating, setRating] = useState<number | null>(initialRating || null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
-  const [isPulsing, setIsPulsing] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [followUpData, setFollowUpData] = useState({
     userGoal: '',
@@ -80,28 +76,7 @@ export function StarRating({
     timeSaved: '',
   });
 
-  // Start pulse animation after first message
-  useEffect(() => {
-    if (messageCount > 0 && !rating && !hasInteracted) {
-      setIsPulsing(true);
-      
-      // Stop animation after 10 seconds
-      const timeout = setTimeout(() => {
-        setIsPulsing(false);
-      }, 10000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [messageCount, rating, hasInteracted]);
-
-  // Stop pulsing when user interacts
-  const handleInteraction = () => {
-    setHasInteracted(true);
-    setIsPulsing(false);
-  };
-
   const handleStarClick = async (starRating: number) => {
-    handleInteraction();
     
     // If clicking the same rating, allow changing it
     if (rating === starRating) {
@@ -173,7 +148,6 @@ export function StarRating({
         // Interactive rating
         <div
           className="flex items-center gap-0.5"
-          onMouseEnter={handleInteraction}
           onMouseLeave={() => setHoveredRating(null)}
         >
           {[1, 2, 3, 4, 5].map((star) => (
@@ -185,7 +159,7 @@ export function StarRating({
                 isInactive
                   ? 'cursor-not-allowed opacity-40'
                   : 'cursor-pointer hover:scale-110 active:scale-95'
-              } ${isPulsing && !hasInteracted ? 'animate-pulse' : ''}`}
+              }`}
               onMouseEnter={() => !isInactive && setHoveredRating(star)}
               aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
             >

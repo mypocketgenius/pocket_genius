@@ -7,7 +7,7 @@
  * It applies:
  * - Chrome colors: theme.chrome.header (background), theme.chrome.border (border), theme.textColor (text)
  * - Theme-aware hover states for interactive elements
- * - Renders back button, chatbot title, star rating, and menu button
+ * - Renders back button, settings button (cog + title), star rating, and menu button
  * 
  * Usage:
  * ```tsx
@@ -19,12 +19,13 @@
  *   error={error}
  *   onBack={() => router.back()}
  *   onMenuClick={() => setSideMenuOpen(true)}
+ *   onSettingsClick={() => setSettingsModalOpen(true)}
  * />
  * ```
  */
 
 import React from 'react';
-import { ArrowLeft, Menu } from 'lucide-react';
+import { ArrowLeft, Menu, Settings } from 'lucide-react';
 import { StarRating } from './star-rating';
 import { useTheme } from '../lib/theme/theme-context';
 
@@ -42,6 +43,7 @@ interface ChatHeaderProps {
   error: string | null;
   onBack: () => void;
   onMenuClick: () => void;
+  onSettingsClick?: () => void;
   isSignedIn?: boolean;
 }
 
@@ -53,6 +55,7 @@ export function ChatHeader({
   error,
   onBack,
   onMenuClick,
+  onSettingsClick,
   isSignedIn = false,
 }: ChatHeaderProps) {
   const theme = useTheme();
@@ -91,7 +94,27 @@ export function ChatHeader({
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-semibold">{chatbotTitle}</h1>
+          <button
+            onClick={onSettingsClick}
+            className="flex items-center gap-2 flex-1 min-w-0 transition-colors opacity-80 hover:opacity-100 cursor-pointer"
+            style={{
+              color: theme.textColor,
+            }}
+            onMouseEnter={(e) => {
+              if (onSettingsClick) {
+                e.currentTarget.style.backgroundColor = hoverBgColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            aria-label="Open chatbot settings"
+            title="Chatbot settings"
+            disabled={!onSettingsClick}
+          >
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            <h1 className="text-xl font-semibold truncate">{chatbotTitle}</h1>
+          </button>
         </div>
         
         {/* Star rating in header */}

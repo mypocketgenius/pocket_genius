@@ -54,16 +54,31 @@ export async function GET(request: Request) {
       );
     }
 
-    // 3. Fetch all user contexts
+    // 3. Parse optional chatbotId query parameter
+    const { searchParams } = new URL(request.url);
+    const chatbotId = searchParams.get('chatbotId');
+
+    // 4. Build where clause - filter by chatbotId if provided
+    const whereClause: { userId: string; chatbotId?: string } = {
+      userId: user.id,
+    };
+
+    if (chatbotId) {
+      // Filter to only chatbot-specific contexts (exclude global contexts where chatbotId IS NULL)
+      whereClause.chatbotId = chatbotId;
+    }
+    // If chatbotId not provided, return all contexts (existing behavior for backward compatibility)
+
+    // 5. Fetch user contexts with optional filtering
     const contexts = await prisma.user_Context.findMany({
-      where: { userId: user.id },
+      where: whereClause,
       include: {
         chatbot: {
           select: { id: true, title: true },
         },
       },
       orderBy: [
-        { chatbotId: 'asc' }, // Global context first (null)
+        { chatbotId: 'asc' }, // Global context first (null) - only relevant when chatbotId not provided
         { key: 'asc' },
       ],
     });
