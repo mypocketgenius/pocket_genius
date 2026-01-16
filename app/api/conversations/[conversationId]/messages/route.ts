@@ -44,13 +44,14 @@ export async function GET(
       dbUserId = user?.id || null;
     }
 
-    // 2. Verify conversation exists
+    // 2. Verify conversation exists and get status
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: {
         id: true,
         chatbotId: true,
         userId: true,
+        status: true,
       },
     });
 
@@ -172,7 +173,10 @@ export async function GET(
       };
     });
 
-    return NextResponse.json({ messages: enrichedMessages });
+    return NextResponse.json({ 
+      messages: enrichedMessages,
+      conversationStatus: conversation.status,
+    });
   } catch (error) {
     console.error('Get conversation messages error:', error);
 

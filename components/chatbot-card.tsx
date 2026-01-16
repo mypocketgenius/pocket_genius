@@ -105,7 +105,8 @@ export function ChatbotCard({
   };
 
   const handleStartChat = (chatbotId: string) => {
-    router.push(`/chat/${chatbotId}`);
+    // Always start fresh conversation - users can access history via sidebar
+    router.push(`/chat/${chatbotId}?new=true`);
   };
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {

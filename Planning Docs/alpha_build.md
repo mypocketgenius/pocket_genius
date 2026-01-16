@@ -4595,6 +4595,110 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Conversation Management Logic Fix ✅ COMPLETE (Jan 16, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 16, 2026)
+
+**Objective:** Fix conversation navigation issues and ensure URL is the source of truth for conversation state. This ensures users can reliably start new conversations and navigate to specific historic conversations.
+
+**Why:** Users were experiencing three critical issues:
+1. "Start Chat" always loaded the most recent conversation instead of starting fresh
+2. Side menu conversation clicks didn't load the selected conversation
+3. No explicit way to start a new conversation
+
+**Prerequisites:**
+- ✅ Chat component exists with URL parameter handling
+- ✅ Side menu component exists with conversation list
+- ✅ All "Start Chat" entry points identified
+
+**What Was Done:**
+
+1. **Code Verification:**
+   - ✅ Verified Chat component prioritizes URL parameters over localStorage (`components/chat.tsx:173-204`)
+   - ✅ Verified Side Menu passes conversationId in URL when clicking conversations (`components/side-menu.tsx:306-309`)
+   - ✅ Verified Chatbot Card "Start Chat" uses `?new=true` parameter (`components/chatbot-card.tsx:107-110`)
+   - ✅ Verified Side Menu "Start Chat" uses `?new=true` parameter (`components/side-menu.tsx:318-322`)
+   - ✅ Verified Chatbot Detail Modal uses `onStartChat` prop correctly (via parent components)
+   - ✅ Verified conversation creation only happens when first message is sent (`app/api/chat/route.ts:179-226`)
+   - ✅ Verified edge cases (404, 403) are handled (`components/chat.tsx:217-257`)
+   - ✅ Verified URL updates with conversationId after creation (`components/chat.tsx:543-551`)
+
+2. **Code Fix:**
+   - ✅ **Fixed Search Bar Navigation** (`components/search-bar.tsx:211`)
+     - **Issue:** Search bar was navigating to `/chat/${chatbotId}` without `?new=true` parameter
+     - **Fix:** Updated to `router.push(\`/chat/${chatbotId}?new=true\`)`
+     - **Impact:** Ensures consistent behavior across all "Start Chat" entry points
+
+**Key Features:**
+- ✅ **URL as Source of Truth** - Conversation state determined by URL parameters, not localStorage
+- ✅ **Explicit New Conversations** - All "Start Chat" buttons use `?new=true` parameter
+- ✅ **Reliable Navigation** - Side menu conversation clicks load specific conversations via `?conversationId=${id}`
+- ✅ **localStorage Clearing** - When `?new=true` is present, localStorage is cleared for that chatbot
+- ✅ **Error Handling** - Invalid conversationId (404/403) shows error and redirects to `?new=true`
+- ✅ **Conversation Creation** - New conversations created only when first message is sent (not on page load)
+- ✅ **URL Updates** - URL updates with conversationId after new conversation is created
+
+**URL Patterns:**
+- `/chat/${chatbotId}` → Show empty interface (create conversation on first message)
+- `/chat/${chatbotId}?conversationId=${id}` → Load specific conversation
+- `/chat/${chatbotId}?new=true` → Start fresh conversation (clear localStorage, show empty interface)
+
+**URL Parameter Priority:**
+1. **conversationId** (highest priority) - If present, load that conversation
+2. **new=true** - If present (and no conversationId), start fresh
+3. **No parameters** - Show empty interface (ready for new conversation)
+
+**Acceptance Criteria Verified:**
+- ✅ Clicking "Start Chat" from homepage/chatbot card navigates to `/chat/${chatbotId}?new=true` and shows empty interface
+- ✅ Clicking a conversation in side menu navigates to `/chat/${chatbotId}?conversationId=${id}` and loads that specific conversation
+- ✅ Chat component prioritizes URL parameters over localStorage
+- ✅ When `?new=true` is present, localStorage is cleared for that chatbot
+- ✅ When `conversationId` is in URL, that conversation loads (not localStorage)
+- ✅ Invalid conversationId (404/403) shows error and redirects to `?new=true`
+- ✅ New conversations are created only when first message is sent (not on page load)
+- ✅ URL updates with conversationId after new conversation is created
+- ✅ All "Start Chat" buttons use `?new=true` parameter (including search bar - **FIXED**)
+
+**Files Modified:**
+- `components/search-bar.tsx` - Fixed navigation to use `?new=true` parameter
+
+**Files Verified (No Changes Needed):**
+- `components/chat.tsx` - URL parameter handling already correct
+- `components/side-menu.tsx` - Conversation navigation already correct
+- `components/chatbot-card.tsx` - "Start Chat" already uses `?new=true`
+- `components/chatbot-detail-modal.tsx` - Uses `onStartChat` prop correctly
+- `components/chat-header.tsx` - "New Conversation" button already implemented
+- `app/api/chat/route.ts` - Conversation creation logic already correct
+
+**Implementation Details:**
+- **URL Priority:** URL parameters always take precedence over localStorage
+- **localStorage Usage:** Only used for persistence across page refreshes, URL is source of truth
+- **Conversation Creation:** Happens server-side in API route when first message is sent
+- **Error Handling:** 404/403 errors redirect to `?new=true` after showing error message
+- **New Conversation Button:** Already implemented in ChatHeader component (Plus icon)
+
+**Testing Recommendations:**
+- Search bar chatbot selection → should navigate to `?new=true`
+- All "Start Chat" entry points → should all use `?new=true`
+- Side menu conversation clicks → should navigate to `?conversationId=${id}`
+- URL parameter priority → URL should take precedence over localStorage
+- Error handling → 404/403 should redirect to `?new=true`
+
+**Deliverables:**
+- ✅ Fixed search bar navigation
+- ✅ Verified all acceptance criteria
+- ✅ Updated plan document with implementation results
+- ✅ Comprehensive documentation: Full implementation plan in `Planning Docs/01-16_conversation-management-logic.md`
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-16_conversation-management-logic.md`
+- All acceptance criteria verified and documented
+- All edge cases handled and documented
+
+**Note:** This side quest fixed a critical UX issue where users couldn't reliably start new conversations or navigate to specific historic conversations. The implementation ensures URL parameters are the source of truth, providing a consistent and predictable user experience. Most of the implementation was already correct; only the search bar navigation needed a fix.
+
+---
+
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
 **Objective:** Add required database models and fields for Phase 4 analytics

@@ -73,6 +73,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationStatus, setConversationStatus] = useState<'active' | 'completed' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState('');
@@ -115,13 +116,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     if (isLoaded && !isSignedIn) {
       // Clear any stored conversation data
       localStorage.removeItem(`conversationId_${chatbotId}`);
+      // Preserve URL parameters in redirect URL
+      const conversationIdParam = searchParams?.get('conversationId');
+      const newParam = searchParams?.get('new');
+      let redirectUrl = `/chat/${chatbotId}`;
+      if (conversationIdParam) {
+        redirectUrl += `?conversationId=${conversationIdParam}`;
+      } else if (newParam === 'true') {
+        redirectUrl += `?new=true`;
+      }
       // Open sign-in modal with redirect URL
       clerk.openSignIn({
-        redirectUrl: `/chat/${chatbotId}`,
+        redirectUrl,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, chatbotId]);
+  }, [isLoaded, isSignedIn, chatbotId, searchParams]);
 
   // Phase 3.10: Check intake form completion on mount
   // Only check after authentication is loaded and user is signed in
@@ -160,22 +170,37 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     checkIntakeCompletion();
   }, [chatbotId, isLoaded, isSignedIn]);
 
-  // Get conversationId from URL params or localStorage on mount
+  // Get conversationId from URL params - URL is source of truth
   useEffect(() => {
-    // Check URL params first (for sharing links)
     const urlConversationId = searchParams?.get('conversationId');
+    const isNewConversation = searchParams?.get('new') === 'true';
+    
+    // Priority 1: conversationId in URL (highest priority)
     if (urlConversationId) {
       setConversationId(urlConversationId);
-      // Store in localStorage for persistence
+      // Store in localStorage for persistence across refreshes
       localStorage.setItem(`conversationId_${chatbotId}`, urlConversationId);
+      // Reset hasLoadedMessages to allow reloading
+      hasLoadedMessages.current = false;
       return;
     }
-
-    // Check localStorage for persisted conversationId
-    const storedConversationId = localStorage.getItem(`conversationId_${chatbotId}`);
-    if (storedConversationId) {
-      setConversationId(storedConversationId);
+    
+    // Priority 2: ?new=true parameter - clear localStorage and start fresh
+    if (isNewConversation) {
+      setConversationId(null);
+      localStorage.removeItem(`conversationId_${chatbotId}`);
+      setMessages([]);
+      setConversationStatus(null);
+      hasLoadedMessages.current = false;
+      return;
     }
+    
+    // Priority 3: No URL parameters - show empty interface (ready for new conversation)
+    // Don't load from localStorage - URL is source of truth
+    setConversationId(null);
+    setMessages([]);
+    setConversationStatus(null);
+    hasLoadedMessages.current = false;
   }, [chatbotId, searchParams]);
 
   // Load existing messages when conversationId is available
@@ -190,17 +215,48 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         const response = await fetch(`/api/conversations/${conversationId}/messages`);
 
         if (!response.ok) {
-          // If conversation not found, clear conversationId and start fresh
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Handle specific error cases
           if (response.status === 404) {
+            // Conversation not found - show error and redirect to new conversation
+            const errorMessage = errorData.error || 'Conversation not found';
+            setError(errorMessage);
+            setToast({ message: errorMessage, type: 'error' });
+            
+            // Clear invalid conversationId and redirect after showing error
             setConversationId(null);
             localStorage.removeItem(`conversationId_${chatbotId}`);
+            
+            // Redirect to new conversation after 3 seconds
+            setTimeout(() => {
+              router.replace(`/chat/${chatbotId}?new=true`);
+            }, 3000);
+            
             setIsLoadingMessages(false);
             return;
           }
-
-          const errorData = await response.json().catch(() => ({}));
           
-          // Provide user-friendly error messages
+          if (response.status === 403) {
+            // User doesn't have access - show error and redirect
+            const errorMessage = errorData.error || "You don't have access to this conversation";
+            setError(errorMessage);
+            setToast({ message: errorMessage, type: 'error' });
+            
+            // Clear conversationId and redirect after showing error
+            setConversationId(null);
+            localStorage.removeItem(`conversationId_${chatbotId}`);
+            
+            // Redirect to new conversation after 3 seconds
+            setTimeout(() => {
+              router.replace(`/chat/${chatbotId}?new=true`);
+            }, 3000);
+            
+            setIsLoadingMessages(false);
+            return;
+          }
+          
+          // Provide user-friendly error messages for other errors
           let errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
           
           if (response.status === 503) {
@@ -223,6 +279,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }));
 
         setMessages(loadedMessages);
+        // Set conversation status (for checking if conversation is completed)
+        if (data.conversationStatus) {
+          setConversationStatus(data.conversationStatus as 'active' | 'completed');
+        }
         
         // Phase 4: Load bookmarked messages
         try {
@@ -299,6 +359,15 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
    */
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
+    
+    // Don't allow sending messages to completed conversations
+    if (conversationStatus === 'completed') {
+      setToast({ 
+        message: 'This conversation is completed. Please start a new conversation to continue.', 
+        type: 'error' 
+      });
+      return;
+    }
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -475,8 +544,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && newConversationId !== conversationId) {
         setConversationId(newConversationId);
-        // Persist to localStorage
+        // Persist to localStorage for persistence across refreshes
         localStorage.setItem(`conversationId_${chatbotId}`, newConversationId);
+        // Update URL with conversationId using replace (don't add to history)
+        router.replace(`/chat/${chatbotId}?conversationId=${newConversationId}`);
       }
 
       // Phase 4, Task 8: Pill usage is now logged server-side in /api/chat route
@@ -548,6 +619,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   };
 
   // Handle Branch button click
+  const handleNewConversation = () => {
+    router.push(`/chat/${chatbotId}?new=true`);
+  };
+
   const handleBranch = () => {
     // Clear any existing toast timeout first
     if (toastTimeoutRef.current) {
@@ -892,6 +967,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         onBack={() => router.back()}
         onMenuClick={() => setSideMenuOpen(true)}
         onSettingsClick={() => setSettingsModalOpen(true)}
+        onNewConversation={handleNewConversation}
         isSignedIn={isSignedIn}
       />
 
@@ -1360,8 +1436,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a reply..."
-            disabled={isLoading}
+            placeholder={conversationStatus === 'completed' ? 'This conversation is completed. Start a new conversation to continue.' : 'Type a reply...'}
+            disabled={isLoading || conversationStatus === 'completed'}
             rows={1}
             className="input-field flex-1 resize-none border rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
             style={{
@@ -1380,7 +1456,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           />
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || conversationStatus === 'completed'}
             className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px] opacity-80"
             title="Send message"
           >

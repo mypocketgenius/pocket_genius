@@ -25,7 +25,7 @@
  */
 
 import React from 'react';
-import { ArrowLeft, Menu, Settings } from 'lucide-react';
+import { ArrowLeft, Menu, Settings, Plus } from 'lucide-react';
 import { StarRating } from './star-rating';
 import { useTheme } from '../lib/theme/theme-context';
 
@@ -44,6 +44,7 @@ interface ChatHeaderProps {
   onBack: () => void;
   onMenuClick: () => void;
   onSettingsClick?: () => void;
+  onNewConversation?: () => void;
   isSignedIn?: boolean;
 }
 
@@ -56,6 +57,7 @@ export function ChatHeader({
   onBack,
   onMenuClick,
   onSettingsClick,
+  onNewConversation,
   isSignedIn = false,
 }: ChatHeaderProps) {
   const theme = useTheme();
@@ -126,6 +128,27 @@ export function ChatHeader({
               messageCount={messages.filter(m => m.role === 'user').length}
             />
           </div>
+        )}
+        
+        {/* New Conversation button - always visible */}
+        {onNewConversation && (
+          <button
+            onClick={onNewConversation}
+            className="flex-shrink-0 p-2 rounded-lg transition-colors opacity-80"
+            style={{
+              color: theme.textColor,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = hoverBgColor;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            aria-label="Start new conversation"
+            title="New conversation"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
         )}
         
         {/* Side menu button - always visible */}

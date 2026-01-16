@@ -226,9 +226,9 @@ export function ChatbotDetailModal({
         onStartChat(chatbot.id);
         onClose();
       } else {
-        // Open sign-in modal with redirect URL
+        // Open sign-in modal with redirect URL - always start fresh conversation
         clerk.openSignIn({
-          redirectUrl: `/chat/${chatbot.id}`,
+          redirectUrl: `/chat/${chatbot.id}?new=true`,
         });
         onClose(); // Close chatbot detail modal
       }

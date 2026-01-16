@@ -302,10 +302,10 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
     };
   }, [isOpen]);
   
-  // Handle chat item click
-  const handleChatClick = (chatbotId: string) => {
+  // Handle chat item click - navigate to specific conversation
+  const handleChatClick = (chatbotId: string, conversationId: string) => {
     onClose();
-    router.push(`/chat/${chatbotId}`);
+    router.push(`/chat/${chatbotId}?conversationId=${conversationId}`);
   };
   
   // Handle favorite item click
@@ -314,11 +314,11 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
     setChatbotModalOpen(true);
   };
   
-  // Handle start chat from modal
+  // Handle start chat from modal - always start fresh conversation
   const handleStartChat = (chatbotId: string) => {
     setChatbotModalOpen(false);
     onClose();
-    router.push(`/chat/${chatbotId}`);
+    router.push(`/chat/${chatbotId}?new=true`);
   };
   
   return (
@@ -618,7 +618,7 @@ export function SideMenu({ isOpen, onClose, onOpen }: SideMenuProps) {
                         title={conversation.chatbot.title}
                         type={conversation.chatbot.type}
                         creatorName={conversation.chatbot.creator.name}
-                        onClick={() => handleChatClick(conversation.chatbotId)}
+                        onClick={() => handleChatClick(conversation.chatbotId, conversation.id)}
                       />
                     ))}
                   </div>

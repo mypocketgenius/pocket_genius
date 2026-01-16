@@ -207,8 +207,8 @@ export function SearchBar({
       onChatbotSelect(chatbotId);
     }
     
-    // Navigate to chatbot chat page
-    router.push(`/chat/${chatbotId}`);
+    // Navigate to chatbot chat page - always start fresh conversation
+    router.push(`/chat/${chatbotId}?new=true`);
   };
 
   // Handle keyboard navigation in dropdown
