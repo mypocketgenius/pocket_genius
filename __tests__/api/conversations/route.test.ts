@@ -204,31 +204,6 @@ describe('GET /api/conversations', () => {
       expect(data.conversations[0].chatbot.type).toBeNull();
     });
 
-    it('should handle null creator slug', async () => {
-      const conversationWithNullSlug = {
-        ...mockConversation,
-        chatbot: {
-          ...mockConversation.chatbot,
-          creator: {
-            ...mockConversation.chatbot.creator,
-            slug: null,
-          },
-        },
-      };
-
-      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
-      (prisma.conversation.findMany as jest.Mock).mockResolvedValue([
-        conversationWithNullSlug,
-      ]);
-
-      const request = new Request('http://localhost/api/conversations');
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.conversations[0].chatbot.creator.slug).toBeNull();
-    });
   });
 
   describe('error handling', () => {

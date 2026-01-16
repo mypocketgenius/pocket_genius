@@ -23,7 +23,7 @@ export interface Chatbot {
   publicDashboard: boolean;
   creator: {
     id: string;
-    slug: string | null;  // Can be null - creator links disabled if null
+    slug: string;
     name: string;
     avatarUrl: string | null;
   };

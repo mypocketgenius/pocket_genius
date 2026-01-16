@@ -70,7 +70,7 @@ model User {
 model Creator {
   id          String   @id @default(cuid())
   name        String
-  slug        String?  @unique
+  slug        String   @unique
   avatarUrl   String?
   bio         String?  // Full bio for detail pages
   shortBio    String?  // Short bio for cards (~150 chars)

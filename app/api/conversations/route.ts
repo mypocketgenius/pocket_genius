@@ -108,7 +108,7 @@ export async function GET(req: Request) {
         creator: {
           id: conversation.chatbot.creator.id,
           name: conversation.chatbot.creator.name,
-          slug: conversation.chatbot.creator.slug || null,
+          slug: conversation.chatbot.creator.slug,
         },
       },
       updatedAt: conversation.updatedAt.toISOString(),

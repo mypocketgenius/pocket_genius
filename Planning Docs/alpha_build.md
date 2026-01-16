@@ -4361,6 +4361,101 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Chatbot Settings Button & Context Editor Modal ✅ COMPLETE (Jan 16, 2025)
+
+**Status:** ✅ **COMPLETE** (Jan 16, 2025)
+
+**Objective:** Add a settings button (cog icon) before the chatbot title in the chat header. Clicking the cog icon + title opens a modal that displays and allows editing of chatbot-specific user context, reusing the existing `UserContextEditor` component.
+
+**Why:** After implementing Phase 3.10 (User Intake Forms), users needed a quick way to access and edit their chatbot-specific context directly from the chat interface without navigating to the profile page. This improves UX by providing context editing in-context.
+
+**Prerequisites:**
+- ✅ Phase 3.10 complete (User Intake Forms)
+- ✅ UserContextEditor component exists
+- ✅ ChatHeader component exists
+- ✅ Dialog component exists
+- ✅ User context API endpoints exist
+
+**What Was Done:**
+
+1. **ChatHeader Component Updates:**
+   - ✅ Added Settings icon import from lucide-react
+   - ✅ Added cog icon before chatbot title
+   - ✅ Wrapped cog + title in clickable button
+   - ✅ Added `onSettingsClick` optional prop
+   - ✅ Applied theme-aware styling with hover states
+
+2. **ChatbotSettingsModal Component:**
+   - ✅ Created new `components/chatbot-settings-modal.tsx` component (330 lines)
+   - ✅ Uses Dialog component for consistent modal UI
+   - ✅ Fetches userId from `/api/user/current` on mount/open
+   - ✅ Fetches chatbot-specific contexts from `/api/user-context?chatbotId=xxx` (server-side filtered)
+   - ✅ Fetches intake questions from `/api/intake/questions?chatbotId=xxx` to build questionMap
+   - ✅ Handles loading states (spinner while fetching)
+   - ✅ Handles error states (critical vs non-critical errors)
+   - ✅ Renders UserContextEditor with filtered contexts
+   - ✅ Modal title: "Advisor Settings" with "Edit Your Context" subheading
+
+3. **API Endpoint Updates:**
+   - ✅ Updated `app/api/user-context/route.ts` GET handler
+   - ✅ Added optional `chatbotId` query parameter support
+   - ✅ Server-side filtering: when chatbotId provided, returns only chatbot-specific contexts (excludes global)
+   - ✅ Maintains backward compatibility (no chatbotId = returns all contexts)
+
+4. **Chat Component Integration:**
+   - ✅ Added `settingsModalOpen` state
+   - ✅ Added `onSettingsClick` handler
+   - ✅ Passed handler to ChatHeader component
+   - ✅ Rendered ChatbotSettingsModal component
+
+**Key Features:**
+- ✅ Settings button (cog icon) appears before chatbot title in chat header
+- ✅ Cog icon + title together form a clickable button
+- ✅ Modal opens when button clicked
+- ✅ Modal displays only chatbot-specific contexts (excludes global contexts)
+- ✅ Modal allows editing of editable contexts (same as profile settings)
+- ✅ Modal shows intake questions with proper question text and helper text
+- ✅ Modal uses same styling/UI as profile settings page
+- ✅ Modal can be closed via close button or clicking outside
+- ✅ Changes save correctly and persist (uses existing PATCH endpoint)
+- ✅ Modal is responsive and works on mobile devices (95vw width on mobile)
+
+**Implementation Details:**
+- **Three parallel API calls:** userId, contexts, and intake questions fetched simultaneously
+- **Server-side filtering:** Contexts filtered by chatbotId in API (better performance)
+- **Error handling:** Critical errors (userId) prevent rendering, non-critical errors show warnings
+- **State management:** State resets when modal closes (200ms delay for animations)
+- **Theme-aware:** All styling uses theme context for consistent appearance
+- **Responsive:** Mobile-friendly with viewport width handling
+
+**Deliverables:**
+- ✅ ChatHeader component updated with settings button
+- ✅ ChatbotSettingsModal component created
+- ✅ API endpoint updated for chatbotId filtering
+- ✅ Chat component integrated with modal
+- ✅ All components tested and refined
+
+**Files Created:**
+- `components/chatbot-settings-modal.tsx` - Settings modal component (330 lines)
+- `Planning Docs/01-16_chatbot-settings-button.md` - Implementation plan (360 lines)
+
+**Files Modified:**
+- `components/chat-header.tsx` - Added settings button (20 lines added)
+- `components/chat.tsx` - Integrated modal (5 lines added)
+- `app/api/user-context/route.ts` - Added chatbotId query parameter filtering
+
+**Test Coverage:**
+- ✅ Modal opens/closes correctly
+- ✅ Context editing and saving works
+- ✅ Empty state displays correctly
+- ✅ Responsive design verified (mobile)
+- ✅ Theme styling matches header
+- ✅ Error handling tested (critical and non-critical)
+
+**Note:** This side quest provides users with quick access to chatbot-specific context editing directly from the chat interface. The implementation reuses existing components (UserContextEditor) and follows the same patterns as other modals in the application. Server-side filtering ensures optimal performance by reducing data transfer.
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 ### **CRITICAL FOR ALPHA**

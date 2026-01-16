@@ -439,20 +439,14 @@ export function ChatbotDetailModal({
               </div>
             )}
             <div className="flex-1">
-              {chatbot.creator.slug ? (
-                <Link
-                  href={`/creators/${chatbot.creator.slug}`}
-                  className="text-lg font-semibold hover:underline"
-                  onClick={onClose}
-                  style={{ color: theme.textColor }}
-                >
-                  {chatbot.creator.name}
-                </Link>
-              ) : (
-                <span className="text-lg font-semibold" style={{ color: theme.textColor }}>
-                  {chatbot.creator.name}
-                </span>
-              )}
+              <Link
+                href={`/creators/${chatbot.creator.slug}`}
+                className="text-lg font-semibold hover:underline"
+                onClick={onClose}
+                style={{ color: theme.textColor }}
+              >
+                {chatbot.creator.name}
+              </Link>
             </div>
           </div>
 
