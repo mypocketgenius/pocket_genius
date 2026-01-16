@@ -279,14 +279,20 @@ export function ChatbotCard({
             <span className={isNightOrEvening ? '' : 'text-gray-500'} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.8 } : {}}>
               by{' '}
             </span>
-            <Link
-              href={`/creators/${chatbot.creator.slug}`}
-              onClick={(e) => e.stopPropagation()}
-              className={isNightOrEvening ? 'hover:underline font-medium' : 'text-blue-600 hover:underline font-medium'}
-              style={isNightOrEvening ? { color: theme.textColor, opacity: 0.9 } : {}}
-            >
-              {chatbot.creator.name}
-            </Link>
+            {chatbot.creator.slug ? (
+              <Link
+                href={`/creators/${chatbot.creator.slug}`}
+                onClick={(e) => e.stopPropagation()}
+                className={isNightOrEvening ? 'hover:underline font-medium' : 'text-blue-600 hover:underline font-medium'}
+                style={isNightOrEvening ? { color: theme.textColor, opacity: 0.9 } : {}}
+              >
+                {chatbot.creator.name}
+              </Link>
+            ) : (
+              <span className={isNightOrEvening ? 'font-medium' : 'text-gray-700 font-medium'} style={isNightOrEvening ? { color: theme.textColor, opacity: 0.9 } : {}}>
+                {chatbot.creator.name}
+              </span>
+            )}
           </div>
 
           {/* Description - uses shortDescription if available, otherwise truncated description */}

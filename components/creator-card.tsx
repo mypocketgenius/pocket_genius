@@ -13,7 +13,7 @@ import { getCurrentPeriod, getEffectiveHourForMode } from '@/lib/theme/config';
 interface CreatorCardProps {
   creator: {
     id: string;
-    slug: string;
+    slug: string | null;  // Can be null - should be filtered by API but adding guard for safety
     name: string;
     avatarUrl: string | null;
     bio: string | null;
@@ -53,6 +53,11 @@ export function CreatorCard({ creator }: CreatorCardProps) {
     : {};
 
   const handleCardClick = () => {
+    // Guard: Don't navigate if slug is null or undefined
+    if (!creator.slug) {
+      console.warn(`Creator "${creator.name}" has no slug - cannot navigate to creator page`);
+      return;
+    }
     router.push(`/creators/${creator.slug}`);
   };
 
@@ -63,6 +68,11 @@ export function CreatorCard({ creator }: CreatorCardProps) {
     if (creator.bio.length <= 100) return creator.bio;
     return creator.bio.substring(0, 100).trim() + '...';
   };
+
+  // Don't render card if slug is missing (shouldn't happen due to API filtering, but defense in depth)
+  if (!creator.slug) {
+    return null;
+  }
 
   return (
     <Card

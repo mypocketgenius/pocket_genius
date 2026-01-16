@@ -1,7 +1,7 @@
 'use client';
 
 // Phase 3.7.5: Creator Profile Page
-// Displays creator information and their chatbots
+// Displays creator information and their AI advisors
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -57,11 +57,11 @@ interface ChatbotsResponse {
  * 
  * Features:
  * - Creator header with avatar, name, bio, social links
- * - Creator's chatbots grid (reusing ChatbotCard component)
+ * - Creator's AI advisors grid (reusing ChatbotCard component)
  * - Breadcrumb navigation: Home > Creators > [Creator Name]
  * - Loading states with skeletons
- * - Error handling (404 for invalid slug, empty state for no chatbots)
- * - "Load More" pagination if >20 chatbots
+ * - Error handling (404 for invalid slug, empty state for no AI advisors)
+ * - "Load More" pagination if >20 AI advisors
  */
 export default function CreatorPage() {
   const params = useParams();
@@ -95,7 +95,7 @@ export default function CreatorPage() {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch chatbots');
+        throw new Error('Failed to fetch AI advisors');
       }
 
       const data: ChatbotsResponse = await response.json();
@@ -110,7 +110,7 @@ export default function CreatorPage() {
       setCurrentPage(page);
     } catch (err) {
       console.error('Error fetching chatbots:', err);
-      setError('Failed to load chatbots');
+      setError('Failed to load AI advisors');
     } finally {
       setIsLoadingChatbots(false);
       setIsLoadingMore(false);
@@ -322,10 +322,10 @@ export default function CreatorPage() {
           </Alert>
         )}
 
-        {/* Chatbots Grid */}
+        {/* AI Advisors Grid */}
         <div>
           <h2 className="text-2xl font-bold mb-6">
-            {creator ? `Chatbots by ${creator.name}` : 'Chatbots'}
+            {creator ? `AI Advisors by ${creator.name}` : 'AI Advisors'}
           </h2>
 
           {isLoadingChatbots ? (
@@ -343,9 +343,9 @@ export default function CreatorPage() {
             </div>
           ) : chatbots.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-lg mb-2 opacity-90">No chatbots yet</p>
+              <p className="text-lg mb-2 opacity-90">No AI advisors yet</p>
               <p className="text-sm opacity-70">
-                This creator hasn&apos;t published any chatbots.
+                This creator hasn&apos;t published any AI advisors.
               </p>
             </div>
           ) : (

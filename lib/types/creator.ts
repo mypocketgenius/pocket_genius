@@ -7,7 +7,7 @@
 
 export interface Creator {
   id: string;
-  slug: string;
+  slug: string | null;  // Can be null - creators without slugs are filtered out
   name: string;
   avatarUrl: string | null;
   bio: string | null;        // Full bio

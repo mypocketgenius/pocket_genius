@@ -59,15 +59,18 @@ export async function GET() {
     });
 
     // Transform response to include chatbotCount
-    const transformedCreators = creators.map(creator => ({
-      id: creator.id,
-      slug: creator.slug,
-      name: creator.name,
-      avatarUrl: creator.avatarUrl,
-      bio: creator.bio,
-      shortBio: creator.shortBio,
-      chatbotCount: creator._count.chatbots,
-    }));
+    // Filter out creators without slugs to prevent navigation issues
+    const transformedCreators = creators
+      .filter(creator => creator.slug != null) // Only include creators with slugs
+      .map(creator => ({
+        id: creator.id,
+        slug: creator.slug!,
+        name: creator.name,
+        avatarUrl: creator.avatarUrl,
+        bio: creator.bio,
+        shortBio: creator.shortBio,
+        chatbotCount: creator._count.chatbots,
+      }));
 
     return NextResponse.json({ creators: transformedCreators });
   } catch (error) {
