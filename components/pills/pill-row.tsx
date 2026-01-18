@@ -10,7 +10,6 @@ interface PillRowProps {
   selectedFeedbackPill: string | null;
   selectedExpansionPill: string | null;
   onPillClick: (pill: PillType) => void;
-  disabled?: boolean;
 }
 
 /**
@@ -24,7 +23,6 @@ interface PillRowProps {
  *   selectedFeedbackPill="pill-1"
  *   selectedExpansionPill={null}
  *   onPillClick={(pill) => handlePillClick(pill)}
- *   disabled={false}
  * />
  * ```
  * 
@@ -39,7 +37,6 @@ interface PillRowProps {
  * @param {string | null} props.selectedFeedbackPill - ID of selected feedback pill
  * @param {string | null} props.selectedExpansionPill - ID of selected expansion pill
  * @param {(pill: Pill) => void} props.onPillClick - Callback when a pill is clicked
- * @param {boolean} [props.disabled=false] - Whether pills are disabled
  * 
  * @returns {JSX.Element | null} Row container with pills or null if empty
  */
@@ -48,7 +45,6 @@ export function PillRow({
   selectedFeedbackPill,
   selectedExpansionPill,
   onPillClick,
-  disabled = false,
 }: PillRowProps) {
   if (pills.length === 0) {
     return null;
@@ -69,7 +65,6 @@ export function PillRow({
             pill={pill}
             isSelected={isSelected}
             onClick={() => onPillClick(pill)}
-            disabled={disabled}
           />
         );
       })}

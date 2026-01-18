@@ -4699,6 +4699,94 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Suggestion Pills Beneath Edit Context Button ✅ COMPLETE (Jan 18, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 18, 2026)
+
+**Objective:** Display suggestion pills (pillType: 'suggested') beneath the "Edit Your Context" button on the chat page when there are no messages. When the user sends their first message, these pills should persist above that first message in the chat history, allowing users to click them at any time to prefill their input.
+
+**Why:** After implementing follow-up pills (contextual follow-up questions below assistant messages), we identified an opportunity to improve the initial user experience by making suggestion pills more prominent and persistent. Previously, suggestion pills only appeared in the input area at the bottom, which could be missed by users. This side quest moves suggestion pills to a more visible location beneath the "Edit Your Context" button and ensures they remain accessible throughout the conversation.
+
+**Prerequisites:**
+- ✅ Follow-up pills implementation complete (Jan 16, 2025)
+- ✅ Pill system exists (`components/pills/pill.tsx`, `components/pills/pill-row.tsx`)
+- ✅ Chat component exists (`components/chat.tsx`)
+- ✅ "Edit Your Context" button exists in empty state
+
+**What Was Done:**
+
+1. **State Management:**
+   - ✅ Added `initialSuggestionPills` state variable to store suggestion pills for persistence
+   - ✅ Updated pills loading effect to extract and store suggestion pills when pills load
+   - ✅ Pills stored separately from other pill types for targeted rendering
+
+2. **Empty State Rendering:**
+   - ✅ Added pill rendering beneath "Edit Your Context" button in empty state
+   - ✅ Pills only appear when `intakeCompleted === true` (button visible)
+   - ✅ Pills styled with proper spacing (`mt-4 flex flex-wrap gap-2 justify-center w-full`)
+   - ✅ Pills wrap to multiple rows when they exceed screen width
+
+3. **Persistence Above First Message:**
+   - ✅ Implemented first user message detection (`isFirstUserMessage` flag)
+   - ✅ Added pill rendering above first user message in chat history
+   - ✅ Pills remain visible for entire conversation (rendered conditionally based on `isFirstUserMessage`)
+   - ✅ Visual separation maintained with `mb-4` spacing above first message
+
+4. **Input Area Cleanup:**
+   - ✅ Removed suggestion pills from input area rendering
+   - ✅ Updated pill row logic to exclude suggested pills (only feedback + expansion pills shown after messages exist)
+   - ✅ Updated toggle button to only show when there are pills to display in input area
+
+5. **Pill Click Handling:**
+   - ✅ Reused existing `handlePillClick` function for persisted pills
+   - ✅ Pill click behavior: appends to input (current behavior), updates selection state, focuses input field
+   - ✅ No event logging for pills clicked from persisted location (as requested)
+
+**Key Features:**
+- ✅ **Pills appear beneath button** - Suggestion pills render below "Edit Your Context" button when `messages.length === 0` and `intakeCompleted === true`
+- ✅ **Pills persist above first message** - After first message is sent, pills appear above the first user message
+- ✅ **Pills remain clickable** - Clicking pills prefills the input field (does not send immediately)
+- ✅ **Visual consistency** - Pills use existing pill design system (same styling as current suggestion pills)
+- ✅ **Responsive wrapping** - Pills wrap to multiple rows when they exceed screen width
+- ✅ **Centered alignment** - Pills are centered just like follow-up pills
+- ✅ **Clean input area** - Suggestion pills removed from input area (only feedback + expansion pills shown)
+
+**Implementation Details:**
+- **State Management:** `initialSuggestionPills` state stores suggestion pills extracted during pills loading
+- **Empty State:** Pills render beneath button only when `intakeCompleted === true` (button visible)
+- **Message Rendering:** Pills render above first user message when `isFirstUserMessage === true`
+- **Input Area Filtering:** Suggestion pills excluded from input area (only feedback + expansion pills shown after messages exist)
+- **Component Reuse:** Uses existing `Pill` component and `handlePillClick` function (no duplication)
+
+**Files Modified:**
+- `components/chat.tsx` - Added state management, empty state rendering, persistence above first message, input area filtering
+
+**Acceptance Criteria Verified:**
+- ✅ Pills appear beneath "Edit Your Context" button when `messages.length === 0` and `intakeCompleted === true`
+- ✅ Pills persist above first message after first message is sent
+- ✅ Pills remain clickable and prefill input field
+- ✅ Visual consistency maintained (uses existing `Pill` component)
+- ✅ State management working correctly (pills stored and persist)
+- ✅ Empty state handling correct (pills only show when suggestion pills exist)
+- ✅ Pills wrap to multiple rows when they exceed screen width
+- ✅ Pills are centered (matching follow-up pills styling)
+
+**Deliverables:**
+- ✅ State management for initial suggestion pills
+- ✅ Empty state pill rendering beneath button
+- ✅ Persistence above first user message
+- ✅ Input area cleanup (suggestion pills removed)
+- ✅ Responsive wrapping and centered alignment
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-18_suggestion-pills-beneath-context-button.md`
+- All acceptance criteria verified and documented
+- Implementation status tracked in plan document
+
+**Note:** This side quest improves the initial user experience by making suggestion pills more prominent and persistent. Users can now see suggestion pills prominently beneath the "Edit Your Context" button when starting a conversation, and these pills remain accessible above the first message throughout the conversation. The implementation reuses existing components and follows established patterns, maintaining code consistency and avoiding duplication.
+
+---
+
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
 **Objective:** Add required database models and fields for Phase 4 analytics
@@ -5885,6 +5973,7 @@ If critical issues arise in production:
 - [x] Side Quest: Add Chatbot imageUrl Field ✅ **COMPLETE** (Dec 27, 2024)
 - [x] Phase 3.9: Chatbot Versioning System ✅ **COMPLETE**
 - [x] Side Quest: Theme Component Refactor ✅ **COMPLETE** (Dec 29, 2024)
+- [x] Side Quest: Suggestion Pills Beneath Edit Context Button ✅ **COMPLETE** (Jan 18, 2026)
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

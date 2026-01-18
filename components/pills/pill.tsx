@@ -23,7 +23,6 @@ interface PillProps {
   pill: Pill;
   isSelected: boolean;
   onClick: () => void;
-  disabled?: boolean;
 }
 
 /**
@@ -36,7 +35,6 @@ interface PillProps {
  *   pill={{ id: 'pill-1', pillType: 'feedback', label: 'Helpful', ... }}
  *   isSelected={false}
  *   onClick={() => handlePillClick(pill)}
- *   disabled={false}
  * />
  * ```
  * 
@@ -52,11 +50,10 @@ interface PillProps {
  * @param {Pill} props.pill - Pill data object with id, pillType, label, etc.
  * @param {boolean} props.isSelected - Whether this pill is currently selected
  * @param {() => void} props.onClick - Callback function when pill is clicked
- * @param {boolean} [props.disabled=false] - Whether the pill is disabled
  * 
  * @returns {JSX.Element} Pill button element
  */
-export function Pill({ pill, isSelected, onClick, disabled = false }: PillProps) {
+export function Pill({ pill, isSelected, onClick }: PillProps) {
   const theme = useTheme();
   const now = new Date();
   const period = getCurrentPeriod(now.getHours());
@@ -64,24 +61,6 @@ export function Pill({ pill, isSelected, onClick, disabled = false }: PillProps)
   
   // Determine styling based on pill type
   const getPillStyles = (): React.CSSProperties => {
-    if (disabled) {
-      return {
-        backgroundColor: 'rgba(0, 0, 0, 0.05)',
-        color: theme.textColor,
-        opacity: 0.4,
-        cursor: 'not-allowed',
-        borderRadius: '9999px',
-        fontSize: '0.875rem',
-        padding: '6px 16px',
-        minHeight: '28px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.375rem',
-        transition: 'all 0.2s',
-      };
-    }
-
     if (pill.pillType === 'feedback') {
       // Feedback pills: Use semantic colors (success/error) from theme
       const isHelpful = pill.label.toLowerCase().includes('helpful') && 
@@ -106,16 +85,15 @@ export function Pill({ pill, isSelected, onClick, disabled = false }: PillProps)
     gap: '0.375rem',
     minHeight: '28px',
     transition: 'all 0.2s',
-    cursor: disabled ? 'not-allowed' : 'pointer',
+    cursor: 'pointer',
   };
 
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
       style={baseStyles}
       className="flex-shrink-0 active:scale-95"
-      title={disabled ? 'Please wait...' : pill.label}
+      title={pill.label}
       aria-label={pill.label}
       aria-pressed={isSelected}
     >

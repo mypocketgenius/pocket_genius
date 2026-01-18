@@ -89,6 +89,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [bookmarkedMessages, setBookmarkedMessages] = useState<Set<string>>(new Set());
   const [pillsVisible, setPillsVisible] = useState<boolean>(true); // Toggle state for pills visibility
   
+  // Store initial suggestion pills for persistence above first message
+  const [initialSuggestionPills, setInitialSuggestionPills] = useState<PillType[]>([]);
+  
   // Phase 3.10: Intake form state
   const [showIntakeForm, setShowIntakeForm] = useState<boolean | null>(null); // null = checking, true = show form, false = hide form
   const [checkingIntakeCompletion, setCheckingIntakeCompletion] = useState(true);
@@ -346,6 +349,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         if (response.ok) {
           const loadedPills = await response.json();
           setPills(loadedPills);
+          
+          // Extract suggestion pills for persistence above first message
+          const suggestedPills = loadedPills.filter((p: PillType) => p.pillType === 'suggested');
+          setInitialSuggestionPills(suggestedPills);
         }
       } catch (error) {
         console.error('Error loading pills:', error);
@@ -1105,6 +1112,20 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     </button>
                   );
                 })()}
+                
+                {/* Suggestion Pills Beneath Button */}
+                {initialSuggestionPills.length > 0 && (
+                  <div className="mt-4 w-full flex flex-wrap gap-2 justify-center">
+                    {initialSuggestionPills.map((pill) => (
+                      <Pill
+                        key={pill.id}
+                        pill={pill}
+                        isSelected={false}
+                        onClick={() => handlePillClick(pill)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1116,19 +1137,36 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             .reverse()
             .find((msg) => msg.role === 'assistant' && msg.content);
           const isMostRecentAssistant = mostRecentAssistantMessage?.id === message.id;
+          
+          // Check if this is the first user message
+          const isFirstUserMessage = index === 0 && message.role === 'user';
 
           return (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              <div className={`${message.role === 'user' ? 'max-w-[85%] sm:max-w-[75%] lg:max-w-[65%]' : 'w-full'} ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
-                <div
-                  className={`${message.role === 'user' ? 'rounded-lg message-bubble' : ''} px-4 py-2 ${
-                    message.role === 'user' ? 'font-medium' : 'font-normal'
-                  }`}
+            <div key={message.id}>
+              {/* Render pills above first user message */}
+              {isFirstUserMessage && initialSuggestionPills.length > 0 && (
+                <div className="mb-4 w-full flex flex-wrap gap-2 justify-center">
+                  {initialSuggestionPills.map((pill) => (
+                    <Pill
+                      key={pill.id}
+                      pill={pill}
+                      isSelected={false}
+                      onClick={() => handlePillClick(pill)}
+                    />
+                  ))}
+                </div>
+              )}
+              
+              <div
+                className={`flex ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                <div className={`${message.role === 'user' ? 'max-w-[85%] sm:max-w-[75%] lg:max-w-[65%]' : 'w-full'} ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+                  <div
+                    className={`${message.role === 'user' ? 'rounded-lg message-bubble' : ''} px-4 py-2 ${
+                      message.role === 'user' ? 'font-medium' : 'font-normal'
+                    }`}
                   style={{
                     background: message.role === 'user' 
                       ? currentBubbleStyle.user 
@@ -1257,6 +1295,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           );
@@ -1317,7 +1356,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }}
       >
         {/* Toggle button - positioned at top center, half-protruding */}
-        {pills.length > 0 && (
+        {/* Only show toggle when there are pills to display in input area (feedback + expansion, not suggested) */}
+        {(() => {
+          const pillsToShowInInput = messages.length === 0 
+            ? [] // No pills in input area when no messages (suggestion pills shown beneath button instead)
+            : pills.filter(p => p.pillType === 'feedback' || p.pillType === 'expansion');
+          return pillsToShowInInput.length > 0;
+        })() && (
           <button
             onClick={() => setPillsVisible(!pillsVisible)}
             className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center border"
@@ -1341,87 +1386,55 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         
         {/* Dynamic pill rows */}
         {/* Visibility controlled by pillsVisible state (can be toggled manually or auto-collapsed by character limit) */}
-        {pills.length > 0 && pillsVisible && (
+        {/* Only show pills in input area if there are pills to display (feedback + expansion after messages, none before messages) */}
+        {(() => {
+          const pillsToShowInInput = messages.length === 0 
+            ? [] // No pills in input area when no messages (suggestion pills shown beneath button instead)
+            : pills.filter(p => p.pillType === 'feedback' || p.pillType === 'expansion');
+          return pillsToShowInInput.length > 0 && pillsVisible;
+        })() && (
           <div className="mb-1 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-hide pt-2">
             <div className="flex flex-col gap-0.5 w-max">
               {/* Phase 4: Organize pills into two rows */}
-              {/* Before messages: Only show suggested questions */}
-              {/* After messages: Show feedback + expansion + suggested */}
+              {/* Before messages: No pills in input area (suggestion pills shown beneath button instead) */}
+              {/* After messages: Show feedback + expansion pills only (suggested pills shown above first message) */}
               
               {messages.length === 0 ? (
-                // Before messages: Two rows with suggested questions split between them
-                <>
-                  {/* Row 1: First half of suggested questions */}
-                  {(() => {
-                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
-                    const firstHalfSuggested = suggestedPills.slice(0, Math.ceil(suggestedPills.length / 2));
-                    return (
-                      <PillRow
-                        pills={firstHalfSuggested}
-                        selectedFeedbackPill={null}
-                        selectedExpansionPill={null}
-                        onPillClick={handlePillClick}
-                        disabled={isLoading}
-                      />
-                    );
-                  })()}
-                  
-                  {/* Row 2: Second half of suggested questions */}
-                  {(() => {
-                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
-                    const secondHalfSuggested = suggestedPills.slice(Math.ceil(suggestedPills.length / 2));
-                    return (
-                      <PillRow
-                        pills={secondHalfSuggested}
-                        selectedFeedbackPill={null}
-                        selectedExpansionPill={null}
-                        onPillClick={handlePillClick}
-                        disabled={isLoading}
-                      />
-                    );
-                  })()}
-                </>
+                // Before messages: No pills in input area (suggestion pills shown beneath button instead)
+                null
               ) : (
-                // After messages: Two rows
+                // After messages: Two rows with feedback + expansion pills only (suggested pills shown above first message)
                 <>
-                  {/* Row 1: Helpful pill + first half of expansion pills + first half of suggested questions */}
+                  {/* Row 1: Helpful pill + first half of expansion pills */}
                   {(() => {
                     const expansionPills = pills.filter(p => p.pillType === 'expansion');
                     const firstHalfExpansion = expansionPills.slice(0, Math.ceil(expansionPills.length / 2));
-                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
-                    const firstHalfSuggested = suggestedPills.slice(0, Math.ceil(suggestedPills.length / 2));
                     return (
                       <PillRow
                         pills={[
                           ...pills.filter(p => p.pillType === 'feedback' && p.label.toLowerCase().includes('helpful') && !p.label.toLowerCase().includes('not')),
                           ...firstHalfExpansion,
-                          ...firstHalfSuggested,
                         ]}
                         selectedFeedbackPill={null}
                         selectedExpansionPill={null}
                         onPillClick={handlePillClick}
-                        disabled={isLoading}
                       />
                     );
                   })()}
                   
-                  {/* Row 2: Not helpful pill + second half of expansion pills + second half of suggested questions */}
+                  {/* Row 2: Not helpful pill + second half of expansion pills */}
                   {(() => {
                     const expansionPills = pills.filter(p => p.pillType === 'expansion');
                     const secondHalfExpansion = expansionPills.slice(Math.ceil(expansionPills.length / 2));
-                    const suggestedPills = pills.filter(p => p.pillType === 'suggested');
-                    const secondHalfSuggested = suggestedPills.slice(Math.ceil(suggestedPills.length / 2));
                     return (
                       <PillRow
                         pills={[
                           ...pills.filter(p => p.pillType === 'feedback' && (p.label.toLowerCase().includes('not') || p.label.toLowerCase().includes('not helpful'))),
                           ...secondHalfExpansion,
-                          ...secondHalfSuggested,
                         ]}
                         selectedFeedbackPill={null}
                         selectedExpansionPill={null}
                         onPillClick={handlePillClick}
-                        disabled={isLoading}
                       />
                     );
                   })()}
