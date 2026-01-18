@@ -49,6 +49,7 @@ export function ThemedPage({ children, className, scrollable }: ThemedPageProps)
   // iOS scrolling styles for scrollable containers
   const scrollableStyles: React.CSSProperties = scrollable
     ? {
+        overflowY: 'auto', // Enable vertical scrolling
         WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
         overscrollBehavior: 'none', // Prevent scroll overhangs on iOS Safari/Chrome
       }

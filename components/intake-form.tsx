@@ -178,8 +178,8 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
   }
 
   return (
-    <ThemedPage className="min-h-dvh p-4 overflow-y-auto" scrollable>
-      <div className="flex items-start justify-center py-4">
+    <ThemedPage className="h-dvh" scrollable>
+      <div className="flex items-start justify-center p-4 py-8">
         <ThemedContainer variant="card" className="w-full max-w-2xl rounded-lg border shadow-sm">
           <div className="flex flex-col space-y-1.5 p-6 border-b" style={{ borderColor: theme.chrome.border }}>
             <h3 className="text-2xl font-semibold leading-none tracking-tight" style={{ color: theme.textColor }}>
