@@ -70,20 +70,29 @@ async function main() {
     );
   }
 
-  // Get seed user
-  const seedUser = await prisma.user.findUnique({
+  // Get seed user - try specific Clerk ID first, then any user
+  let seedUser = await prisma.user.findUnique({
     where: { clerkId: process.env.SEED_USER_CLERK_ID },
-    select: { id: true },
+    select: { id: true, clerkId: true, email: true },
   });
 
   if (!seedUser) {
-    throw new Error(
-      `User with Clerk ID ${process.env.SEED_USER_CLERK_ID} not found. ` +
-      'Please run the main seed script first to create the user.'
-    );
-  }
+    // If specific user not found, try to find any user
+    console.log(`⚠️  User with Clerk ID ${process.env.SEED_USER_CLERK_ID} not found. Looking for any existing user...`);
+    seedUser = await prisma.user.findFirst({
+      select: { id: true, clerkId: true, email: true },
+    });
 
-  console.log(`✅ Found seed user: ${seedUser.id}`);
+    if (!seedUser) {
+      throw new Error(
+        `No users found in database. ` +
+        `Please run the main seed script first to create a user: npx prisma db seed`
+      );
+    }
+    console.log(`⚠️  Using existing user: ${seedUser.email} (${seedUser.clerkId})`);
+  } else {
+    console.log(`✅ Found seed user: ${seedUser.email} (${seedUser.id})`);
+  }
 
   // Verify chatbot exists
   const chatbot = await prisma.chatbot.findUnique({

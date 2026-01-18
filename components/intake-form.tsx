@@ -178,17 +178,18 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
   }
 
   return (
-    <ThemedPage className="flex items-center justify-center h-dvh p-4">
-      <ThemedContainer variant="card" className="w-full max-w-2xl rounded-lg border shadow-sm">
-        <div className="flex flex-col space-y-1.5 p-6 border-b" style={{ borderColor: theme.chrome.border }}>
-          <h3 className="text-2xl font-semibold leading-none tracking-tight" style={{ color: theme.textColor }}>
-            Help us tailor the advice to your situation
-          </h3>
-          <p className="text-sm" style={{ color: theme.textColor, opacity: 0.7 }}>
-            Your answers help us apply the author&apos;s wisdom to your specific context
-          </p>
-        </div>
-        <div className="p-6 pt-0 space-y-6">
+    <ThemedPage className="min-h-dvh p-4 overflow-y-auto" scrollable>
+      <div className="flex items-start justify-center py-4">
+        <ThemedContainer variant="card" className="w-full max-w-2xl rounded-lg border shadow-sm">
+          <div className="flex flex-col space-y-1.5 p-6 border-b" style={{ borderColor: theme.chrome.border }}>
+            <h3 className="text-2xl font-semibold leading-none tracking-tight" style={{ color: theme.textColor }}>
+              Help us tailor the advice to your situation
+            </h3>
+            <p className="text-sm" style={{ color: theme.textColor, opacity: 0.7 }}>
+              Your answers help us apply the author&apos;s wisdom to your specific context
+            </p>
+          </div>
+          <div className="p-6 pt-0 space-y-6">
         {error && (
           <Alert 
             variant="destructive"
@@ -398,6 +399,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
         </div>
         </div>
       </ThemedContainer>
+    </div>
     </ThemedPage>
   );
 }
