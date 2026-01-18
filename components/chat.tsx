@@ -137,10 +137,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   }, [isLoaded, isSignedIn, chatbotId, searchParams]);
 
   // Phase 3.10: Check intake form completion on mount
-  // Only check after authentication is loaded and user is signed in
+  // Check after authentication is loaded (even if not signed in, to handle edge cases)
   useEffect(() => {
-    // Wait for auth to be loaded and user to be signed in before checking
-    if (!isLoaded || !isSignedIn) {
+    // Wait for auth to be loaded before checking
+    if (!isLoaded) {
       return;
     }
 
@@ -150,11 +150,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
         if (response.ok) {
           const data = await response.json();
-          // Show intake form only if there are questions AND they're not completed
+          // Show intake form only if user is signed in AND there are questions AND they're not completed
           // If no questions exist or all questions are completed, skip the form
-          setShowIntakeForm(data.hasQuestions && !data.completed);
+          setShowIntakeForm(isSignedIn && data.hasQuestions && !data.completed);
           // Track completion status for showing confirmation message
-          setIntakeCompleted(data.completed && data.hasQuestions);
+          // Only show message if user is signed in, completed intake, and has questions
+          setIntakeCompleted(isSignedIn && data.completed && data.hasQuestions);
         } else {
           // On error, assume intake is not required (allow chat to proceed)
           setShowIntakeForm(false);
@@ -951,12 +952,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           fetch(`/api/intake/completion?chatbotId=${chatbotId}`)
             .then(res => res.json())
             .then(data => {
-              if (data.completed) {
-                setShowIntakeForm(false);
-                setIntakeCompleted(true); // Show confirmation message
-              }
+              // Show confirmation message only if completed AND has questions
+              setIntakeCompleted(data.completed && data.hasQuestions);
             })
-            .catch(err => console.error('Error re-checking intake:', err));
+            .catch(err => {
+              console.error('Error re-checking intake:', err);
+              setIntakeCompleted(false);
+            });
         }}
       />
     );
