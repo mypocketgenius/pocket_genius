@@ -57,7 +57,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dbUserId, setDbUserId] = useState<string | null>(null);
-  const [creatorName, setCreatorName] = useState<string | null>(null);
+  const [chatbotTitle, setChatbotTitle] = useState<string | null>(null);
 
   // Fetch database user ID if authenticated
   useEffect(() => {
@@ -86,7 +86,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
       })
       .then(data => {
         setQuestions(data.questions || []);
-        setCreatorName(data.creatorName || null);
+        setChatbotTitle(data.chatbotTitle || null);
         setLoading(false);
       })
       .catch(err => {
@@ -188,7 +188,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
               Get advice tailored to your situation
             </h3>
             <p className="text-sm" style={{ color: theme.textColor, opacity: 0.7 }}>
-              Share your context so {creatorName || 'we'} can give you the most relevant guidance
+              Share your context so we can tailor {chatbotTitle || 'this chatbot'} to you
             </p>
           </div>
           <div className="p-6 pt-0 space-y-6">
