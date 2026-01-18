@@ -346,3 +346,4 @@ DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.c-2.us-east-1.aws.neon.tech:54
 **Recommended:** Start with VPN/hotspot for immediate work, set up CI/CD for long-term, and request IT exception in parallel.
 
 
+

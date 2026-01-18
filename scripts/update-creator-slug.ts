@@ -105,3 +105,4 @@ if (args.length < 2) {
 const [identifier, newSlug] = args;
 updateCreatorSlug(identifier, newSlug);
 
+

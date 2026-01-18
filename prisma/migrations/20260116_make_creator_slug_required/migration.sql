@@ -60,3 +60,4 @@ ALTER COLUMN "slug" SET NOT NULL;
 -- This is a no-op if the constraint already exists, but ensures it's there
 CREATE UNIQUE INDEX IF NOT EXISTS "Creator_slug_key" ON "Creator"("slug");
 
+

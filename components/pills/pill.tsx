@@ -92,7 +92,7 @@ export function Pill({ pill, isSelected, onClick }: PillProps) {
     <button
       onClick={onClick}
       style={baseStyles}
-      className="flex-shrink-0 active:scale-95"
+      className="active:scale-95 whitespace-normal break-words"
       title={pill.label}
       aria-label={pill.label}
       aria-pressed={isSelected}
@@ -100,7 +100,7 @@ export function Pill({ pill, isSelected, onClick }: PillProps) {
       {isSelected && (
         <Check className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
       )}
-      <span>{pill.label}</span>
+      <span className="whitespace-normal break-words">{pill.label}</span>
     </button>
   );
 }

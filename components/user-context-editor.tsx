@@ -11,6 +11,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { X } from 'lucide-react';
 import { useTheme } from '@/lib/theme/theme-context';
 
 interface UserContext {
@@ -54,6 +55,7 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
   const theme = useTheme();
   const [editing, setEditing] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Theme-aware hover colors
@@ -94,6 +96,48 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
       });
     } finally {
       setSaving({ ...saving, [contextId]: false });
+    }
+  }
+
+  /**
+   * Handles deleting an intake response
+   */
+  async function handleDelete(context: UserContext) {
+    // Only allow deletion of intake form responses
+    if (context.source !== 'INTAKE_FORM') {
+      return;
+    }
+
+    const contextId = context.id;
+    setDeleting({ ...deleting, [contextId]: true });
+    setErrors({ ...errors, [contextId]: '' });
+
+    try {
+      const response = await fetch('/api/intake/responses', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          chatbotId: context.chatbotId || '',
+          questionSlug: context.key,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete response');
+      }
+
+      // Refresh page to show updated values
+      router.refresh();
+    } catch (error) {
+      console.error('Error deleting intake response:', error);
+      setErrors({
+        ...errors,
+        [contextId]: error instanceof Error ? error.message : 'Failed to delete',
+      });
+    } finally {
+      setDeleting({ ...deleting, [contextId]: false });
     }
   }
 
@@ -211,10 +255,12 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
                 {ctxs.map((ctx) => {
                   const isEditing = editing[ctx.id] !== undefined;
                   const isSaving = saving[ctx.id] || false;
+                  const isDeleting = deleting[ctx.id] || false;
                   const error = errors[ctx.id];
                   const scopeLabel = ctx.chatbotId 
                     ? ctx.chatbot?.title || 'Chatbot'
                     : 'All Chatbots (Global)';
+                  const canDelete = ctx.source === 'INTAKE_FORM';
 
                   return (
                     <div key={ctx.id} className="flex flex-col gap-2">
@@ -277,37 +323,73 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
                             <div className="flex-1 break-words font-mono text-sm">
                               {formatValue(ctx.value)}
                             </div>
-                            {ctx.isEditable && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setEditing({
-                                    ...editing,
-                                    [ctx.id]: formatValue(ctx.value),
-                                  })
-                                }
-                                style={{
-                                  backgroundColor: theme.chrome.header,
-                                  color: theme.textColor,
-                                  border: `1px solid ${theme.chrome.border}`,
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = hoverBgColor;
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = theme.chrome.header;
-                                }}
-                              >
-                                Edit
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {ctx.isEditable && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setEditing({
+                                      ...editing,
+                                      [ctx.id]: formatValue(ctx.value),
+                                    })
+                                  }
+                                  style={{
+                                    backgroundColor: theme.chrome.header,
+                                    color: theme.textColor,
+                                    border: `1px solid ${theme.chrome.border}`,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = hoverBgColor;
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = theme.chrome.header;
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                              )}
+                              {canDelete && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDelete(ctx)}
+                                  disabled={isDeleting}
+                                  style={{
+                                    color: '#ef4444',
+                                    padding: '0.25rem',
+                                    minWidth: 'auto',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = theme.theme === 'light' 
+                                      ? 'rgba(239, 68, 68, 0.1)' 
+                                      : 'rgba(239, 68, 68, 0.2)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="Delete response"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {scopeLabel}
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          {scopeLabel}
+                        </div>
+                        {isDeleting && (
+                          <div className="text-sm text-muted-foreground">
+                            Deleting...
+                          </div>
+                        )}
                       </div>
+                      {error && !isEditing && (
+                        <p className="text-sm text-red-600">{error}</p>
+                      )}
                     </div>
                   );
                 })}
