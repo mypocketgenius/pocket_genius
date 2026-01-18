@@ -57,6 +57,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dbUserId, setDbUserId] = useState<string | null>(null);
+  const [creatorName, setCreatorName] = useState<string | null>(null);
 
   // Fetch database user ID if authenticated
   useEffect(() => {
@@ -85,6 +86,7 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
       })
       .then(data => {
         setQuestions(data.questions || []);
+        setCreatorName(data.creatorName || null);
         setLoading(false);
       })
       .catch(err => {
@@ -183,10 +185,10 @@ export function IntakeForm({ chatbotId, onComplete }: IntakeFormProps) {
         <ThemedContainer variant="card" className="w-full max-w-2xl rounded-lg border shadow-sm">
           <div className="flex flex-col space-y-1.5 p-6 border-b" style={{ borderColor: theme.chrome.border }}>
             <h3 className="text-2xl font-semibold leading-none tracking-tight" style={{ color: theme.textColor }}>
-              Help us tailor the advice to your situation
+              Get advice tailored to your situation
             </h3>
             <p className="text-sm" style={{ color: theme.textColor, opacity: 0.7 }}>
-              Your answers help us apply the author&apos;s wisdom to your specific context
+              Share your context so {creatorName || 'we'} can give you the most relevant guidance
             </p>
           </div>
           <div className="p-6 pt-0 space-y-6">

@@ -45,10 +45,17 @@ export async function GET(request: Request) {
       );
     }
 
-    // Verify chatbot exists
+    // Verify chatbot exists and get creator info
     const chatbot = await prisma.chatbot.findUnique({
       where: { id: chatbotId },
-      select: { id: true },
+      select: { 
+        id: true,
+        creator: {
+          select: {
+            name: true,
+          },
+        },
+      },
     });
 
     if (!chatbot) {
@@ -82,7 +89,10 @@ export async function GET(request: Request) {
       updatedAt: association.intakeQuestion.updatedAt,
     }));
 
-    return NextResponse.json({ questions });
+    return NextResponse.json({ 
+      questions,
+      creatorName: chatbot.creator.name,
+    });
   } catch (error) {
     console.error('Error fetching intake questions:', error);
     return NextResponse.json(
