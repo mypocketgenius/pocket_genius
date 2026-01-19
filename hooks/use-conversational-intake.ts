@@ -213,11 +213,13 @@ export function useConversationalIntake(
       setVerificationMode(true);
       setVerificationQuestionId(question.id);
       setCurrentQuestionIndex(index);
-      const verificationMessage = "This is what I have. Is it still correct?";
-      await addMessage('assistant', verificationMessage, activeConversationId);
       
+      // Build combined message: question + verification text + saved answer (all in one message)
       const savedAnswer = existingResponses[question.id];
-      await addMessage('user', formatAnswerForDisplay(question, savedAnswer), activeConversationId);
+      const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
+      const combinedContent = `${question.questionText}\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
+      
+      await addMessage('assistant', combinedContent, activeConversationId);
     } else {
       setVerificationMode(false);
       setVerificationQuestionId(null);
