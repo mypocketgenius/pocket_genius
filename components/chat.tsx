@@ -1270,13 +1270,36 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         })}
 
         {/* Intake UI - rendered using IntakeFlow component */}
-        {intakeGate.gateState === 'intake' && intakeHook && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && intakeGate.welcomeData && (
-          <IntakeFlow
-            intakeHook={intakeHook}
-            welcomeData={intakeGate.welcomeData}
-            themeColors={chromeColors}
-            textColor={chromeTextColor}
-          />
+        {intakeGate.gateState === 'intake' && intakeHook && intakeGate.welcomeData && (
+          <>
+            {/* Show loading state while hook initializes */}
+            {!intakeHook.isInitialized && (
+              <div 
+                className="text-center mt-8 opacity-80"
+                style={{ color: currentBubbleStyle.text }}
+              >
+                <p className="text-sm">Loading intake questions...</p>
+              </div>
+            )}
+            {/* Show IntakeFlow once initialized and there's a current question */}
+            {intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && (
+              <IntakeFlow
+                intakeHook={intakeHook}
+                welcomeData={intakeGate.welcomeData}
+                themeColors={{ ...chromeColors, text: chromeTextColor }}
+                textColor={chromeTextColor}
+              />
+            )}
+            {/* Show error if initialization failed */}
+            {intakeHook.isInitialized && intakeHook.error && (
+              <div 
+                className="text-center mt-8 opacity-80"
+                style={{ color: currentBubbleStyle.text }}
+              >
+                <p className="text-sm text-red-500">{intakeHook.error}</p>
+              </div>
+            )}
+          </>
         )}
 
         {/* Loading indicator */}

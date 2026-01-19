@@ -36,15 +36,15 @@ export interface UseIntakeGateReturn {
  * 
  * @param chatbotId - The ID of the chatbot
  * @param conversationId - Current conversation ID (if exists, skips intake check)
- * @param isSignedIn - Whether user is signed in
- * @param isLoaded - Whether auth state is loaded
+ * @param isSignedIn - Whether user is signed in (may be undefined before auth loads)
+ * @param isLoaded - Whether auth state is loaded (may be undefined before auth loads)
  * @returns Gate state, welcome data, and completion callback
  */
 export function useIntakeGate(
   chatbotId: string,
   conversationId: string | null,
-  isSignedIn: boolean,
-  isLoaded: boolean
+  isSignedIn: boolean | undefined,
+  isLoaded: boolean | undefined
 ): UseIntakeGateReturn {
   const [gateState, setGateState] = useState<'checking' | 'intake' | 'chat'>('checking');
   const [welcomeData, setWelcomeData] = useState<WelcomeData | null>(null);
@@ -71,18 +71,35 @@ export function useIntakeGate(
           const data = await response.json();
           setWelcomeData(data);
           
-          // Gate logic: show intake if has questions AND not completed
-          if (data.hasQuestions && !data.intakeCompleted) {
+          // Debug logging to help diagnose intake gate issues
+          console.log('[useIntakeGate] Welcome data received:', {
+            chatbotId,
+            hasQuestions: data.hasQuestions,
+            intakeCompleted: data.intakeCompleted,
+            questionsCount: data.questions?.length || 0,
+            gateDecision: data.hasQuestions ? 'intake' : 'chat',
+          });
+          
+          // Gate logic: show intake if has questions (regardless of completion status)
+          // The intake hook handles verification flow for completed intake (Yes/Modify buttons)
+          // This allows users to review/edit their responses even after completing intake
+          if (data.hasQuestions) {
             setGateState('intake');
           } else {
             setGateState('chat');
           }
         } else {
+          const errorText = await response.text();
+          console.error('[useIntakeGate] Welcome API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+          });
           // On error, skip intake (allow chat to proceed)
           setGateState('chat');
         }
       } catch (error) {
-        console.error('Error fetching welcome data:', error);
+        console.error('[useIntakeGate] Error fetching welcome data:', error);
         // On error, skip intake (allow chat to proceed)
         setGateState('chat');
       }
