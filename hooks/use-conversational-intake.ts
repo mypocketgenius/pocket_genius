@@ -33,6 +33,7 @@ export interface UseConversationalIntakeReturn {
   modifyMode: boolean;
   currentInput: any;
   isSaving: boolean;
+  isLoadingNextQuestion: boolean;
   error: string | null;
   suggestionPills: PillType[];
   showPills: boolean;
@@ -72,6 +73,7 @@ export function useConversationalIntake(
   const [suggestionPills, setSuggestionPills] = useState<PillType[]>([]);
   const [showPills, setShowPills] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoadingNextQuestion, setIsLoadingNextQuestion] = useState(false);
 
   // Add message to conversation and notify parent
   const addMessage = useCallback(async (role: 'user' | 'assistant', content: string, convId: string): Promise<IntakeMessage> => {
@@ -201,32 +203,37 @@ export function useConversationalIntake(
       throw new Error('Conversation ID is required');
     }
 
-    if (index >= questions.length) {
-      await showFinalMessage(activeConversationId);
-      return;
-    }
+    setIsLoadingNextQuestion(true);
+    try {
+      if (index >= questions.length) {
+        await showFinalMessage(activeConversationId);
+        return;
+      }
 
-    const question = questions[index];
-    const hasExisting = hasExistingResponse(question.id);
+      const question = questions[index];
+      const hasExisting = hasExistingResponse(question.id);
 
-    if (hasExisting) {
-      setVerificationMode(true);
-      setVerificationQuestionId(question.id);
-      setCurrentQuestionIndex(index);
-      
-      // Build combined message: question + verification text + saved answer (all in one message)
-      const savedAnswer = existingResponses[question.id];
-      const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
-      const combinedContent = `${question.questionText}\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
-      
-      await addMessage('assistant', combinedContent, activeConversationId);
-    } else {
-      setVerificationMode(false);
-      setVerificationQuestionId(null);
-      setModifyMode(false);
-      setCurrentInput('');
-      await addMessage('assistant', question.questionText, activeConversationId);
-      setCurrentQuestionIndex(index);
+      if (hasExisting) {
+        setVerificationMode(true);
+        setVerificationQuestionId(question.id);
+        setCurrentQuestionIndex(index);
+        
+        // Build combined message: question + verification text + saved answer (all in one message)
+        const savedAnswer = existingResponses[question.id];
+        const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
+        const combinedContent = `${question.questionText}\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
+        
+        await addMessage('assistant', combinedContent, activeConversationId);
+      } else {
+        setVerificationMode(false);
+        setVerificationQuestionId(null);
+        setModifyMode(false);
+        setCurrentInput('');
+        await addMessage('assistant', question.questionText, activeConversationId);
+        setCurrentQuestionIndex(index);
+      }
+    } finally {
+      setIsLoadingNextQuestion(false);
     }
   }, [questions, conversationId, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage]);
 
@@ -279,6 +286,9 @@ export function useConversationalIntake(
       if (nextIndex < questions.length) {
         await showQuestion(nextIndex, conversationId!);
       } else {
+        // Immediately clear currentQuestionIndex to prevent input field from showing
+        // while transitioning to final message
+        setCurrentQuestionIndex(-2);
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
@@ -311,6 +321,9 @@ export function useConversationalIntake(
       if (nextIndex < questions.length) {
         await showQuestion(nextIndex, conversationId!);
       } else {
+        // Immediately clear currentQuestionIndex to prevent input field from showing
+        // while transitioning to final message
+        setCurrentQuestionIndex(-2);
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
@@ -337,7 +350,15 @@ export function useConversationalIntake(
     if (nextIndex < questions.length) {
       await showQuestion(nextIndex, conversationId!);
     } else {
-      await showFinalMessage(conversationId!);
+      // Immediately clear currentQuestionIndex to prevent input field from showing
+      // while transitioning to final message
+      setCurrentQuestionIndex(-2);
+      setIsLoadingNextQuestion(true);
+      try {
+        await showFinalMessage(conversationId!);
+      } finally {
+        setIsLoadingNextQuestion(false);
+      }
     }
   }, [verificationQuestionId, questions, showQuestion, showFinalMessage, conversationId]);
 
@@ -415,6 +436,7 @@ export function useConversationalIntake(
     modifyMode,
     currentInput,
     isSaving,
+    isLoadingNextQuestion,
     error,
     suggestionPills,
     showPills,

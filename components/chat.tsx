@@ -93,6 +93,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   
   // Store initial suggestion pills for persistence above first message
   const [initialSuggestionPills, setInitialSuggestionPills] = useState<PillType[]>([]);
+  // Store suggestion pills from intake flow for persistence after final intake message
+  const [intakeSuggestionPills, setIntakeSuggestionPills] = useState<PillType[]>([]);
   
   // Use intake gate hook - single source of truth for intake vs chat decision
   const intakeGate = useIntakeGate(chatbotId, conversationId, isSignedIn, isLoaded);
@@ -921,6 +923,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   );
 
+  // Sync intake hook suggestion pills to component state for persistence
+  useEffect(() => {
+    if (intakeHook?.showPills && intakeHook?.suggestionPills && intakeHook.suggestionPills.length > 0) {
+      setIntakeSuggestionPills(intakeHook.suggestionPills);
+    }
+  }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
+
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {
     return (
@@ -1153,11 +1162,45 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 >
                   {message.role === 'assistant' ? (
                     <MarkdownRenderer 
-                      content={message.content || ''} 
+                      content={(() => {
+                        // If this is a verification message with an answer, italicize the answer portion
+                        const content = message.content || '';
+                        if (content.includes("This is what I have. Is it still correct?")) {
+                          // Split by the verification text and italicize the answer portion
+                          const parts = content.split("This is what I have. Is it still correct?");
+                          if (parts.length === 2) {
+                            // Italicize the answer portion (everything after the verification text)
+                            return parts[0] + "This is what I have. Is it still correct?\n\n*" + parts[1].trim() + "*";
+                          }
+                        }
+                        return content;
+                      })()}
                       textColor={currentBubbleStyle.text}
                     />
                   ) : (
-                    <div className="whitespace-pre-wrap break-words">
+                    <div 
+                      className="whitespace-pre-wrap break-words"
+                      style={{
+                        fontStyle: (() => {
+                          // Check if we're in intake mode
+                          if (intakeGate.gateState === 'intake') {
+                            return 'italic';
+                          }
+                          // Check if this user message appears before the final intake message
+                          if (intakeGate.welcomeData?.hasQuestions) {
+                            const hasFinalMessageAfter = messages.some((msg, idx) => 
+                              idx > index && 
+                              msg.role === 'assistant' && 
+                              msg.content?.includes("When our conversation is finished")
+                            );
+                            if (hasFinalMessageAfter) {
+                              return 'italic';
+                            }
+                          }
+                          return 'normal';
+                        })()
+                      }}
+                    >
                       {message.content}
                     </div>
                   )}
@@ -1205,6 +1248,22 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       />
                     );
                   })()}
+                  
+                  {/* Suggestion pills after final intake message */}
+                  {message.role === 'assistant' && 
+                   message.content?.includes("When our conversation is finished") &&
+                   intakeSuggestionPills.length > 0 && (
+                    <div className="mt-4 w-full flex flex-wrap gap-2 justify-center">
+                      {intakeSuggestionPills.map((pill) => (
+                        <Pill
+                          key={pill.id}
+                          pill={pill}
+                          isSelected={false}
+                          onClick={() => handlePillClick(pill)}
+                        />
+                      ))}
+                    </div>
+                  )}
                   
                   {/* Phase 4: Source attribution - inside message bubble at the end */}
                   {message.role === 'assistant' && message.context && (
@@ -1292,9 +1351,51 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           </div>
         )}
 
-        {/* Loading indicator */}
+        {/* Loading indicator for regular chat messages */}
         {isLoading && messages[messages.length - 1]?.role === 'assistant' && 
          messages[messages.length - 1]?.content === '' && (
+          <div className="flex justify-start w-full">
+            <div 
+              className="px-4 py-2 w-full"
+              style={{
+                background: 'transparent',
+                color: currentBubbleStyle.text,
+                boxShadow: 'none',
+                border: 'none',
+              }}
+            >
+              <div className="flex space-x-1">
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '0ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '150ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
+                <div 
+                  className="w-2 h-2 rounded-full animate-bounce" 
+                  style={{ 
+                    animationDelay: '300ms',
+                    backgroundColor: currentBubbleStyle.text,
+                    opacity: 0.6,
+                  }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading indicator for intake next question */}
+        {intakeGate.gateState === 'intake' && intakeHook && intakeHook.isLoadingNextQuestion && (
           <div className="flex justify-start w-full">
             <div 
               className="px-4 py-2 w-full"
@@ -1450,7 +1551,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder={conversationStatus === 'completed' ? 'This conversation is completed. Start a new conversation to continue.' : 'Type a reply...'}
-              disabled={isLoading || conversationStatus === 'completed' || intakeGate.gateState === 'checking'}
+              disabled={isLoading || conversationStatus === 'completed'}
               rows={1}
               className="input-field flex-1 resize-none border rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
               style={{
@@ -1469,7 +1570,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             />
             <button
               onClick={sendMessage}
-              disabled={!input.trim() || isLoading || conversationStatus === 'completed' || intakeGate.gateState === 'checking'}
+              disabled={!input.trim() || isLoading || conversationStatus === 'completed'}
               className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px] opacity-80"
               title="Send message"
             >
