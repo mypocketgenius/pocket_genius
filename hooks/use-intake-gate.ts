@@ -109,9 +109,12 @@ export function useIntakeGate(
   }, [chatbotId, conversationId, isSignedIn, isLoaded]);
 
   // Handle intake completion - transition to chat
+  // This immediately sets gate state to 'chat' without waiting for effect to run
   const onIntakeComplete = useCallback((convId: string) => {
+    // Immediately transition to chat state
     setGateState('chat');
     // Note: conversationId will be set by chat component via callback
+    // The effect will see conversationId on next render and keep gate state as 'chat'
   }, []);
 
   return {

@@ -41,10 +41,10 @@ export function IntakeFlow({
   textColor,
 }: IntakeFlowProps) {
   return (
-    <div className="space-y-3 mt-4">
+    <div className="space-y-3">
       {/* Question counter */}
       {welcomeData.questions && (
-        <div className="text-xs opacity-60" style={{ color: textColor }}>
+        <div className="text-xs opacity-60 mb-2" style={{ color: textColor }}>
           Question {intakeHook.currentQuestionIndex + 1} of {welcomeData.questions.length}
         </div>
       )}

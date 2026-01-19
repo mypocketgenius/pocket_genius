@@ -911,10 +911,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     },
     (convId) => {
       // Intake completed - transition to normal chat
+      // Update gate state first, then update conversationId and URL
+      // This ensures UI transitions immediately
       intakeGate.onIntakeComplete(convId);
       setConversationId(convId);
       localStorage.setItem(`conversationId_${chatbotId}`, convId);
-      router.replace(`/chat/${chatbotId}?conversationId=${convId}`);
+      // Update URL without causing full navigation (preserves state)
+      router.replace(`/chat/${chatbotId}?conversationId=${convId}`, { scroll: false });
     }
   );
 
@@ -1269,37 +1272,24 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           );
         })}
 
-        {/* Intake UI - rendered using IntakeFlow component */}
-        {intakeGate.gateState === 'intake' && intakeHook && intakeGate.welcomeData && (
-          <>
-            {/* Show loading state while hook initializes */}
-            {!intakeHook.isInitialized && (
-              <div 
-                className="text-center mt-8 opacity-80"
-                style={{ color: currentBubbleStyle.text }}
-              >
-                <p className="text-sm">Loading intake questions...</p>
-              </div>
-            )}
-            {/* Show IntakeFlow once initialized and there's a current question */}
-            {intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && (
-              <IntakeFlow
-                intakeHook={intakeHook}
-                welcomeData={intakeGate.welcomeData}
-                themeColors={{ ...chromeColors, text: chromeTextColor }}
-                textColor={chromeTextColor}
-              />
-            )}
-            {/* Show error if initialization failed */}
-            {intakeHook.isInitialized && intakeHook.error && (
-              <div 
-                className="text-center mt-8 opacity-80"
-                style={{ color: currentBubbleStyle.text }}
-              >
-                <p className="text-sm text-red-500">{intakeHook.error}</p>
-              </div>
-            )}
-          </>
+        {/* Intake UI is now rendered in the input area for seamless experience */}
+        {/* Show loading state while hook initializes */}
+        {intakeGate.gateState === 'intake' && intakeHook && !intakeHook.isInitialized && (
+          <div 
+            className="text-center mt-8 opacity-80"
+            style={{ color: currentBubbleStyle.text }}
+          >
+            <p className="text-sm">Loading intake questions...</p>
+          </div>
+        )}
+        {/* Show error if initialization failed */}
+        {intakeGate.gateState === 'intake' && intakeHook && intakeHook.isInitialized && intakeHook.error && (
+          <div 
+            className="text-center mt-8 opacity-80"
+            style={{ color: currentBubbleStyle.text }}
+          >
+            <p className="text-sm text-red-500">{intakeHook.error}</p>
+          </div>
         )}
 
         {/* Loading indicator */}
@@ -1348,8 +1338,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         <div ref={messagesEndRef} />
       </ThemedPage>
 
-      {/* Phase 4: Input area with dynamic pills - hidden during intake */}
-      {intakeGate.gateState === 'chat' && (
+      {/* Phase 4: Input area with dynamic pills - always visible, content changes based on intake state */}
       <div 
         className="input-area border-t px-3 py-2 relative"
         style={{
@@ -1445,41 +1434,50 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             </div>
           </div>
         )}
-        <div className="flex gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={conversationStatus === 'completed' ? 'This conversation is completed. Start a new conversation to continue.' : 'Type a reply...'}
-            disabled={isLoading || conversationStatus === 'completed'}
-            rows={1}
-            className="input-field flex-1 resize-none border rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
-            style={{
-              minHeight: '52px',
-              maxHeight: '120px',
-              backgroundColor: chromeColors.inputField, // Lighter than input area
-              borderColor: chromeColors.border,
-              color: chromeTextColor,
-            }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = 'auto';
-              target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-            }}
-            suppressHydrationWarning
+        {/* Show intake UI in input area when in intake mode, otherwise show normal input */}
+        {intakeGate.gateState === 'intake' && intakeHook && intakeGate.welcomeData && intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion ? (
+          <IntakeFlow
+            intakeHook={intakeHook}
+            welcomeData={intakeGate.welcomeData}
+            themeColors={{ ...chromeColors, inputField: chromeColors.inputField, text: chromeTextColor }}
+            textColor={chromeTextColor}
           />
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || isLoading || conversationStatus === 'completed'}
-            className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px] opacity-80"
-            title="Send message"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-        </div>
+        ) : (
+          <div className="flex gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={conversationStatus === 'completed' ? 'This conversation is completed. Start a new conversation to continue.' : 'Type a reply...'}
+              disabled={isLoading || conversationStatus === 'completed' || intakeGate.gateState === 'checking'}
+              rows={1}
+              className="input-field flex-1 resize-none border rounded-lg px-5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed opacity-80 placeholder:opacity-80"
+              style={{
+                minHeight: '52px',
+                maxHeight: '120px',
+                backgroundColor: chromeColors.inputField, // Lighter than input area
+                borderColor: chromeColors.border,
+                color: chromeTextColor,
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+              }}
+              suppressHydrationWarning
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || isLoading || conversationStatus === 'completed' || intakeGate.gateState === 'checking'}
+              className="px-3 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[44px] opacity-80"
+              title="Send message"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
-      )}
 
       {/* Phase 5: Copy feedback modal (kept per plan decision) */}
       {/* Opens immediately after copy button is clicked (no intermediate toast) */}
