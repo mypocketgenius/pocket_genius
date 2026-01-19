@@ -4904,6 +4904,109 @@ If the context doesn't contain relevant information to answer the question, say 
 
 **Note:** This side quest transforms the intake experience from a modal-based form into a natural conversational flow. Users now experience a personalized welcome message, answer questions one at a time in a conversational manner, and seamlessly transition into the chat experience. The implementation is self-contained, well-tested, and follows architectural discipline with proper separation of concerns. All intake flow messages are saved as conversation history, ensuring a complete record of the user's onboarding experience.
 
+### Side Quest: Chat Component Refactoring ✅ COMPLETE (Jan 19, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 19, 2026)
+
+**Objective:** Refactor the chat component to eliminate competing state systems, race conditions, and flickering UI. Create a clean architecture with a single source of truth for intake vs chat decision, sequential operations, and proper separation of concerns.
+
+**Why:** After implementing the conversational intake flow (Jan 18, 2026), we identified timing issues and competing state systems causing flickering UI and race conditions. The chat component had multiple state variables (`showConversationalIntake`, `intakeWelcomeData`) that competed with each other, leading to unpredictable behavior. This side quest creates a clean architecture with a single gate hook that manages the intake vs chat decision.
+
+**Prerequisites:**
+- ✅ Conversational intake flow complete (Jan 18, 2026)
+- ✅ `useConversationalIntake` hook exists
+- ✅ Chat component exists (`components/chat.tsx`)
+
+**What Was Done:**
+
+1. **Created `useIntakeGate` Hook:**
+   - ✅ Created `hooks/use-intake-gate.ts` (107 lines)
+   - ✅ Single source of truth for intake vs chat decision
+   - ✅ Manages gate state: `'checking' | 'intake' | 'chat'`
+   - ✅ Fetches welcome data and determines gate state
+   - ✅ Handles transition from intake to chat via `onIntakeComplete` callback
+   - ✅ Comprehensive unit tests created (13 tests passing)
+
+2. **Extracted `IntakeFlow` Component:**
+   - ✅ Created `components/intake-flow.tsx` (270 lines)
+   - ✅ Extracted intake UI from `chat.tsx` (~268 lines removed)
+   - ✅ Handles all question types (TEXT, NUMBER, SELECT, MULTI_SELECT, BOOLEAN)
+   - ✅ Renders verification buttons (Yes/Modify) for existing responses
+   - ✅ Self-contained component with clear props interface
+   - ✅ Comprehensive component tests created (19 tests passing)
+
+3. **Refactored Chat Component:**
+   - ✅ Removed competing state variables (`showConversationalIntake`, `intakeWelcomeData`)
+   - ✅ Integrated `useIntakeGate` hook for gate decision
+   - ✅ Replaced inline intake UI with `<IntakeFlow />` component
+   - ✅ Updated all render conditions to use single gate state check
+   - ✅ Updated all effect guards (URL params, message loading, pills loading) to use gate state
+   - ✅ File size reduced from ~1800 lines to ~1532 lines
+
+4. **Fixed `useConversationalIntake` Hook:**
+   - ✅ Removed reset effect (lines 355-372) that was handling race conditions
+   - ✅ Simplified initialization logic (gate hook ensures proper timing)
+   - ✅ File size reduced from ~450 lines to ~430 lines
+
+5. **Post-Implementation Bug Fixes:**
+   - ✅ Fixed intake completion flicker - "Loading conversation..." text appearing briefly
+   - ✅ Fixed pills timing - Pills appearing immediately after suggestion pills instead of after AI responds
+   - ✅ Fixed intake UI reappearing - "Question 1 of 5" showing during regular conversation
+   - ✅ Added `hasPassedIntakePhase` ref for efficient tracking
+
+**Key Features:**
+- ✅ **Single source of truth** - One state system (`useIntakeGate` hook) decides what to show
+- ✅ **No flickering** - Single render decision, no competing conditions
+- ✅ **Working intake flow** - Yes/Modify buttons appear correctly for existing responses
+- ✅ **No race conditions** - Sequential operations: check → intake → chat
+- ✅ **Clean separation** - Intake logic separate from chat logic
+- ✅ **Predictable flow** - State transitions: `checking → intake → chat` (one direction)
+- ✅ **Preserved functionality** - All existing features work (messages, streaming, pills, bookmarks, etc.)
+- ✅ **Backward compatible** - Existing conversations still load correctly
+
+**Implementation Details:**
+- **Gate Hook Pattern:** Single hook manages gate decision, separate from intake flow logic
+- **State Transitions:** Clear one-directional flow: `checking → intake → chat`
+- **Sequential Operations:** Gate hook fetches data, decides, sets state - no parallel competing effects
+- **Separation of Concerns:** Gate logic separate from intake logic, intake logic separate from chat logic
+- **Performance Optimizations:** Used `useRef` for `hasPassedIntakePhase` to avoid unnecessary re-renders
+
+**Files Created:**
+- `hooks/use-intake-gate.ts` - Gate hook for intake vs chat decision (107 lines)
+- `components/intake-flow.tsx` - Extracted intake UI component (270 lines)
+- `__tests__/hooks/use-intake-gate.test.ts` - Hook unit tests (13 tests)
+- `__tests__/components/intake-flow.test.tsx` - Component tests (19 tests)
+
+**Files Modified:**
+- `components/chat.tsx` - Removed competing state, integrated gate hook, replaced inline UI with component (~268 lines removed)
+- `hooks/use-conversational-intake.ts` - Removed reset effect, simplified initialization (~18 lines removed)
+
+**Acceptance Criteria Verified:**
+- ✅ Single source of truth - One state system decides what to show
+- ✅ No flickering - Single render decision, no competing conditions
+- ✅ Working intake flow - Yes/Modify buttons appear correctly
+- ✅ No race conditions - Sequential operations verified
+- ✅ Clean separation - Intake logic separate from chat logic
+- ✅ Predictable flow - State transitions tested
+- ✅ Preserved functionality - All existing features work
+- ✅ Backward compatible - Existing conversations load correctly
+
+**Deliverables:**
+- ✅ `useIntakeGate` hook with comprehensive functionality
+- ✅ `IntakeFlow` component with all question types and verification flow
+- ✅ Refactored chat component with clean architecture
+- ✅ Fixed `useConversationalIntake` hook (removed reset effect)
+- ✅ Post-implementation bug fixes (flicker, pills timing, UI reappearing)
+- ✅ Complete test coverage (32 tests passing: 13 hook tests + 19 component tests)
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-19_chat-refactor-plan.md`
+- All acceptance criteria verified and documented
+- Test results documented in plan document
+- Architectural discipline followed (file limits, single responsibility, pattern extraction)
+
+**Note:** This side quest eliminated competing state systems and race conditions that were causing flickering UI and unpredictable behavior. The implementation creates a clean architecture with a single source of truth (`useIntakeGate` hook) that manages the intake vs chat decision. The intake UI is now properly separated into its own component (`IntakeFlow`), reducing chat component complexity by ~268 lines. All state transitions are predictable and sequential, ensuring a smooth user experience without flickering or timing issues. The refactoring maintains backward compatibility and preserves all existing functionality while significantly improving code maintainability and architectural clarity.
+
 ---
 
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST

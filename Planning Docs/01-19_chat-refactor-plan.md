@@ -760,6 +760,64 @@ useEffect(() => {
   - ✅ Predictable flow (state transitions tested)
   - ✅ Preserved functionality (all question types and interactions tested)
 
+### Task 9: Post-Implementation Bug Fixes ✅ COMPLETE
+**Subtasks:**
+1. ✅ Fix intake completion flicker - "Loading conversation..." text appearing briefly
+2. ✅ Fix pills timing - Pills appearing immediately after suggestion pills instead of after AI responds
+3. ✅ Fix intake UI reappearing - "Question 1 of 5" showing during regular conversation
+4. ✅ **Visible output:** All bugs fixed, smooth transitions, correct pill timing
+
+**Implementation Details:**
+
+**Bug 1: Intake Completion Flicker**
+- **Issue:** When intake completes, brief flash of "Loading conversation..." text before returning to conversation
+- **Root Cause:** When `conversationId` is set after intake completion, the message loading effect runs even though messages are already in state from intake
+- **Solution:**
+  - Set `hasLoadedMessages.current = true` in intake completion callback before setting `conversationId`
+  - Added safety check in loading effect: if messages already exist, mark as loaded and return early
+  - Added guard in URL params effect to prevent clearing messages when transitioning from intake
+- **Files Modified:** `components/chat.tsx`
+- **Lines Changed:** 
+  - Intake completion callback (line ~946): Set `hasLoadedMessages.current = true` before updating `conversationId`
+  - Message loading effect (line ~200): Check if messages exist before loading
+  - URL params effect (line ~180): Guard to prevent clearing messages during intake transition
+
+**Bug 2: Pills Timing**
+- **Issue:** Feedback/expansion pills appearing immediately after user sends a suggestion pill, instead of waiting for AI response
+- **Root Cause:** Pills were shown whenever `messages.length > 0`, which is true immediately after user sends a message
+- **Solution:**
+  - Changed condition to check: last message is assistant, has content, not loading, AND we've passed intake phase
+  - Added `hasPassedIntakePhase` ref to efficiently track if we've moved past intake completion
+  - Created `useEffect` that checks once when messages change if there are user messages after intake completion
+  - Once ref is set to `true`, never checks again (O(1) instead of O(n) on every render)
+- **Files Modified:** `components/chat.tsx`
+- **Lines Changed:**
+  - Added `hasPassedIntakePhase` ref (line ~105)
+  - Added `useEffect` to check intake phase once (line ~332)
+  - Updated pills visibility condition (line ~1655): Check last message is assistant with content, not loading, and passed intake phase
+  - Reset ref when starting new conversation (lines ~192, ~200)
+
+**Bug 3: Intake UI Reappearing**
+- **Issue:** "Question 1 of 5" intake UI appearing during regular conversation after intake is complete
+- **Root Cause:** Intake UI condition checked `intakeGate.gateState === 'intake'` but didn't verify we hadn't passed the intake phase
+- **Solution:**
+  - Added `!hasPassedIntakePhase.current` check to intake UI rendering condition
+  - Ensures intake UI only shows when gate state is 'intake' AND we haven't passed intake phase yet
+- **Files Modified:** `components/chat.tsx`
+- **Lines Changed:**
+  - Intake UI rendering condition (line ~1697): Added `!hasPassedIntakePhase.current` check
+
+**Performance Optimizations:**
+- Used `useRef` for `hasPassedIntakePhase` to avoid unnecessary re-renders
+- Check runs once per message change (in `useEffect`), not on every render
+- After intake phase is passed, uses O(1) boolean check instead of O(n) array search
+
+**Testing:**
+- Verified no flicker when intake completes
+- Verified pills appear only after AI responds (not immediately after user sends message)
+- Verified intake UI doesn't reappear during regular conversation
+- Verified smooth transitions between intake and chat states
+
 ---
 
 ## Architectural Discipline
