@@ -20,15 +20,13 @@ import { useTheme } from '../lib/theme/theme-context';
 import { ThemedPage } from './themed-page';
 import { ChatHeader } from './chat-header';
 import { useConversationalIntake, IntakeQuestion } from '../hooks/use-conversational-intake';
+import { useIntakeGate } from '../hooks/use-intake-gate';
 import { getPillColors } from '../lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
 import { getCurrentPeriod } from '../lib/theme/config';
 import { MarkdownRenderer } from './markdown-renderer';
 import { FollowUpPills } from './follow-up-pills';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Checkbox } from './ui/checkbox';
+import { IntakeFlow } from './intake-flow';
 
 interface Message {
   id: string;
@@ -96,16 +94,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Store initial suggestion pills for persistence above first message
   const [initialSuggestionPills, setInitialSuggestionPills] = useState<PillType[]>([]);
   
-  // Conversational intake state
-  const [intakeWelcomeData, setIntakeWelcomeData] = useState<{
-    chatbotName: string;
-    chatbotPurpose: string;
-    intakeCompleted: boolean;
-    hasQuestions: boolean;
-    existingResponses?: Record<string, any>;
-    questions?: IntakeQuestion[];
-  } | null>(null);
-  const [showConversationalIntake, setShowConversationalIntake] = useState<boolean | null>(null); // null = checking, true = show, false = skip
+  // Use intake gate hook - single source of truth for intake vs chat decision
+  const intakeGate = useIntakeGate(chatbotId, conversationId, isSignedIn, isLoaded);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -146,40 +136,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, chatbotId, searchParams]);
 
-  // Fetch welcome data and determine if intake should be shown
-  useEffect(() => {
-    // Only run when: no conversationId, no messages, signed in, and auth loaded
-    if (conversationId || messages.length > 0 || !isSignedIn || !isLoaded) {
-      return;
-    }
-
-    const fetchWelcomeData = async () => {
-      try {
-        const response = await fetch(`/api/chatbots/${chatbotId}/welcome`);
-        if (response.ok) {
-          const data = await response.json();
-          setIntakeWelcomeData(data);
-          // Gate logic: show intake if has questions AND not completed
-          setShowConversationalIntake(data.hasQuestions && !data.intakeCompleted);
-        } else {
-          // On error, skip intake (allow chat to proceed)
-          setShowConversationalIntake(false);
-        }
-      } catch (error) {
-        console.error('Error fetching welcome data:', error);
-        // On error, skip intake (allow chat to proceed)
-        setShowConversationalIntake(false);
-      }
-    };
-
-    fetchWelcomeData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, isSignedIn, isLoaded, chatbotId]); // NOT messages.length to prevent re-triggering
+  // Welcome data fetch and gate decision is now handled by useIntakeGate hook
 
   // Get conversationId from URL params - URL is source of truth
   useEffect(() => {
-    // Guard: Don't reset messages during active intake
-    if (showConversationalIntake === true || showConversationalIntake === null) {
+    // Guard: Don't reset messages during active intake or checking
+    if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
       return;
     }
 
@@ -212,12 +174,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     setMessages([]);
     setConversationStatus(null);
     hasLoadedMessages.current = false;
-  }, [chatbotId, searchParams, showConversationalIntake]);
+  }, [chatbotId, searchParams, intakeGate.gateState]);
 
   // Load existing messages when conversationId is available
   useEffect(() => {
     // Guard: Don't load messages during active intake (hook manages messages)
-    if (showConversationalIntake === true) return;
+    if (intakeGate.gateState === 'intake') return;
     if (!conversationId || hasLoadedMessages.current) return;
 
     const loadMessages = async () => {
@@ -321,7 +283,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
 
     loadMessages();
-  }, [conversationId, chatbotId, showConversationalIntake, router]);
+  }, [conversationId, chatbotId, intakeGate.gateState, router]);
 
   // Persist conversationId to localStorage when it changes
   useEffect(() => {
@@ -353,8 +315,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Phase 4: Load pills on mount (only if not showing intake)
   useEffect(() => {
-    // Don't load pills if intake is active or checking - wait for intake status
-    if (showConversationalIntake === true || showConversationalIntake === null) {
+    // Don't load pills if intake is active or checking - wait for gate state
+    if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
       return;
     }
 
@@ -374,7 +336,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       }
     };
     loadPills();
-  }, [chatbotId, showConversationalIntake]);
+  }, [chatbotId, intakeGate.gateState]);
 
   /**
    * Sends a message to the chat API and handles streaming response
@@ -920,15 +882,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
-  // Use conversational intake hook (always called, but only active when showConversationalIntake === true)
+  // Use conversational intake hook (always called, but only active when gate state is 'intake')
   // Must be called before any early returns to satisfy React hooks rules
-  // Only pass data when intake should be shown AND data is fully loaded - prevents premature initialization
+  // Only pass data when gate state is 'intake' AND welcome data is loaded - prevents premature initialization
   const intakeHook = useConversationalIntake(
     chatbotId,
-    showConversationalIntake === true && intakeWelcomeData?.chatbotName ? intakeWelcomeData.chatbotName : '',
-    showConversationalIntake === true && intakeWelcomeData?.chatbotPurpose ? intakeWelcomeData.chatbotPurpose : '',
-    showConversationalIntake === true && intakeWelcomeData?.questions ? intakeWelcomeData.questions : [],
-    showConversationalIntake === true && intakeWelcomeData?.existingResponses ? intakeWelcomeData.existingResponses : {},
+    intakeGate.gateState === 'intake' && intakeGate.welcomeData
+      ? intakeGate.welcomeData.chatbotName
+      : '',
+    intakeGate.gateState === 'intake' && intakeGate.welcomeData
+      ? intakeGate.welcomeData.chatbotPurpose
+      : '',
+    intakeGate.gateState === 'intake' && intakeGate.welcomeData
+      ? intakeGate.welcomeData.questions || []
+      : [],
+    intakeGate.gateState === 'intake' && intakeGate.welcomeData
+      ? intakeGate.welcomeData.existingResponses || {}
+      : {},
     (message) => {
       // Convert IntakeMessage to Message and add to main messages state
       const convertedMessage: Message = {
@@ -941,7 +911,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     },
     (convId) => {
       // Intake completed - transition to normal chat
-      setShowConversationalIntake(false);
+      intakeGate.onIntakeComplete(convId);
       setConversationId(convId);
       localStorage.setItem(`conversationId_${chatbotId}`, convId);
       router.replace(`/chat/${chatbotId}?conversationId=${convId}`);
@@ -949,7 +919,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   );
 
   // Show loading while checking intake gate
-  if (showConversationalIntake === null && !conversationId && messages.length === 0 && isSignedIn && isLoaded) {
+  if (intakeGate.gateState === 'checking') {
     return (
       <div className="flex items-center justify-center h-dvh">
         <div className="text-center">
@@ -1066,14 +1036,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             <p className="text-sm">Loading conversation...</p>
           </div>
         )}
-        {!isLoadingMessages && messages.length === 0 && showConversationalIntake !== true && (
+        {intakeGate.gateState === 'chat' && !isLoadingMessages && messages.length === 0 && (
           <div 
             className="text-center mt-8 opacity-80"
             style={{ color: currentBubbleStyle.text }}
           >
             <p className="text-lg mb-2">Start a conversation</p>
             <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
-            {intakeWelcomeData?.intakeCompleted && (
+            {intakeGate.welcomeData?.intakeCompleted && (
               <div className="mt-4 space-y-3">
                 <p className="text-sm opacity-90">
                   We&apos;ve received your responses. Your answers help us apply the author&apos;s wisdom to your specific context.
@@ -1299,274 +1269,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           );
         })}
 
-        {/* Intake UI - rendered inline after messages */}
-        {showConversationalIntake === true && intakeHook && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && (
-          <div className="space-y-3 mt-4">
-            {/* Question counter */}
-            {intakeWelcomeData?.questions && (
-              <div className="text-xs opacity-60" style={{ color: currentBubbleStyle.text }}>
-                Question {intakeHook.currentQuestionIndex + 1} of {intakeWelcomeData.questions.length}
-              </div>
-            )}
-
-            {/* Verification buttons */}
-            {intakeHook.verificationMode && intakeHook.verificationQuestionId && (
-              <div className="flex gap-3">
-                <Button
-                  onClick={intakeHook.handleVerifyYes}
-                  disabled={intakeHook.isSaving}
-                  style={{
-                    backgroundColor: chromeColors.inputField,
-                    color: chromeTextColor,
-                    borderColor: chromeColors.border,
-                  }}
-                >
-                  Yes
-                </Button>
-                <Button
-                  onClick={intakeHook.handleVerifyModify}
-                  variant="outline"
-                  disabled={intakeHook.isSaving}
-                  style={{
-                    backgroundColor: chromeColors.input,
-                    color: chromeTextColor,
-                    borderColor: chromeColors.border,
-                  }}
-                >
-                  Modify
-                </Button>
-              </div>
-            )}
-
-            {/* Input fields (only when not in verification mode) */}
-            {!intakeHook.verificationMode && intakeHook.currentQuestion && (
-              <>
-                {intakeHook.currentQuestion.responseType === 'TEXT' && (
-                  <div className="space-y-2">
-                    <textarea
-                      value={intakeHook.currentInput || ''}
-                      onChange={(e) => intakeHook.setCurrentInput(e.target.value)}
-                      placeholder="Type your answer..."
-                      rows={1}
-                      className="w-full resize-none border rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      style={{
-                        backgroundColor: chromeColors.inputField,
-                        borderColor: chromeColors.border,
-                        color: chromeTextColor,
-                        minHeight: '52px',
-                        maxHeight: '120px',
-                      }}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = 'auto';
-                        target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (intakeHook.currentInput && !intakeHook.isSaving) {
-                            intakeHook.handleAnswer(intakeHook.currentInput);
-                          }
-                        }
-                      }}
-                    />
-                    <div className="flex gap-2 items-center">
-                      <Button
-                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
-                        disabled={!intakeHook.currentInput || intakeHook.isSaving}
-                        style={{
-                          backgroundColor: chromeColors.inputField,
-                          color: chromeTextColor,
-                          borderColor: chromeColors.border,
-                        }}
-                      >
-                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
-                      </Button>
-                      {!intakeHook.currentQuestion.isRequired && (
-                        <button
-                          onClick={intakeHook.handleSkip}
-                          disabled={intakeHook.isSaving}
-                          className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
-                          style={{ color: chromeTextColor }}
-                        >
-                          Skip
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {intakeHook.currentQuestion.responseType === 'NUMBER' && (
-                  <div className="space-y-2">
-                    <Input
-                      type="number"
-                      value={intakeHook.currentInput || ''}
-                      onChange={(e) => intakeHook.setCurrentInput(parseFloat(e.target.value) || null)}
-                      placeholder="Enter a number..."
-                      style={{
-                        backgroundColor: chromeColors.inputField,
-                        borderColor: chromeColors.border,
-                        color: chromeTextColor,
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && intakeHook.currentInput && !intakeHook.isSaving) {
-                          intakeHook.handleAnswer(intakeHook.currentInput);
-                        }
-                      }}
-                    />
-                    <div className="flex gap-2 items-center">
-                      <Button
-                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
-                        disabled={!intakeHook.currentInput || intakeHook.isSaving}
-                        style={{
-                          backgroundColor: chromeColors.inputField,
-                          color: chromeTextColor,
-                          borderColor: chromeColors.border,
-                        }}
-                      >
-                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
-                      </Button>
-                      {!intakeHook.currentQuestion.isRequired && (
-                        <button
-                          onClick={intakeHook.handleSkip}
-                          disabled={intakeHook.isSaving}
-                          className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
-                          style={{ color: chromeTextColor }}
-                        >
-                          Skip
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {intakeHook.currentQuestion.responseType === 'SELECT' && (
-                  <Select
-                    value={intakeHook.currentInput || ''}
-                    onValueChange={(value) => {
-                      intakeHook.setCurrentInput(value);
-                      intakeHook.handleAnswer(value);
-                    }}
-                  >
-                    <SelectTrigger
-                      style={{
-                        backgroundColor: chromeColors.inputField,
-                        borderColor: chromeColors.border,
-                        color: chromeTextColor,
-                      }}
-                    >
-                      <SelectValue placeholder="Select an option..." />
-                    </SelectTrigger>
-                    <SelectContent
-                      style={{
-                        backgroundColor: chromeColors.input,
-                        borderColor: chromeColors.border,
-                        color: chromeTextColor,
-                      }}
-                    >
-                      {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
-                        intakeHook.currentQuestion.options.map((option, index) => (
-                          <SelectItem key={index} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-options" disabled>
-                          No options available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {intakeHook.currentQuestion.responseType === 'MULTI_SELECT' && (
-                  <div className="space-y-2">
-                    {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
-                      intakeHook.currentQuestion.options.map((option, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`${intakeHook.currentQuestion!.id}-${index}`}
-                            checked={Array.isArray(intakeHook.currentInput) && intakeHook.currentInput.includes(option)}
-                            onCheckedChange={(checked) => {
-                              const current = Array.isArray(intakeHook.currentInput) ? intakeHook.currentInput : [];
-                              const newValue = checked
-                                ? [...current, option]
-                                : current.filter((v: string) => v !== option);
-                              intakeHook.setCurrentInput(newValue);
-                            }}
-                          />
-                          <label
-                            htmlFor={`${intakeHook.currentQuestion!.id}-${index}`}
-                            className="text-sm"
-                            style={{ color: chromeTextColor }}
-                          >
-                            {option}
-                          </label>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs" style={{ color: chromeTextColor, opacity: 0.7 }}>
-                        No options available
-                      </p>
-                    )}
-                    {Array.isArray(intakeHook.currentInput) && intakeHook.currentInput.length > 0 && (
-                      <Button
-                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
-                        disabled={intakeHook.isSaving}
-                        style={{
-                          backgroundColor: chromeColors.inputField,
-                          color: chromeTextColor,
-                          borderColor: chromeColors.border,
-                        }}
-                      >
-                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {intakeHook.currentQuestion.responseType === 'BOOLEAN' && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={intakeHook.currentQuestion.id}
-                      checked={intakeHook.currentInput === true}
-                      onCheckedChange={(checked) => {
-                        intakeHook.setCurrentInput(checked === true);
-                        intakeHook.handleAnswer(checked === true);
-                      }}
-                    />
-                    <label
-                      htmlFor={intakeHook.currentQuestion.id}
-                      className="text-sm"
-                      style={{ color: chromeTextColor }}
-                    >
-                      {intakeHook.currentQuestion.helperText || 'Yes'}
-                    </label>
-                  </div>
-                )}
-
-                {/* Error message */}
-                {intakeHook.error && (
-                  <div className="text-sm text-red-500 mt-2">
-                    {intakeHook.error}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (intakeHook.currentQuestion?.responseType === 'TEXT' || intakeHook.currentQuestion?.responseType === 'NUMBER') {
-                          intakeHook.handleAnswer(intakeHook.currentInput);
-                        }
-                      }}
-                      className="ml-2"
-                      disabled={intakeHook.isSaving}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+        {/* Intake UI - rendered using IntakeFlow component */}
+        {intakeGate.gateState === 'intake' && intakeHook && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && intakeGate.welcomeData && (
+          <IntakeFlow
+            intakeHook={intakeHook}
+            welcomeData={intakeGate.welcomeData}
+            themeColors={chromeColors}
+            textColor={chromeTextColor}
+          />
         )}
 
         {/* Loading indicator */}
@@ -1616,7 +1326,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       </ThemedPage>
 
       {/* Phase 4: Input area with dynamic pills - hidden during intake */}
-      {showConversationalIntake !== true && (
+      {intakeGate.gateState === 'chat' && (
       <div 
         className="input-area border-t px-3 py-2 relative"
         style={{
