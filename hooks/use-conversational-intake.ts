@@ -338,15 +338,33 @@ export function useConversationalIntake(
   const handleVerifyYes = useCallback(async () => {
     if (!verificationQuestionId) return;
 
-    const question = questions.find((q) => q.id === verificationQuestionId);
-    if (!question) return;
+    // Use currentQuestionIndex state instead of findIndex to avoid stale closure issues
+    // currentQuestionIndex is set when the question is shown, so it's always accurate
+    const currentIndex = currentQuestionIndex;
+    
+    // Validate that we have a valid current index and question exists
+    if (currentIndex < 0 || currentIndex >= questions.length) {
+      console.error('[handleVerifyYes] Invalid currentQuestionIndex:', currentIndex, 'questions.length:', questions.length);
+      return;
+    }
+
+    const question = questions[currentIndex];
+    if (!question || question.id !== verificationQuestionId) {
+      console.error('[handleVerifyYes] Question mismatch:', {
+        currentIndex,
+        verificationQuestionId,
+        questionId: question?.id,
+        questionsLength: questions.length
+      });
+      return;
+    }
 
     setVerificationMode(false);
     setVerificationQuestionId(null);
     
-    const currentIndex = questions.findIndex((q) => q.id === verificationQuestionId);
     const nextIndex = currentIndex + 1;
     
+    // Defensive check: ensure we have all questions before proceeding
     if (nextIndex < questions.length) {
       await showQuestion(nextIndex, conversationId!);
     } else {
@@ -360,20 +378,37 @@ export function useConversationalIntake(
         setIsLoadingNextQuestion(false);
       }
     }
-  }, [verificationQuestionId, questions, showQuestion, showFinalMessage, conversationId]);
+  }, [verificationQuestionId, currentQuestionIndex, questions, showQuestion, showFinalMessage, conversationId]);
 
   // Handle verification "Modify" button
   const handleVerifyModify = useCallback(() => {
     if (!verificationQuestionId) return;
 
-    const question = questions.find((q) => q.id === verificationQuestionId);
-    if (!question) return;
+    // Use currentQuestionIndex state instead of findIndex to avoid stale closure issues
+    const currentIndex = currentQuestionIndex;
+    
+    // Validate that we have a valid current index
+    if (currentIndex < 0 || currentIndex >= questions.length) {
+      console.error('[handleVerifyModify] Invalid currentQuestionIndex:', currentIndex, 'questions.length:', questions.length);
+      return;
+    }
+
+    const question = questions[currentIndex];
+    if (!question || question.id !== verificationQuestionId) {
+      console.error('[handleVerifyModify] Question mismatch:', {
+        currentIndex,
+        verificationQuestionId,
+        questionId: question?.id,
+        questionsLength: questions.length
+      });
+      return;
+    }
 
     setModifyMode(true);
     setVerificationMode(false);
     setCurrentInput(existingResponses[verificationQuestionId]);
-    setCurrentQuestionIndex(questions.findIndex((q) => q.id === verificationQuestionId));
-  }, [verificationQuestionId, questions, existingResponses]);
+    setCurrentQuestionIndex(currentIndex);
+  }, [verificationQuestionId, currentQuestionIndex, questions, existingResponses]);
 
   // Initialize: Create conversation and show welcome message
   useEffect(() => {
@@ -382,9 +417,13 @@ export function useConversationalIntake(
       return;
     }
 
-    // Note: The gate hook (useIntakeGate) ensures questions are loaded before
-    // this hook is called, so we can safely initialize with the questions array.
-    // questions.length === 0 is valid (no questions) and will show welcome + final message.
+    // Ensure questions array is available before initializing
+    // If questions is undefined/null, wait for them to be loaded
+    // If questions is an empty array [], that's valid (no questions) and we should proceed
+    if (questions === undefined || questions === null) {
+      // Wait for questions to be loaded - gate hook should provide them
+      return;
+    }
 
     const initialize = async () => {
       try {
@@ -402,6 +441,7 @@ export function useConversationalIntake(
         const newConversationId = convData.conversation.id;
         setConversationId(newConversationId);
 
+        // Defensive check: ensure questions array is still valid
         if (questions.length === 0) {
           // No questions - show welcome + final message
           const welcomeContent = `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.`;
@@ -420,8 +460,7 @@ export function useConversationalIntake(
     };
 
     initialize();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatbotId, chatbotName, chatbotPurpose, questions.length]); // questions.length included for completeness (gate hook ensures questions are loaded before hook is called)
+  }, [chatbotId, chatbotName, chatbotPurpose, questions, addMessage, showFinalMessage, showFirstQuestion]);
 
   const currentQuestion = currentQuestionIndex >= 0 && currentQuestionIndex < questions.length
     ? questions[currentQuestionIndex]
