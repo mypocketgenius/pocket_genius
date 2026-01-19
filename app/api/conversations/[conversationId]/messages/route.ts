@@ -204,7 +204,7 @@ export async function GET(
 /**
  * POST /api/conversations/[conversationId]/messages
  * 
- * Creates a new message in a conversation. Used by ConversationalIntake component
+ * Creates a new message in a conversation. Used by useConversationalIntake hook
  * to save welcome messages, questions, answers, "Thank you." messages, and final intro messages.
  * 
  * Authentication: Required (user must be authenticated)

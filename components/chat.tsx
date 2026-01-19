@@ -19,12 +19,16 @@ import { Prisma } from '@prisma/client';
 import { useTheme } from '../lib/theme/theme-context';
 import { ThemedPage } from './themed-page';
 import { ChatHeader } from './chat-header';
-import { IntakeForm } from './intake-form';
+import { useConversationalIntake, IntakeQuestion } from '../hooks/use-conversational-intake';
 import { getPillColors } from '../lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
 import { getCurrentPeriod } from '../lib/theme/config';
 import { MarkdownRenderer } from './markdown-renderer';
 import { FollowUpPills } from './follow-up-pills';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Checkbox } from './ui/checkbox';
 
 interface Message {
   id: string;
@@ -92,10 +96,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Store initial suggestion pills for persistence above first message
   const [initialSuggestionPills, setInitialSuggestionPills] = useState<PillType[]>([]);
   
-  // Phase 3.10: Intake form state
-  const [showIntakeForm, setShowIntakeForm] = useState<boolean | null>(null); // null = checking, true = show form, false = hide form
-  const [checkingIntakeCompletion, setCheckingIntakeCompletion] = useState(true);
-  const [intakeCompleted, setIntakeCompleted] = useState<boolean | null>(null); // null = checking, true = completed, false = not completed
+  // Conversational intake state
+  const [intakeWelcomeData, setIntakeWelcomeData] = useState<{
+    chatbotName: string;
+    chatbotPurpose: string;
+    intakeCompleted: boolean;
+    hasQuestions: boolean;
+    existingResponses?: Record<string, any>;
+    questions?: IntakeQuestion[];
+  } | null>(null);
+  const [showConversationalIntake, setShowConversationalIntake] = useState<boolean | null>(null); // null = checking, true = show, false = skip
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -136,46 +146,43 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, chatbotId, searchParams]);
 
-  // Phase 3.10: Check intake form completion on mount
-  // Check after authentication is loaded (even if not signed in, to handle edge cases)
+  // Fetch welcome data and determine if intake should be shown
   useEffect(() => {
-    // Wait for auth to be loaded before checking
-    if (!isLoaded) {
+    // Only run when: no conversationId, no messages, signed in, and auth loaded
+    if (conversationId || messages.length > 0 || !isSignedIn || !isLoaded) {
       return;
     }
 
-    const checkIntakeCompletion = async () => {
-      setCheckingIntakeCompletion(true);
+    const fetchWelcomeData = async () => {
       try {
-        const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
+        const response = await fetch(`/api/chatbots/${chatbotId}/welcome`);
         if (response.ok) {
           const data = await response.json();
-          // Show intake form only if user is signed in AND there are questions AND they're not completed
-          // If no questions exist or all questions are completed, skip the form
-          setShowIntakeForm(isSignedIn && data.hasQuestions && !data.completed);
-          // Track completion status for showing confirmation message
-          // Only show message if user is signed in, completed intake, and has questions
-          setIntakeCompleted(isSignedIn && data.completed && data.hasQuestions);
+          setIntakeWelcomeData(data);
+          // Gate logic: show intake if has questions AND not completed
+          setShowConversationalIntake(data.hasQuestions && !data.intakeCompleted);
         } else {
-          // On error, assume intake is not required (allow chat to proceed)
-          setShowIntakeForm(false);
-          setIntakeCompleted(false);
+          // On error, skip intake (allow chat to proceed)
+          setShowConversationalIntake(false);
         }
       } catch (error) {
-        console.error('Error checking intake completion:', error);
-        // On error, assume intake is not required (allow chat to proceed)
-        setShowIntakeForm(false);
-        setIntakeCompleted(false);
-      } finally {
-        setCheckingIntakeCompletion(false);
+        console.error('Error fetching welcome data:', error);
+        // On error, skip intake (allow chat to proceed)
+        setShowConversationalIntake(false);
       }
     };
 
-    checkIntakeCompletion();
-  }, [chatbotId, isLoaded, isSignedIn]);
+    fetchWelcomeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, isSignedIn, isLoaded, chatbotId]); // NOT messages.length to prevent re-triggering
 
   // Get conversationId from URL params - URL is source of truth
   useEffect(() => {
+    // Guard: Don't reset messages during active intake
+    if (showConversationalIntake === true || showConversationalIntake === null) {
+      return;
+    }
+
     const urlConversationId = searchParams?.get('conversationId');
     const isNewConversation = searchParams?.get('new') === 'true';
     
@@ -205,10 +212,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     setMessages([]);
     setConversationStatus(null);
     hasLoadedMessages.current = false;
-  }, [chatbotId, searchParams]);
+  }, [chatbotId, searchParams, showConversationalIntake]);
 
   // Load existing messages when conversationId is available
   useEffect(() => {
+    // Guard: Don't load messages during active intake (hook manages messages)
+    if (showConversationalIntake === true) return;
     if (!conversationId || hasLoadedMessages.current) return;
 
     const loadMessages = async () => {
@@ -312,7 +321,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
 
     loadMessages();
-  }, [conversationId, chatbotId]);
+  }, [conversationId, chatbotId, showConversationalIntake, router]);
 
   // Persist conversationId to localStorage when it changes
   useEffect(() => {
@@ -906,8 +915,35 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   };
 
-  // Show loading while checking auth
-  if (!isLoaded) {
+  // Use conversational intake hook (always called, but only active when showConversationalIntake === true)
+  // Must be called before any early returns to satisfy React hooks rules
+  const intakeHook = useConversationalIntake(
+    chatbotId,
+    intakeWelcomeData?.chatbotName || '',
+    intakeWelcomeData?.chatbotPurpose || '',
+    intakeWelcomeData?.questions || [],
+    intakeWelcomeData?.existingResponses || {},
+    (message) => {
+      // Convert IntakeMessage to Message and add to main messages state
+      const convertedMessage: Message = {
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+      };
+      setMessages((prev) => [...prev, convertedMessage]);
+    },
+    (convId) => {
+      // Intake completed - transition to normal chat
+      setShowConversationalIntake(false);
+      setConversationId(convId);
+      localStorage.setItem(`conversationId_${chatbotId}`, convId);
+      router.replace(`/chat/${chatbotId}?conversationId=${convId}`);
+    }
+  );
+
+  // Show loading while checking intake gate
+  if (showConversationalIntake === null && !conversationId && messages.length === 0 && isSignedIn && isLoaded) {
     return (
       <div className="flex items-center justify-center h-dvh">
         <div className="text-center">
@@ -915,52 +951,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
-    );
-  }
-
-  // Show auth prompt if not signed in (modal should be open)
-  if (!isSignedIn) {
-    return (
-      <div className="flex items-center justify-center h-dvh">
-        <div className="text-center">
-          <p className="text-lg mb-4">Please sign in to continue</p>
-          <p className="text-sm text-gray-500">Sign-in modal should open automatically...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Phase 3.10: Show intake form if not completed
-  if (checkingIntakeCompletion) {
-    return (
-      <div className="flex items-center justify-center h-dvh">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (showIntakeForm) {
-    return (
-      <IntakeForm
-        chatbotId={chatbotId}
-        onComplete={() => {
-          setShowIntakeForm(false);
-          // Re-check completion status after form submission
-          fetch(`/api/intake/completion?chatbotId=${chatbotId}`)
-            .then(res => res.json())
-            .then(data => {
-              // Show confirmation message only if completed AND has questions
-              setIntakeCompleted(data.completed && data.hasQuestions);
-            })
-            .catch(err => {
-              console.error('Error re-checking intake:', err);
-              setIntakeCompleted(false);
-            });
-        }}
-      />
     );
   }
 
@@ -1077,7 +1067,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           >
             <p className="text-lg mb-2">Start a conversation</p>
             <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
-            {intakeCompleted && (
+            {intakeWelcomeData?.intakeCompleted && (
               <div className="mt-4 space-y-3">
                 <p className="text-sm opacity-90">
                   We&apos;ve received your responses. Your answers help us apply the author&apos;s wisdom to your specific context.
@@ -1303,6 +1293,276 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           );
         })}
 
+        {/* Intake UI - rendered inline after messages */}
+        {showConversationalIntake === true && intakeHook && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion && (
+          <div className="space-y-3 mt-4">
+            {/* Question counter */}
+            {intakeWelcomeData?.questions && (
+              <div className="text-xs opacity-60" style={{ color: currentBubbleStyle.text }}>
+                Question {intakeHook.currentQuestionIndex + 1} of {intakeWelcomeData.questions.length}
+              </div>
+            )}
+
+            {/* Verification buttons */}
+            {intakeHook.verificationMode && intakeHook.verificationQuestionId && (
+              <div className="flex gap-3">
+                <Button
+                  onClick={intakeHook.handleVerifyYes}
+                  disabled={intakeHook.isSaving}
+                  style={{
+                    backgroundColor: chromeColors.inputField,
+                    color: chromeTextColor,
+                    borderColor: chromeColors.border,
+                  }}
+                >
+                  Yes
+                </Button>
+                <Button
+                  onClick={intakeHook.handleVerifyModify}
+                  variant="outline"
+                  disabled={intakeHook.isSaving}
+                  style={{
+                    backgroundColor: chromeColors.input,
+                    color: chromeTextColor,
+                    borderColor: chromeColors.border,
+                  }}
+                >
+                  Modify
+                </Button>
+              </div>
+            )}
+
+            {/* Input fields (only when not in verification mode) */}
+            {!intakeHook.verificationMode && intakeHook.currentQuestion && (
+              <>
+                {intakeHook.currentQuestion.responseType === 'TEXT' && (
+                  <div className="space-y-2">
+                    <textarea
+                      value={intakeHook.currentInput || ''}
+                      onChange={(e) => intakeHook.setCurrentInput(e.target.value)}
+                      placeholder="Type your answer..."
+                      rows={1}
+                      className="w-full resize-none border rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      style={{
+                        backgroundColor: chromeColors.inputField,
+                        borderColor: chromeColors.border,
+                        color: chromeTextColor,
+                        minHeight: '52px',
+                        maxHeight: '120px',
+                      }}
+                      onInput={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.height = 'auto';
+                        target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (intakeHook.currentInput && !intakeHook.isSaving) {
+                            intakeHook.handleAnswer(intakeHook.currentInput);
+                          }
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
+                        disabled={!intakeHook.currentInput || intakeHook.isSaving}
+                        style={{
+                          backgroundColor: chromeColors.inputField,
+                          color: chromeTextColor,
+                          borderColor: chromeColors.border,
+                        }}
+                      >
+                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
+                      </Button>
+                      {!intakeHook.currentQuestion.isRequired && (
+                        <button
+                          onClick={intakeHook.handleSkip}
+                          disabled={intakeHook.isSaving}
+                          className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
+                          style={{ color: chromeTextColor }}
+                        >
+                          Skip
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {intakeHook.currentQuestion.responseType === 'NUMBER' && (
+                  <div className="space-y-2">
+                    <Input
+                      type="number"
+                      value={intakeHook.currentInput || ''}
+                      onChange={(e) => intakeHook.setCurrentInput(parseFloat(e.target.value) || null)}
+                      placeholder="Enter a number..."
+                      style={{
+                        backgroundColor: chromeColors.inputField,
+                        borderColor: chromeColors.border,
+                        color: chromeTextColor,
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && intakeHook.currentInput && !intakeHook.isSaving) {
+                          intakeHook.handleAnswer(intakeHook.currentInput);
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
+                        disabled={!intakeHook.currentInput || intakeHook.isSaving}
+                        style={{
+                          backgroundColor: chromeColors.inputField,
+                          color: chromeTextColor,
+                          borderColor: chromeColors.border,
+                        }}
+                      >
+                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
+                      </Button>
+                      {!intakeHook.currentQuestion.isRequired && (
+                        <button
+                          onClick={intakeHook.handleSkip}
+                          disabled={intakeHook.isSaving}
+                          className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
+                          style={{ color: chromeTextColor }}
+                        >
+                          Skip
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {intakeHook.currentQuestion.responseType === 'SELECT' && (
+                  <Select
+                    value={intakeHook.currentInput || ''}
+                    onValueChange={(value) => {
+                      intakeHook.setCurrentInput(value);
+                      intakeHook.handleAnswer(value);
+                    }}
+                  >
+                    <SelectTrigger
+                      style={{
+                        backgroundColor: chromeColors.inputField,
+                        borderColor: chromeColors.border,
+                        color: chromeTextColor,
+                      }}
+                    >
+                      <SelectValue placeholder="Select an option..." />
+                    </SelectTrigger>
+                    <SelectContent
+                      style={{
+                        backgroundColor: chromeColors.input,
+                        borderColor: chromeColors.border,
+                        color: chromeTextColor,
+                      }}
+                    >
+                      {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
+                        intakeHook.currentQuestion.options.map((option, index) => (
+                          <SelectItem key={index} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-options" disabled>
+                          No options available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {intakeHook.currentQuestion.responseType === 'MULTI_SELECT' && (
+                  <div className="space-y-2">
+                    {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
+                      intakeHook.currentQuestion.options.map((option, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${intakeHook.currentQuestion!.id}-${index}`}
+                            checked={Array.isArray(intakeHook.currentInput) && intakeHook.currentInput.includes(option)}
+                            onCheckedChange={(checked) => {
+                              const current = Array.isArray(intakeHook.currentInput) ? intakeHook.currentInput : [];
+                              const newValue = checked
+                                ? [...current, option]
+                                : current.filter((v: string) => v !== option);
+                              intakeHook.setCurrentInput(newValue);
+                            }}
+                          />
+                          <label
+                            htmlFor={`${intakeHook.currentQuestion!.id}-${index}`}
+                            className="text-sm"
+                            style={{ color: chromeTextColor }}
+                          >
+                            {option}
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs" style={{ color: chromeTextColor, opacity: 0.7 }}>
+                        No options available
+                      </p>
+                    )}
+                    {Array.isArray(intakeHook.currentInput) && intakeHook.currentInput.length > 0 && (
+                      <Button
+                        onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
+                        disabled={intakeHook.isSaving}
+                        style={{
+                          backgroundColor: chromeColors.inputField,
+                          color: chromeTextColor,
+                          borderColor: chromeColors.border,
+                        }}
+                      >
+                        {intakeHook.isSaving ? 'Saving...' : 'Continue'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {intakeHook.currentQuestion.responseType === 'BOOLEAN' && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={intakeHook.currentQuestion.id}
+                      checked={intakeHook.currentInput === true}
+                      onCheckedChange={(checked) => {
+                        intakeHook.setCurrentInput(checked === true);
+                        intakeHook.handleAnswer(checked === true);
+                      }}
+                    />
+                    <label
+                      htmlFor={intakeHook.currentQuestion.id}
+                      className="text-sm"
+                      style={{ color: chromeTextColor }}
+                    >
+                      {intakeHook.currentQuestion.helperText || 'Yes'}
+                    </label>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {intakeHook.error && (
+                  <div className="text-sm text-red-500 mt-2">
+                    {intakeHook.error}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (intakeHook.currentQuestion?.responseType === 'TEXT' || intakeHook.currentQuestion?.responseType === 'NUMBER') {
+                          intakeHook.handleAnswer(intakeHook.currentInput);
+                        }
+                      }}
+                      className="ml-2"
+                      disabled={intakeHook.isSaving}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* Loading indicator */}
         {isLoading && messages[messages.length - 1]?.role === 'assistant' && 
          messages[messages.length - 1]?.content === '' && (
@@ -1349,7 +1609,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         <div ref={messagesEndRef} />
       </ThemedPage>
 
-      {/* Phase 4: Input area with dynamic pills */}
+      {/* Phase 4: Input area with dynamic pills - hidden during intake */}
+      {showConversationalIntake !== true && (
       <div 
         className="input-area border-t px-3 py-2 relative"
         style={{
@@ -1479,6 +1740,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Phase 5: Copy feedback modal (kept per plan decision) */}
       {/* Opens immediately after copy button is clicked (no intermediate toast) */}
