@@ -4787,6 +4787,125 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Conversational Intake Flow ✅ COMPLETE (Jan 18, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 18, 2026)
+
+**Objective:** Replace the current intake form modal/page with a conversational flow that happens directly in the chat interface. When a user opens a chat for the first time (no conversationId, no messages), they see a welcome message from the chatbot, followed by intake questions asked one at a time in a conversational manner. After completing or skipping all questions, they see a final intro message and then suggestion pills appear beneath it.
+
+**Why:** After implementing the intake form system (Phase 3.10), we identified that the modal-based form was interrupting the user experience. This side quest transforms the intake flow into a natural conversation, making it feel more integrated and less like a barrier to entry. The conversational approach guides users through personalization questions one at a time, creating a more engaging onboarding experience.
+
+**Prerequisites:**
+- ✅ Intake form system complete (Phase 3.10)
+- ✅ Intake questions and responses API endpoints exist
+- ✅ Chat component exists (`components/chat.tsx`)
+- ✅ Purpose text generation utility needed
+
+**What Was Done:**
+
+1. **Purpose Text Generator Utility:**
+   - ✅ Created `lib/chatbot/generate-purpose.ts` utility function
+   - ✅ Generates purpose text based on chatbot type (BODY_OF_WORK, DEEP_DIVE, FRAMEWORK, ADVISOR_BOARD)
+   - ✅ Handles fallbacks for null types and missing data
+   - ✅ Unit tests created (12 tests passing)
+
+2. **API Endpoints:**
+   - ✅ Created `/api/chatbots/[chatbotId]/welcome` endpoint for fetching welcome data
+   - ✅ Updated `/api/intake/completion` to return purpose text and existing responses
+   - ✅ Created `POST /api/conversations/create` endpoint for conversation creation with chatbotVersionId fallback
+   - ✅ Added `POST /api/conversations/[conversationId]/messages` endpoint for saving intake flow messages
+   - ✅ Integration tests created (28 tests passing)
+
+3. **ConversationalIntake Component:**
+   - ✅ Created `components/conversational-intake.tsx` component (650+ lines)
+   - ✅ Handles conversation creation before welcome message
+   - ✅ Displays welcome message as assistant message
+   - ✅ Shows questions one at a time with "Question X of X" counter
+   - ✅ Supports all response types (TEXT, NUMBER, SELECT, MULTI_SELECT, BOOLEAN)
+   - ✅ Implements skip functionality for optional questions
+   - ✅ Saves responses incrementally after each answer
+   - ✅ Shows "Thank you." message after each answer
+   - ✅ Implements verification flow for existing answers (Yes/Modify buttons)
+   - ✅ Displays final intro message after completion
+   - ✅ Shows suggestion pills beneath final message
+   - ✅ Component tests created (comprehensive coverage)
+
+4. **Chat Component Integration:**
+   - ✅ Removed `IntakeForm` component usage
+   - ✅ Integrated `ConversationalIntake` component
+   - ✅ Fetches welcome data on mount when needed
+   - ✅ Handles intake completion callback to transition to normal chat
+
+**Key Features:**
+- ✅ **Welcome message** - Personalized welcome with chatbot name and purpose text
+- ✅ **Question-by-question flow** - Questions appear one at a time, not all at once
+- ✅ **Question counter** - Shows "Question X of X" below each question
+- ✅ **Skip functionality** - Optional questions have skip link, required questions don't
+- ✅ **Response saving** - Responses saved immediately after each answer
+- ✅ **Verification flow** - Existing answers verified with "Yes"/"Modify" buttons
+- ✅ **Final intro message** - Pre-programmed message after completion
+- ✅ **Suggestion pills** - Appear immediately after final message
+- ✅ **Conversation history** - All intake messages saved as conversation history
+- ✅ **Error handling** - Graceful error recovery with retry functionality
+
+**Implementation Details:**
+- **Conversation Creation:** Created before welcome message to ensure all messages are in history
+- **Message Management:** All intake flow messages (welcome, questions, answers, thank you, final) saved via POST endpoint
+- **Purpose Text:** Generated programmatically based on chatbot type (no database field needed)
+- **ChatbotVersionId:** Proper fallback logic (currentVersionId → first version → create version 1)
+- **Input Types:** TEXT (textarea), NUMBER (number input), SELECT (dropdown), MULTI_SELECT (checkboxes), BOOLEAN (checkbox)
+- **Verification:** "Rails" approach with Yes/Modify buttons (no AI needed)
+
+**Files Created:**
+- `lib/chatbot/generate-purpose.ts` - Purpose text generator utility
+- `components/conversational-intake.tsx` - Main conversational intake component
+- `app/api/chatbots/[chatbotId]/welcome/route.ts` - Welcome data endpoint
+- `app/api/conversations/create/route.ts` - Conversation creation endpoint
+- `__tests__/lib/chatbot/generate-purpose.test.ts` - Unit tests (12 tests)
+- `__tests__/components/conversational-intake.test.tsx` - Component tests
+- `__tests__/api/chatbots/[chatbotId]/welcome/route.test.ts` - API tests (9 tests)
+- `__tests__/api/conversations/[conversationId]/messages/route.test.ts` - API tests (11 tests)
+- `__tests__/api/conversations/create/route.test.ts` - API tests (8 tests)
+
+**Files Modified:**
+- `components/chat.tsx` - Removed IntakeForm, added ConversationalIntake integration
+- `app/api/intake/completion/route.ts` - Added purpose text generation and existingResponses
+- `app/api/conversations/[conversationId]/messages/route.ts` - Added POST method for message creation
+
+**Acceptance Criteria Verified:**
+- ✅ Welcome message appears on chat open (no conversationId, no messages)
+- ✅ Welcome message includes chatbot name and purpose text
+- ✅ Purpose text generated programmatically based on chatbot type
+- ✅ Questions asked one at a time (not all at once)
+- ✅ Question counter shows "Question X of X"
+- ✅ Skip link appears only for optional questions
+- ✅ Responses saved immediately after each answer
+- ✅ Final intro message appears after completion
+- ✅ Suggestion pills appear beneath final message
+- ✅ IntakeForm component no longer used
+- ✅ Conversation created before welcome message
+- ✅ Existing answers verified with Yes/Modify buttons
+- ✅ All intake messages saved to conversation history
+
+**Deliverables:**
+- ✅ Purpose text generator utility with unit tests
+- ✅ ConversationalIntake component with comprehensive functionality
+- ✅ API endpoints for welcome data, conversation creation, and message creation
+- ✅ Integration tests for all API endpoints (28 tests passing)
+- ✅ Component tests for edge cases and functionality
+- ✅ Chat component integration
+- ✅ Complete test coverage (40+ tests)
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-18_conversational-intake-flow.md`
+- All acceptance criteria verified and documented
+- Test results documented in plan document
+- Task 6 (Testing & Edge Cases) completed with comprehensive test coverage
+
+**Note:** This side quest transforms the intake experience from a modal-based form into a natural conversational flow. Users now experience a personalized welcome message, answer questions one at a time in a conversational manner, and seamlessly transition into the chat experience. The implementation is self-contained, well-tested, and follows architectural discipline with proper separation of concerns. All intake flow messages are saved as conversation history, ensuring a complete record of the user's onboarding experience.
+
+---
+
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
 **Objective:** Add required database models and fields for Phase 4 analytics
@@ -5974,6 +6093,7 @@ If critical issues arise in production:
 - [x] Phase 3.9: Chatbot Versioning System ✅ **COMPLETE**
 - [x] Side Quest: Theme Component Refactor ✅ **COMPLETE** (Dec 29, 2024)
 - [x] Side Quest: Suggestion Pills Beneath Edit Context Button ✅ **COMPLETE** (Jan 18, 2026)
+- [x] Side Quest: Conversational Intake Flow ✅ **COMPLETE** (Jan 18, 2026)
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

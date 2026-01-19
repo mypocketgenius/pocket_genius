@@ -106,3 +106,4 @@ const [identifier, newSlug] = args;
 updateCreatorSlug(identifier, newSlug);
 
 
+

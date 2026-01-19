@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { generatePurposeText } from '@/lib/chatbot/generate-purpose';
 
 /**
  * GET /api/intake/completion?chatbotId=xxx
@@ -66,7 +67,43 @@ export async function GET(request: Request) {
       );
     }
 
-    // 4. Get all intake questions for the chatbot through junction table
+    // 4. Fetch chatbot with relations needed for purpose text generation
+    const chatbot = await prisma.chatbot.findUnique({
+      where: { id: chatbotId },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        creator: {
+          select: {
+            name: true,
+          },
+        },
+        sources: {
+          select: {
+            title: true,
+          },
+          take: 1, // Only need first source for DEEP_DIVE
+        },
+      },
+    });
+
+    if (!chatbot) {
+      return NextResponse.json(
+        { error: 'Chatbot not found' },
+        { status: 404 }
+      );
+    }
+
+    // Generate purpose text
+    const chatbotPurpose = generatePurposeText({
+      type: chatbot.type,
+      creator: chatbot.creator,
+      title: chatbot.title,
+      sources: chatbot.sources,
+    });
+
+    // 5. Get all intake questions for the chatbot through junction table
     const associations = await prisma.chatbot_Intake_Question.findMany({
       where: { chatbotId },
       include: {
@@ -83,6 +120,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         completed: true,
         hasQuestions: false,
+        chatbotPurpose,
       });
     }
 
@@ -92,7 +130,7 @@ export async function GET(request: Request) {
       isRequired: association.isRequired, // From junction table
     }));
 
-    // 5. Get all intake responses for this user and chatbot
+    // 6. Get all intake responses for this user and chatbot (with values for existingResponses)
     const responses = await prisma.intake_Response.findMany({
       where: {
         userId: user.id,
@@ -100,12 +138,19 @@ export async function GET(request: Request) {
       },
       select: {
         intakeQuestionId: true,
+        value: true,
       },
     });
 
     const answeredQuestionIds = new Set(responses.map(r => r.intakeQuestionId));
     
-    // 6. Check if all questions are answered (not just required ones)
+    // Build existingResponses map: questionId -> value
+    const existingResponses: Record<string, any> = {};
+    responses.forEach((response) => {
+      existingResponses[response.intakeQuestionId] = response.value;
+    });
+    
+    // 7. Check if all questions are answered (not just required ones)
     // Show form if there are any unanswered questions, regardless of whether they're required
     const allQuestionsAnswered = questions.every(q => answeredQuestionIds.has(q.id));
     
@@ -121,6 +166,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       completed,
       hasQuestions: true,
+      chatbotPurpose,
+      existingResponses: Object.keys(existingResponses).length > 0 ? existingResponses : undefined,
       answeredCount: answeredQuestionIds.size,
       totalCount: questions.length,
       requiredCount: requiredQuestions.length,

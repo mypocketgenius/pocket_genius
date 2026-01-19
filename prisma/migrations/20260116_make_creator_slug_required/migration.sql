@@ -61,3 +61,4 @@ ALTER COLUMN "slug" SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "Creator_slug_key" ON "Creator"("slug");
 
 
+
