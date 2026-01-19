@@ -352,12 +352,38 @@ export function useConversationalIntake(
     setCurrentQuestionIndex(questions.findIndex((q) => q.id === verificationQuestionId));
   }, [verificationQuestionId, questions, existingResponses]);
 
+  // Reset initialization when questions are loaded (if they were empty before)
+  useEffect(() => {
+    // If questions were empty but are now loaded, and we haven't shown any questions yet,
+    // reset initialization to allow re-initialization with questions
+    // Check: questions now exist, we're initialized, but currentQuestionIndex < 0 (haven't shown questions)
+    if (
+      questions.length > 0 &&
+      chatbotName &&
+      chatbotPurpose &&
+      isInitialized &&
+      currentQuestionIndex < 0 // Haven't shown any questions yet (-1 = not started, -2 = completed no-questions flow)
+    ) {
+      setIsInitialized(false);
+      setConversationId(null); // Reset conversation ID so we can create a new one with questions
+      setCurrentQuestionIndex(-1); // Reset question index
+      setMessages([]); // Clear messages so we can start fresh with questions
+    }
+  }, [questions.length, chatbotName, chatbotPurpose, isInitialized, currentQuestionIndex]);
+
   // Initialize: Create conversation and show welcome message
   useEffect(() => {
     // Only initialize if we have required data and haven't initialized yet
     if (!chatbotName || !chatbotPurpose || isInitialized) {
       return;
     }
+
+    // If we have chatbotName/purpose but questions are empty, wait for questions to load
+    // (This handles the case where hook is called before intakeWelcomeData is set)
+    // Note: questions.length === 0 is valid (no questions), but if chatbotName/purpose exist,
+    // we should wait a bit to see if questions are coming. However, if we're being called
+    // with empty strings initially, we'll skip initialization anyway.
+    // The reset effect above handles the case where questions load after initialization.
 
     const initialize = async () => {
       try {
@@ -394,7 +420,7 @@ export function useConversationalIntake(
 
     initialize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatbotId, chatbotName, chatbotPurpose]); // Only re-run if these change (not callbacks)
+  }, [chatbotId, chatbotName, chatbotPurpose, questions.length]); // Add questions.length to re-run when questions load
 
   const currentQuestion = currentQuestionIndex >= 0 && currentQuestionIndex < questions.length
     ? questions[currentQuestionIndex]

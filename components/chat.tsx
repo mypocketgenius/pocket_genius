@@ -351,8 +351,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
   }, []);
 
-  // Phase 4: Load pills on mount
+  // Phase 4: Load pills on mount (only if not showing intake)
   useEffect(() => {
+    // Don't load pills if intake is active or checking - wait for intake status
+    if (showConversationalIntake === true || showConversationalIntake === null) {
+      return;
+    }
+
     const loadPills = async () => {
       try {
         const response = await fetch(`/api/pills?chatbotId=${chatbotId}`);
@@ -369,7 +374,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       }
     };
     loadPills();
-  }, [chatbotId]);
+  }, [chatbotId, showConversationalIntake]);
 
   /**
    * Sends a message to the chat API and handles streaming response
@@ -917,12 +922,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Use conversational intake hook (always called, but only active when showConversationalIntake === true)
   // Must be called before any early returns to satisfy React hooks rules
+  // Only pass data when intake should be shown AND data is fully loaded - prevents premature initialization
   const intakeHook = useConversationalIntake(
     chatbotId,
-    intakeWelcomeData?.chatbotName || '',
-    intakeWelcomeData?.chatbotPurpose || '',
-    intakeWelcomeData?.questions || [],
-    intakeWelcomeData?.existingResponses || {},
+    showConversationalIntake === true && intakeWelcomeData?.chatbotName ? intakeWelcomeData.chatbotName : '',
+    showConversationalIntake === true && intakeWelcomeData?.chatbotPurpose ? intakeWelcomeData.chatbotPurpose : '',
+    showConversationalIntake === true && intakeWelcomeData?.questions ? intakeWelcomeData.questions : [],
+    showConversationalIntake === true && intakeWelcomeData?.existingResponses ? intakeWelcomeData.existingResponses : {},
     (message) => {
       // Convert IntakeMessage to Message and add to main messages state
       const convertedMessage: Message = {
@@ -1060,7 +1066,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             <p className="text-sm">Loading conversation...</p>
           </div>
         )}
-        {!isLoadingMessages && messages.length === 0 && (
+        {!isLoadingMessages && messages.length === 0 && showConversationalIntake !== true && (
           <div 
             className="text-center mt-8 opacity-80"
             style={{ color: currentBubbleStyle.text }}
