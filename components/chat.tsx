@@ -1694,7 +1694,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           </div>
         )}
         {/* Show intake UI in input area when in intake mode, otherwise show normal input */}
-        {intakeGate.gateState === 'intake' && intakeHook && intakeGate.welcomeData && intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion ? (
+        {/* Only show intake UI if gateState is 'intake' AND we haven't passed the intake phase yet */}
+        {intakeGate.gateState === 'intake' && !hasPassedIntakePhase.current && intakeHook && intakeGate.welcomeData && intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion ? (
           <IntakeFlow
             intakeHook={intakeHook}
             welcomeData={intakeGate.welcomeData}
