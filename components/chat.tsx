@@ -102,6 +102,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasLoadedMessages = useRef(false);
+  const hasPassedIntakePhase = useRef(false); // Track if we've moved past intake completion
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialInputValueRef = useRef<string>(''); // Track initial prefill value
   const pillClickedRef = useRef<boolean>(false); // Track if a pill was clicked
@@ -142,21 +143,42 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Get conversationId from URL params - URL is source of truth
   useEffect(() => {
-    // Guard: Don't reset messages during active intake or checking
-    if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
-      return;
-    }
-
     const urlConversationId = searchParams?.get('conversationId');
     const isNewConversation = searchParams?.get('new') === 'true';
     
+    console.log('[Chat] URL params effect running', {
+      urlConversationId,
+      isNewConversation,
+      currentConversationId: conversationId,
+      gateState: intakeGate.gateState,
+      messagesCount: messages.length
+    });
+    
     // Priority 1: conversationId in URL (highest priority)
+    // Always set conversationId from URL if present - this allows gate to transition to 'chat'
     if (urlConversationId) {
-      setConversationId(urlConversationId);
-      // Store in localStorage for persistence across refreshes
-      localStorage.setItem(`conversationId_${chatbotId}`, urlConversationId);
-      // Reset hasLoadedMessages to allow reloading
-      hasLoadedMessages.current = false;
+      // Only update if different to avoid unnecessary re-renders
+      if (conversationId !== urlConversationId) {
+        console.log('[Chat] Setting conversationId from URL', urlConversationId);
+        setConversationId(urlConversationId);
+        // Store in localStorage for persistence across refreshes
+        localStorage.setItem(`conversationId_${chatbotId}`, urlConversationId);
+        // Reset hasLoadedMessages to allow reloading
+        hasLoadedMessages.current = false;
+      }
+      return;
+    }
+    
+    // Guard: Don't reset messages during active intake or checking (only for clearing conversationId)
+    if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
+      console.log('[Chat] Guard preventing conversationId clear - in intake/checking');
+      return;
+    }
+    
+    // Guard: Don't clear messages if we have messages and a conversationId (transitioning from intake)
+    // This prevents flicker when intake completes and URL updates
+    if (messages.length > 0 && conversationId) {
+      console.log('[Chat] Guard preventing message clear - messages exist with conversationId');
       return;
     }
     
@@ -167,6 +189,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       setMessages([]);
       setConversationStatus(null);
       hasLoadedMessages.current = false;
+      hasPassedIntakePhase.current = false; // Reset intake phase tracking
       return;
     }
     
@@ -176,13 +199,19 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     setMessages([]);
     setConversationStatus(null);
     hasLoadedMessages.current = false;
-  }, [chatbotId, searchParams, intakeGate.gateState]);
+    hasPassedIntakePhase.current = false; // Reset intake phase tracking
+  }, [chatbotId, searchParams, intakeGate.gateState, conversationId, messages.length]);
 
   // Load existing messages when conversationId is available
   useEffect(() => {
     // Guard: Don't load messages during active intake (hook manages messages)
     if (intakeGate.gateState === 'intake') return;
     if (!conversationId || hasLoadedMessages.current) return;
+    // If messages already exist (e.g., from intake completion), skip loading to prevent flicker
+    if (messages.length > 0) {
+      hasLoadedMessages.current = true;
+      return;
+    }
 
     const loadMessages = async () => {
       setIsLoadingMessages(true);
@@ -297,6 +326,32 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Check once if we've passed the intake phase (only runs when messages change)
+  useEffect(() => {
+    // If already passed, no need to check again
+    if (hasPassedIntakePhase.current) return;
+    
+    // Find the final intake message (contains "When our conversation is finished")
+    const finalIntakeMessageIndex = messages.findIndex((msg) => 
+      msg.role === 'assistant' && 
+      msg.content?.includes("When our conversation is finished")
+    );
+    
+    // If no intake message exists, or there are user messages after intake, we've passed it
+    if (finalIntakeMessageIndex === -1) {
+      // No intake message - check if there are any user messages (normal conversation)
+      if (messages.some(msg => msg.role === 'user')) {
+        hasPassedIntakePhase.current = true;
+      }
+    } else {
+      // Intake message exists - check if there are user messages after it
+      const hasUserMessagesAfterIntake = messages.slice(finalIntakeMessageIndex + 1).some(msg => msg.role === 'user');
+      if (hasUserMessagesAfterIntake) {
+        hasPassedIntakePhase.current = true;
+      }
+    }
   }, [messages]);
 
   // Focus input field on mount (after messages are loaded)
@@ -915,7 +970,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       // Intake completed - transition to normal chat
       // Update gate state first, then update conversationId and URL
       // This ensures UI transitions immediately
+      console.log('[Chat] Intake completion callback called', {
+        conversationId: convId,
+        currentConversationId: conversationId,
+        gateState: intakeGate.gateState
+      });
       intakeGate.onIntakeComplete(convId);
+      console.log('[Chat] After onIntakeComplete, setting conversationId', convId);
+      // Mark messages as loaded since they're already in state from intake
+      // This prevents the loading effect from running and showing "Loading conversation..."
+      hasLoadedMessages.current = true;
       setConversationId(convId);
       localStorage.setItem(`conversationId_${chatbotId}`, convId);
       // Update URL without causing full navigation (preserves state)
@@ -1121,6 +1185,58 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           // Check if this is the first user message
           const isFirstUserMessage = index === 0 && message.role === 'user';
 
+          // Check if this message is part of the intake conversation
+          // Hide copy/save buttons for intake messages and the final intake message with suggestion pills
+          // Show buttons for regular chat messages that come AFTER the final intake message
+          const isIntakeMessage = (() => {
+            // Find the index of the final intake message (contains "When our conversation is finished")
+            const finalIntakeMessageIndex = messages.findIndex((msg) => 
+              msg.role === 'assistant' && 
+              msg.content?.includes("When our conversation is finished")
+            );
+            
+            // If no final intake message exists, check if we're in intake mode
+            if (finalIntakeMessageIndex === -1) {
+              // No final intake message - check gateState
+              if (intakeGate.gateState === 'intake') {
+                console.log('[Copy/Save Debug] Message is intake - no final message found, gateState is intake', {
+                  messageId: message.id,
+                  gateState: intakeGate.gateState,
+                  contentPreview: message.content?.substring(0, 50)
+                });
+                return true;
+              }
+              // Not in intake and no final message - show buttons
+              console.log('[Copy/Save Debug] Message is NOT intake - no final message, gateState is chat', {
+                messageId: message.id,
+                gateState: intakeGate.gateState,
+                contentPreview: message.content?.substring(0, 50)
+              });
+              return false;
+            }
+            
+            // Final intake message exists - check if this message is before, at, or after it
+            if (index <= finalIntakeMessageIndex) {
+              // This message is part of intake (before or at final intake message)
+              console.log('[Copy/Save Debug] Message is intake - before/at final intake message', {
+                messageId: message.id,
+                index,
+                finalIntakeMessageIndex,
+                contentPreview: message.content?.substring(0, 50)
+              });
+              return true;
+            }
+            
+            // This message comes AFTER the final intake message - it's a regular chat message
+            console.log('[Copy/Save Debug] Message is NOT intake - comes after final intake message', {
+              messageId: message.id,
+              index,
+              finalIntakeMessageIndex,
+              contentPreview: message.content?.substring(0, 50)
+            });
+            return false;
+          })();
+
           return (
             <div key={message.id}>
               {/* Render pills above first user message */}
@@ -1291,7 +1407,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 )}
                 
                 {/* Phase 4: Message actions for assistant messages */}
-                {message.role === 'assistant' && message.content && !isLoading && (
+                {/* Hide copy/save buttons for intake messages and the final intake message with suggestion pills */}
+                {message.role === 'assistant' && message.content && !isLoading && !isIntakeMessage && (
                   <div className="space-y-3 mt-1">
                     {/* First row: Copy, Save buttons */}
                     <div className="flex flex-wrap gap-1.5 sm:gap-2">
@@ -1479,10 +1596,35 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {/* Dynamic pill rows */}
         {/* Visibility controlled by pillsVisible state (can be toggled manually or auto-collapsed by character limit) */}
         {/* Only show pills in input area if there are pills to display (feedback + expansion after messages, none before messages) */}
+        {/* Hide pills during intake conversation - show after final intake message */}
         {(() => {
+          // Find the index of the final intake message (contains "When our conversation is finished")
+          const finalIntakeMessageIndex = messages.findIndex((msg) => 
+            msg.role === 'assistant' && 
+            msg.content?.includes("When our conversation is finished")
+          );
+          
+          // If final intake message exists and we have messages after it, show pills
+          // Otherwise, check gateState
+          const shouldHidePills = (() => {
+            if (finalIntakeMessageIndex === -1) {
+              // No final intake message - check gateState
+              return intakeGate.gateState === 'intake';
+            }
+            // Final intake message exists - check if we have messages after it
+            // If we have messages after the final intake message, we're in regular chat
+            const hasMessagesAfterFinal = messages.length > finalIntakeMessageIndex + 1;
+            return !hasMessagesAfterFinal && intakeGate.gateState === 'intake';
+          })();
+          
+          if (shouldHidePills) {
+            return false;
+          }
+          
           const pillsToShowInInput = messages.length === 0 
             ? [] // No pills in input area when no messages (suggestion pills shown beneath button instead)
             : pills.filter(p => p.pillType === 'feedback' || p.pillType === 'expansion');
+          
           return pillsToShowInInput.length > 0 && pillsVisible;
         })() && (
           <div className="mb-1 overflow-x-auto overflow-y-hidden pb-1 -mx-1 px-1 scrollbar-hide pt-2">
@@ -1491,47 +1633,63 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               {/* Before messages: No pills in input area (suggestion pills shown beneath button instead) */}
               {/* After messages: Show feedback + expansion pills only (suggested pills shown above first message) */}
               
-              {messages.length === 0 ? (
-                // Before messages: No pills in input area (suggestion pills shown beneath button instead)
-                null
-              ) : (
-                // After messages: Two rows with feedback + expansion pills only (suggested pills shown above first message)
-                <>
-                  {/* Row 1: Helpful pill + first half of expansion pills */}
-                  {(() => {
-                    const expansionPills = pills.filter(p => p.pillType === 'expansion');
-                    const firstHalfExpansion = expansionPills.slice(0, Math.ceil(expansionPills.length / 2));
-                    return (
-                      <PillRow
-                        pills={[
-                          ...pills.filter(p => p.pillType === 'feedback' && p.label.toLowerCase().includes('helpful') && !p.label.toLowerCase().includes('not')),
-                          ...firstHalfExpansion,
-                        ]}
-                        selectedFeedbackPill={null}
-                        selectedExpansionPill={null}
-                        onPillClick={handlePillClick}
-                      />
-                    );
-                  })()}
-                  
-                  {/* Row 2: Not helpful pill + second half of expansion pills */}
-                  {(() => {
-                    const expansionPills = pills.filter(p => p.pillType === 'expansion');
-                    const secondHalfExpansion = expansionPills.slice(Math.ceil(expansionPills.length / 2));
-                    return (
-                      <PillRow
-                        pills={[
-                          ...pills.filter(p => p.pillType === 'feedback' && (p.label.toLowerCase().includes('not') || p.label.toLowerCase().includes('not helpful'))),
-                          ...secondHalfExpansion,
-                        ]}
-                        selectedFeedbackPill={null}
-                        selectedExpansionPill={null}
-                        onPillClick={handlePillClick}
-                      />
-                    );
-                  })()}
-                </>
-              )}
+              {(() => {
+                // Show pills only after AI has finished responding to a user message
+                // Check: last message is assistant, has content, not loading, AND we've passed intake phase
+                const lastMessage = messages[messages.length - 1];
+                
+                const shouldShowPills = 
+                  messages.length > 0 &&
+                  lastMessage?.role === 'assistant' && 
+                  lastMessage?.content && 
+                  lastMessage.content.trim().length > 0 &&
+                  !isLoading &&
+                  hasPassedIntakePhase.current; // Only show if we've passed the intake phase
+                
+                if (!shouldShowPills) {
+                  // Before messages, while waiting for AI response, or right after intake completion: No pills in input area
+                  return null;
+                }
+                
+                // After AI has finished responding: Two rows with feedback + expansion pills only
+                return (
+                  <>
+                    {/* Row 1: Helpful pill + first half of expansion pills */}
+                    {(() => {
+                      const expansionPills = pills.filter(p => p.pillType === 'expansion');
+                      const firstHalfExpansion = expansionPills.slice(0, Math.ceil(expansionPills.length / 2));
+                      return (
+                        <PillRow
+                          pills={[
+                            ...pills.filter(p => p.pillType === 'feedback' && p.label.toLowerCase().includes('helpful') && !p.label.toLowerCase().includes('not')),
+                            ...firstHalfExpansion,
+                          ]}
+                          selectedFeedbackPill={null}
+                          selectedExpansionPill={null}
+                          onPillClick={handlePillClick}
+                        />
+                      );
+                    })()}
+                    
+                    {/* Row 2: Not helpful pill + second half of expansion pills */}
+                    {(() => {
+                      const expansionPills = pills.filter(p => p.pillType === 'expansion');
+                      const secondHalfExpansion = expansionPills.slice(Math.ceil(expansionPills.length / 2));
+                      return (
+                        <PillRow
+                          pills={[
+                            ...pills.filter(p => p.pillType === 'feedback' && (p.label.toLowerCase().includes('not') || p.label.toLowerCase().includes('not helpful'))),
+                            ...secondHalfExpansion,
+                          ]}
+                          selectedFeedbackPill={null}
+                          selectedExpansionPill={null}
+                          onPillClick={handlePillClick}
+                        />
+                      );
+                    })()}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

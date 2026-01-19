@@ -51,8 +51,16 @@ export function useIntakeGate(
 
   // Fetch welcome data when: no conversationId, signed in, auth loaded
   useEffect(() => {
+    console.log('[useIntakeGate] Effect running', {
+      conversationId,
+      isSignedIn,
+      isLoaded,
+      currentGateState: gateState
+    });
+    
     // Skip if conversationId exists (already in chat mode)
     if (conversationId) {
+      console.log('[useIntakeGate] conversationId exists, setting gateState to chat');
       setGateState('chat');
       return;
     }
@@ -111,11 +119,16 @@ export function useIntakeGate(
   // Handle intake completion - transition to chat
   // This immediately sets gate state to 'chat' without waiting for effect to run
   const onIntakeComplete = useCallback((convId: string) => {
+    console.log('[useIntakeGate] onIntakeComplete called', {
+      conversationId: convId,
+      currentGateState: gateState
+    });
     // Immediately transition to chat state
     setGateState('chat');
+    console.log('[useIntakeGate] Gate state set to chat');
     // Note: conversationId will be set by chat component via callback
     // The effect will see conversationId on next render and keep gate state as 'chat'
-  }, []);
+  }, [gateState]);
 
   return {
     gateState,
