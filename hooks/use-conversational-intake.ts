@@ -280,6 +280,8 @@ export function useConversationalIntake(
       });
 
       if (hasExisting) {
+        // Reset modify mode when showing verification for existing response
+        setModifyMode(false);
         setVerificationMode(true);
         setVerificationQuestionId(question.id);
         setCurrentQuestionIndex(index);
@@ -347,6 +349,11 @@ export function useConversationalIntake(
       await saveResponse(question.id, value);
       await addMessage('user', formatAnswerForDisplay(question, value), conversationId!);
       await addMessage('assistant', 'Thank you.', conversationId!);
+
+      // Reset modify mode before moving to next question
+      setModifyMode(false);
+      setVerificationMode(false);
+      setVerificationQuestionId(null);
 
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
