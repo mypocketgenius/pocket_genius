@@ -112,7 +112,26 @@ export function useConversationalIntake(
         createdAt: new Date(data.message.createdAt),
       };
 
-      setMessages((prev) => [...prev, newMessage]);
+      console.log('[addMessage] Message added to intake hook', {
+        messageId: newMessage.id,
+        role: newMessage.role,
+        contentPreview: newMessage.content.substring(0, 50),
+        conversationId: convId
+      });
+
+      // Add to hook's internal messages state (deduplicate by ID)
+      setMessages((prev) => {
+        // Check if message already exists
+        if (prev.some(msg => msg.id === newMessage.id)) {
+          console.warn('[addMessage] Message already exists in hook state, skipping', {
+            messageId: newMessage.id
+          });
+          return prev;
+        }
+        return [...prev, newMessage];
+      });
+      
+      // Notify parent component (deduplication handled in parent)
       onMessageAdded(newMessage);
       return newMessage;
     } catch (err) {
@@ -505,6 +524,21 @@ export function useConversationalIntake(
       return;
     }
 
+    // Guard: Prevent multiple initializations if conversation already exists
+    if (conversationId) {
+      console.log('[Intake] Skipping initialization - conversation already exists', {
+        conversationId
+      });
+      return;
+    }
+
+    console.log('[Intake] Initializing intake flow', {
+      chatbotId,
+      chatbotName,
+      chatbotPurpose,
+      questionsCount: questions.length
+    });
+
     const initialize = async () => {
       try {
         const convResponse = await fetch('/api/conversations/create', {
@@ -519,20 +553,28 @@ export function useConversationalIntake(
 
         const convData = await convResponse.json();
         const newConversationId = convData.conversation.id;
+        
+        console.log('[Intake] Conversation created', {
+          conversationId: newConversationId
+        });
+        
         setConversationId(newConversationId);
 
         // Defensive check: ensure questions array is still valid
         if (questions.length === 0) {
           // No questions - show welcome + final message
           const welcomeContent = `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.`;
+          console.log('[Intake] Showing welcome + final message (no questions)');
           await addMessage('assistant', welcomeContent, newConversationId);
           await showFinalMessage(newConversationId);
         } else {
           // Show welcome + first question (combined in one message)
+          console.log('[Intake] Showing first question');
           await showFirstQuestion(newConversationId, chatbotName, chatbotPurpose);
         }
 
         setIsInitialized(true);
+        console.log('[Intake] Initialization complete');
       } catch (err) {
         console.error('Error initializing intake flow:', err);
         setError('Failed to initialize intake flow. Please refresh the page.');
@@ -540,7 +582,7 @@ export function useConversationalIntake(
     };
 
     initialize();
-  }, [chatbotId, chatbotName, chatbotPurpose, questions, addMessage, showFinalMessage, showFirstQuestion]);
+  }, [chatbotId, chatbotName, chatbotPurpose, questions, addMessage, showFinalMessage, showFirstQuestion, isInitialized, conversationId]);
 
   const currentQuestion = currentQuestionIndex >= 0 && currentQuestionIndex < questions.length
     ? questions[currentQuestionIndex]

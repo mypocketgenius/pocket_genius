@@ -962,13 +962,32 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       : {},
     (message) => {
       // Convert IntakeMessage to Message and add to main messages state
+      // Deduplicate by message ID to prevent duplicates
       const convertedMessage: Message = {
         id: message.id,
         role: message.role,
         content: message.content,
         createdAt: message.createdAt,
       };
-      setMessages((prev) => [...prev, convertedMessage]);
+      
+      console.log('[Chat] onMessageAdded callback called', {
+        messageId: convertedMessage.id,
+        role: convertedMessage.role,
+        contentPreview: convertedMessage.content?.substring(0, 50),
+        currentMessagesCount: messages.length
+      });
+      
+      setMessages((prev) => {
+        // Check if message already exists
+        if (prev.some(msg => msg.id === convertedMessage.id)) {
+          console.warn('[Chat] Message already exists, skipping duplicate', {
+            messageId: convertedMessage.id,
+            existingMessageIds: prev.map(m => m.id)
+          });
+          return prev;
+        }
+        return [...prev, convertedMessage];
+      });
     },
     async (convId) => {
       // Intake completed - transition to normal chat
@@ -986,6 +1005,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       
       // Reload messages from API to ensure consistency and persistence
       // This ensures all intake messages are properly loaded and scrollable
+      // Deduplicate by message ID to prevent duplicates from onMessageAdded callback
       try {
         const response = await fetch(`/api/conversations/${convId}/messages`);
         if (response.ok) {
@@ -999,15 +1019,47 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             followUpPills: msg.followUpPills || undefined,
           }));
           
+          // Deduplicate: Create a map of existing message IDs to avoid duplicates
+          const existingMessageIds = new Set(messages.map(m => m.id));
+          const newMessages = loadedMessages.filter(msg => !existingMessageIds.has(msg.id));
+          
           console.log('[Chat] Reloaded messages after intake completion', {
-            messageCount: loadedMessages.length,
+            loadedCount: loadedMessages.length,
+            existingCount: messages.length,
+            newMessagesCount: newMessages.length,
+            duplicateCount: loadedMessages.length - newMessages.length,
             intakeMessages: loadedMessages.filter(m => 
               m.content?.includes("When our conversation is finished") || 
               m.content?.includes("First, let's personalise")
             ).length
           });
           
-          setMessages(loadedMessages);
+          // Only add new messages, don't replace entire array to avoid duplicates
+          if (newMessages.length > 0) {
+            setMessages((prev) => {
+              // Merge and deduplicate by ID
+              const merged = [...prev, ...newMessages];
+              const uniqueMessages = merged.filter((msg, index, self) => 
+                index === self.findIndex(m => m.id === msg.id)
+              );
+              return uniqueMessages;
+            });
+          } else {
+            // No new messages, but ensure we have all messages from API (in case of ordering issues)
+            // Deduplicate existing messages with loaded messages
+            setMessages((prev) => {
+              const allMessages = [...prev, ...loadedMessages];
+              const uniqueMessages = allMessages.filter((msg, index, self) => 
+                index === self.findIndex(m => m.id === msg.id)
+              );
+              // Sort by createdAt to ensure correct order
+              return uniqueMessages.sort((a, b) => {
+                const aTime = a.createdAt?.getTime() || 0;
+                const bTime = b.createdAt?.getTime() || 0;
+                return aTime - bTime;
+              });
+            });
+          }
         } else {
           console.warn('[Chat] Failed to reload messages after intake, using existing messages', {
             status: response.status
