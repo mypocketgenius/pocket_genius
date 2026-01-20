@@ -325,7 +325,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Small delay to ensure DOM is updated, especially after intake completion
+    const timeoutId = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timeoutId);
   }, [messages]);
 
   // Check once if we've passed the intake phase (only runs when messages change)
@@ -966,19 +970,55 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       };
       setMessages((prev) => [...prev, convertedMessage]);
     },
-    (convId) => {
+    async (convId) => {
       // Intake completed - transition to normal chat
       // Update gate state first, then update conversationId and URL
       // This ensures UI transitions immediately
       console.log('[Chat] Intake completion callback called', {
         conversationId: convId,
         currentConversationId: conversationId,
-        gateState: intakeGate.gateState
+        gateState: intakeGate.gateState,
+        currentMessagesCount: messages.length
       });
+      
       intakeGate.onIntakeComplete(convId);
       console.log('[Chat] After onIntakeComplete, setting conversationId', convId);
-      // Mark messages as loaded since they're already in state from intake
-      // This prevents the loading effect from running and showing "Loading conversation..."
+      
+      // Reload messages from API to ensure consistency and persistence
+      // This ensures all intake messages are properly loaded and scrollable
+      try {
+        const response = await fetch(`/api/conversations/${convId}/messages`);
+        if (response.ok) {
+          const data = await response.json();
+          const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+            context: msg.context || undefined,
+            followUpPills: msg.followUpPills || undefined,
+          }));
+          
+          console.log('[Chat] Reloaded messages after intake completion', {
+            messageCount: loadedMessages.length,
+            intakeMessages: loadedMessages.filter(m => 
+              m.content?.includes("When our conversation is finished") || 
+              m.content?.includes("First, let's personalise")
+            ).length
+          });
+          
+          setMessages(loadedMessages);
+        } else {
+          console.warn('[Chat] Failed to reload messages after intake, using existing messages', {
+            status: response.status
+          });
+        }
+      } catch (error) {
+        console.error('[Chat] Error reloading messages after intake completion', error);
+        // Continue with existing messages if reload fails
+      }
+      
+      // Mark messages as loaded
       hasLoadedMessages.current = true;
       setConversationId(convId);
       localStorage.setItem(`conversationId_${chatbotId}`, convId);

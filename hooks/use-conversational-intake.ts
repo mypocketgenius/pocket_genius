@@ -166,7 +166,23 @@ export function useConversationalIntake(
 
   // Show first question (combined with welcome message)
   const showFirstQuestion = useCallback(async (convId: string, chatbotName: string, chatbotPurpose: string) => {
+    // Defensive check: ensure questions array has at least one question
+    if (!questions || questions.length === 0) {
+      console.error('[showFirstQuestion] No questions available', {
+        questionsLength: questions?.length || 0
+      });
+      throw new Error('No questions available');
+    }
+
     const question = questions[0];
+    console.log('[showFirstQuestion] Showing first question', {
+      questionId: question.id,
+      questionText: question.questionText.substring(0, 50),
+      totalQuestions: questions.length,
+      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
+      existingResponseIds: Object.keys(existingResponses)
+    });
+
     const hasExisting = hasExistingResponse(question.id);
 
     // Build combined message: welcome + question + verification (if needed)
@@ -203,15 +219,46 @@ export function useConversationalIntake(
       throw new Error('Conversation ID is required');
     }
 
+    // Comprehensive logging for debugging
+    console.log('[showQuestion] Called', {
+      index,
+      totalQuestions: questions.length,
+      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
+      existingResponseIds: Object.keys(existingResponses),
+      conversationId: activeConversationId
+    });
+
     setIsLoadingNextQuestion(true);
     try {
       if (index >= questions.length) {
+        console.log('[showQuestion] Index >= questions.length, showing final message', {
+          index,
+          questionsLength: questions.length
+        });
         await showFinalMessage(activeConversationId);
         return;
       }
 
+      // Defensive check: ensure question exists at index
+      if (!questions[index]) {
+        console.error('[showQuestion] Question not found at index', {
+          index,
+          questionsLength: questions.length,
+          availableIndices: questions.map((_, i) => i)
+        });
+        throw new Error(`Question not found at index ${index}`);
+      }
+
       const question = questions[index];
       const hasExisting = hasExistingResponse(question.id);
+      
+      console.log('[showQuestion] Showing question', {
+        index,
+        questionId: question.id,
+        questionText: question.questionText.substring(0, 50),
+        hasExisting,
+        displayOrder: question.displayOrder
+      });
 
       if (hasExisting) {
         setVerificationMode(true);
@@ -336,15 +383,31 @@ export function useConversationalIntake(
 
   // Handle verification "Yes" button
   const handleVerifyYes = useCallback(async () => {
-    if (!verificationQuestionId) return;
+    if (!verificationQuestionId) {
+      console.warn('[handleVerifyYes] No verificationQuestionId');
+      return;
+    }
 
     // Use currentQuestionIndex state instead of findIndex to avoid stale closure issues
     // currentQuestionIndex is set when the question is shown, so it's always accurate
     const currentIndex = currentQuestionIndex;
     
+    // Comprehensive logging
+    console.log('[handleVerifyYes] Called', {
+      verificationQuestionId,
+      currentIndex,
+      totalQuestions: questions.length,
+      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
+      existingResponseIds: Object.keys(existingResponses)
+    });
+    
     // Validate that we have a valid current index and question exists
     if (currentIndex < 0 || currentIndex >= questions.length) {
-      console.error('[handleVerifyYes] Invalid currentQuestionIndex:', currentIndex, 'questions.length:', questions.length);
+      console.error('[handleVerifyYes] Invalid currentQuestionIndex:', {
+        currentIndex,
+        questionsLength: questions.length,
+        questionIds: questions.map(q => q.id)
+      });
       return;
     }
 
@@ -354,10 +417,18 @@ export function useConversationalIntake(
         currentIndex,
         verificationQuestionId,
         questionId: question?.id,
-        questionsLength: questions.length
+        questionsLength: questions.length,
+        questionIds: questions.map(q => q.id)
       });
       return;
     }
+
+    console.log('[handleVerifyYes] Verified question, moving to next', {
+      currentIndex,
+      questionId: question.id,
+      nextIndex: currentIndex + 1,
+      totalQuestions: questions.length
+    });
 
     setVerificationMode(false);
     setVerificationQuestionId(null);
@@ -366,8 +437,17 @@ export function useConversationalIntake(
     
     // Defensive check: ensure we have all questions before proceeding
     if (nextIndex < questions.length) {
+      console.log('[handleVerifyYes] Showing next question', {
+        nextIndex,
+        nextQuestionId: questions[nextIndex]?.id,
+        nextQuestionText: questions[nextIndex]?.questionText?.substring(0, 50)
+      });
       await showQuestion(nextIndex, conversationId!);
     } else {
+      console.log('[handleVerifyYes] No more questions, showing final message', {
+        nextIndex,
+        questionsLength: questions.length
+      });
       // Immediately clear currentQuestionIndex to prevent input field from showing
       // while transitioning to final message
       setCurrentQuestionIndex(-2);
@@ -378,7 +458,7 @@ export function useConversationalIntake(
         setIsLoadingNextQuestion(false);
       }
     }
-  }, [verificationQuestionId, currentQuestionIndex, questions, showQuestion, showFinalMessage, conversationId]);
+  }, [verificationQuestionId, currentQuestionIndex, questions, showQuestion, showFinalMessage, conversationId, existingResponses]);
 
   // Handle verification "Modify" button
   const handleVerifyModify = useCallback(() => {
