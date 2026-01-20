@@ -24,13 +24,14 @@ export interface IntakeMessage {
   createdAt?: Date;
 }
 
+// Simplified mode enum - single source of truth for question state
+export type IntakeMode = 'question' | 'verification' | 'modify';
+
 export interface UseConversationalIntakeReturn {
   conversationId: string | null;
   messages: IntakeMessage[];
   currentQuestionIndex: number; // -1 = welcome, -2 = final message, >= 0 = question index
-  verificationMode: boolean;
-  verificationQuestionId: string | null;
-  modifyMode: boolean;
+  mode: IntakeMode; // Simplified mode instead of verificationMode + modifyMode
   currentInput: any;
   isSaving: boolean;
   isLoadingNextQuestion: boolean;
@@ -44,6 +45,10 @@ export interface UseConversationalIntakeReturn {
   handleVerifyModify: () => void;
   setCurrentInput: (value: any) => void;
   currentQuestion: IntakeQuestion | null;
+  // Helper getters for backward compatibility (derived from mode)
+  verificationMode: boolean;
+  modifyMode: boolean;
+  verificationQuestionId: string | null;
 }
 
 /**
@@ -66,9 +71,7 @@ export function useConversationalIntake(
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(-1);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [verificationMode, setVerificationMode] = useState(false);
-  const [verificationQuestionId, setVerificationQuestionId] = useState<string | null>(null);
-  const [modifyMode, setModifyMode] = useState(false);
+  const [mode, setMode] = useState<IntakeMode>('question'); // Single mode state
   const [currentInput, setCurrentInput] = useState<any>('');
   const [suggestionPills, setSuggestionPills] = useState<PillType[]>([]);
   const [showPills, setShowPills] = useState(false);
@@ -145,6 +148,22 @@ export function useConversationalIntake(
     return existingResponses[questionId] !== undefined && existingResponses[questionId] !== null;
   }, [existingResponses]);
 
+  // Reset question state - consolidates all state resets into one function
+  const resetQuestionState = useCallback(() => {
+    console.log('[resetQuestionState] Resetting question state');
+    setMode('question');
+    setCurrentInput('');
+    setError(null);
+  }, []);
+
+  // Get current question ID (derived from currentQuestionIndex)
+  const getCurrentQuestionId = useCallback((): string | null => {
+    if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
+      return null;
+    }
+    return questions[currentQuestionIndex]?.id || null;
+  }, [currentQuestionIndex, questions]);
+
   // Format answer for display
   const formatAnswerForDisplay = useCallback((question: IntakeQuestion, value: any): string => {
     if (question.responseType === 'MULTI_SELECT' && Array.isArray(value)) {
@@ -183,6 +202,80 @@ export function useConversationalIntake(
     }
   }, [chatbotId, addMessage, onComplete]);
 
+  // Single function to process a question - handles all question flow logic
+  const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
+    console.log('[processQuestion] Processing question', {
+      index,
+      includeWelcome,
+      totalQuestions: questions.length,
+      conversationId: convId
+    });
+
+    // Reset all question state before processing
+    resetQuestionState();
+
+    // Check if we're past the last question
+    if (index >= questions.length) {
+      console.log('[processQuestion] Index >= questions.length, showing final message', {
+        index,
+        questionsLength: questions.length
+      });
+      await showFinalMessage(convId);
+      return;
+    }
+
+    // Defensive check: ensure question exists at index
+    if (!questions[index]) {
+      console.error('[processQuestion] Question not found at index', {
+        index,
+        questionsLength: questions.length,
+        availableIndices: questions.map((_, i) => i)
+      });
+      throw new Error(`Question not found at index ${index}`);
+    }
+
+    const question = questions[index];
+    const hasExisting = hasExistingResponse(question.id);
+    
+    console.log('[processQuestion] Question details', {
+      index,
+      questionId: question.id,
+      questionText: question.questionText.substring(0, 50),
+      hasExisting,
+      displayOrder: question.displayOrder
+    });
+
+    // Set current question index
+    setCurrentQuestionIndex(index);
+
+    if (hasExisting) {
+      // Show verification mode
+      setMode('verification');
+      
+      // Build message content
+      let content = includeWelcome && chatbotName && chatbotPurpose
+        ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
+        : question.questionText;
+      
+      // Add verification text and saved answer
+      const savedAnswer = existingResponses[question.id];
+      const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
+      content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
+      
+      await addMessage('assistant', content, convId);
+    } else {
+      // Show question input mode
+      setMode('question');
+      
+      // Build message content
+      const content = includeWelcome && chatbotName && chatbotPurpose
+        ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
+        : question.questionText;
+      
+      await addMessage('assistant', content, convId);
+    }
+  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage, resetQuestionState]);
+
   // Show first question (combined with welcome message)
   const showFirstQuestion = useCallback(async (convId: string, chatbotName: string, chatbotPurpose: string) => {
     // Defensive check: ensure questions array has at least one question
@@ -193,117 +286,23 @@ export function useConversationalIntake(
       throw new Error('No questions available');
     }
 
-    const question = questions[0];
-    console.log('[showFirstQuestion] Showing first question', {
-      questionId: question.id,
-      questionText: question.questionText.substring(0, 50),
-      totalQuestions: questions.length,
-      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
-      existingResponseIds: Object.keys(existingResponses)
-    });
+    await processQuestion(0, convId, true, chatbotName, chatbotPurpose);
+  }, [questions, processQuestion]);
 
-    const hasExisting = hasExistingResponse(question.id);
-
-    // Build combined message: welcome + question + verification (if needed)
-    let combinedContent = `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`;
-    
-    if (hasExisting) {
-      // Add verification text and saved answer to the same message
-      const savedAnswer = existingResponses[question.id];
-      const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
-      combinedContent += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
-      
-      // Set verification mode
-      setVerificationMode(true);
-      setVerificationQuestionId(question.id);
-      setCurrentQuestionIndex(0);
-      
-      // Add combined message (includes saved answer)
-      await addMessage('assistant', combinedContent, convId);
-    } else {
-      // Just welcome + question, no verification
-      setVerificationMode(false);
-      setVerificationQuestionId(null);
-      setModifyMode(false);
-      setCurrentInput('');
-      await addMessage('assistant', combinedContent, convId);
-      setCurrentQuestionIndex(0);
-    }
-  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage]);
-
-  // Show question (with verification if needed)
+  // Show question (with verification if needed) - now uses processQuestion
   const showQuestion = useCallback(async (index: number, convId?: string) => {
     const activeConversationId = convId || conversationId;
     if (!activeConversationId) {
       throw new Error('Conversation ID is required');
     }
 
-    // Comprehensive logging for debugging
-    console.log('[showQuestion] Called', {
-      index,
-      totalQuestions: questions.length,
-      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
-      existingResponseIds: Object.keys(existingResponses),
-      conversationId: activeConversationId
-    });
-
     setIsLoadingNextQuestion(true);
     try {
-      if (index >= questions.length) {
-        console.log('[showQuestion] Index >= questions.length, showing final message', {
-          index,
-          questionsLength: questions.length
-        });
-        await showFinalMessage(activeConversationId);
-        return;
-      }
-
-      // Defensive check: ensure question exists at index
-      if (!questions[index]) {
-        console.error('[showQuestion] Question not found at index', {
-          index,
-          questionsLength: questions.length,
-          availableIndices: questions.map((_, i) => i)
-        });
-        throw new Error(`Question not found at index ${index}`);
-      }
-
-      const question = questions[index];
-      const hasExisting = hasExistingResponse(question.id);
-      
-      console.log('[showQuestion] Showing question', {
-        index,
-        questionId: question.id,
-        questionText: question.questionText.substring(0, 50),
-        hasExisting,
-        displayOrder: question.displayOrder
-      });
-
-      if (hasExisting) {
-        // Reset modify mode when showing verification for existing response
-        setModifyMode(false);
-        setVerificationMode(true);
-        setVerificationQuestionId(question.id);
-        setCurrentQuestionIndex(index);
-        
-        // Build combined message: question + verification text + saved answer (all in one message)
-        const savedAnswer = existingResponses[question.id];
-        const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
-        const combinedContent = `${question.questionText}\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
-        
-        await addMessage('assistant', combinedContent, activeConversationId);
-      } else {
-        setVerificationMode(false);
-        setVerificationQuestionId(null);
-        setModifyMode(false);
-        setCurrentInput('');
-        await addMessage('assistant', question.questionText, activeConversationId);
-        setCurrentQuestionIndex(index);
-      }
+      await processQuestion(index, activeConversationId);
     } finally {
       setIsLoadingNextQuestion(false);
     }
-  }, [questions, conversationId, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage]);
+  }, [conversationId, processQuestion]);
 
   // Save response to API
   const saveResponse = useCallback(async (questionId: string, value: any) => {
@@ -342,6 +341,13 @@ export function useConversationalIntake(
     if (isSaving) return;
 
     const question = questions[currentQuestionIndex];
+    console.log('[handleAnswer] Saving answer', {
+      questionId: question.id,
+      questionIndex: currentQuestionIndex,
+      mode,
+      value
+    });
+
     setError(null);
     setIsSaving(true);
 
@@ -350,10 +356,8 @@ export function useConversationalIntake(
       await addMessage('user', formatAnswerForDisplay(question, value), conversationId!);
       await addMessage('assistant', 'Thank you.', conversationId!);
 
-      // Reset modify mode before moving to next question
-      setModifyMode(false);
-      setVerificationMode(false);
-      setVerificationQuestionId(null);
+      // Reset question state before moving to next question
+      resetQuestionState();
 
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
@@ -365,12 +369,12 @@ export function useConversationalIntake(
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
-      console.error('Error saving response:', err);
+      console.error('[handleAnswer] Error saving response:', err);
       setError(err instanceof Error ? err.message : 'Failed to save response. Please try again.');
     } finally {
       setIsSaving(false);
     }
-  }, [currentQuestionIndex, questions, isSaving, saveResponse, addMessage, formatAnswerForDisplay, conversationId, showQuestion, showFinalMessage]);
+  }, [currentQuestionIndex, questions, isSaving, mode, saveResponse, addMessage, formatAnswerForDisplay, conversationId, showQuestion, showFinalMessage, resetQuestionState]);
 
   // Handle skip
   const handleSkip = useCallback(async () => {
@@ -378,7 +382,18 @@ export function useConversationalIntake(
     if (isSaving) return;
 
     const question = questions[currentQuestionIndex];
+    
+    console.log('[handleSkip] Called', {
+      questionIndex: currentQuestionIndex,
+      questionId: question.id,
+      isRequired: question.isRequired,
+      mode
+    });
+    
     if (question.isRequired) {
+      console.warn('[handleSkip] Cannot skip required question', {
+        questionId: question.id
+      });
       setError('This question is required and cannot be skipped.');
       return;
     }
@@ -390,44 +405,55 @@ export function useConversationalIntake(
       await addMessage('user', '(Skipped)', conversationId!);
       await addMessage('assistant', 'Thank you.', conversationId!);
 
+      // Reset question state before moving to next
+      resetQuestionState();
+
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
+        console.log('[handleSkip] Moving to next question', {
+          nextIndex,
+          nextQuestionId: questions[nextIndex]?.id
+        });
         await showQuestion(nextIndex, conversationId!);
       } else {
+        console.log('[handleSkip] No more questions, showing final message', {
+          nextIndex,
+          questionsLength: questions.length
+        });
         // Immediately clear currentQuestionIndex to prevent input field from showing
         // while transitioning to final message
         setCurrentQuestionIndex(-2);
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
-      console.error('Error skipping question:', err);
+      console.error('[handleSkip] Error skipping question:', err);
       setError('Failed to skip question. Please try again.');
     } finally {
       setIsSaving(false);
     }
-  }, [currentQuestionIndex, questions, isSaving, addMessage, conversationId, showQuestion, showFinalMessage]);
+  }, [currentQuestionIndex, questions, isSaving, mode, addMessage, conversationId, showQuestion, showFinalMessage, resetQuestionState]);
 
   // Handle verification "Yes" button
   const handleVerifyYes = useCallback(async () => {
-    if (!verificationQuestionId) {
-      console.warn('[handleVerifyYes] No verificationQuestionId');
-      return;
-    }
-
-    // Use currentQuestionIndex state instead of findIndex to avoid stale closure issues
-    // currentQuestionIndex is set when the question is shown, so it's always accurate
     const currentIndex = currentQuestionIndex;
+    const currentQuestionId = getCurrentQuestionId();
     
     // Comprehensive logging
     console.log('[handleVerifyYes] Called', {
-      verificationQuestionId,
       currentIndex,
+      currentQuestionId,
+      mode,
       totalQuestions: questions.length,
       questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
       existingResponseIds: Object.keys(existingResponses)
     });
     
-    // Validate that we have a valid current index and question exists
+    // Validate that we're in verification mode and have a valid current index
+    if (mode !== 'verification') {
+      console.warn('[handleVerifyYes] Not in verification mode', { mode });
+      return;
+    }
+    
     if (currentIndex < 0 || currentIndex >= questions.length) {
       console.error('[handleVerifyYes] Invalid currentQuestionIndex:', {
         currentIndex,
@@ -438,10 +464,10 @@ export function useConversationalIntake(
     }
 
     const question = questions[currentIndex];
-    if (!question || question.id !== verificationQuestionId) {
+    if (!question || question.id !== currentQuestionId) {
       console.error('[handleVerifyYes] Question mismatch:', {
         currentIndex,
-        verificationQuestionId,
+        currentQuestionId,
         questionId: question?.id,
         questionsLength: questions.length,
         questionIds: questions.map(q => q.id)
@@ -456,8 +482,8 @@ export function useConversationalIntake(
       totalQuestions: questions.length
     });
 
-    setVerificationMode(false);
-    setVerificationQuestionId(null);
+    // Reset question state
+    resetQuestionState();
     
     const nextIndex = currentIndex + 1;
     
@@ -484,14 +510,24 @@ export function useConversationalIntake(
         setIsLoadingNextQuestion(false);
       }
     }
-  }, [verificationQuestionId, currentQuestionIndex, questions, showQuestion, showFinalMessage, conversationId, existingResponses]);
+  }, [currentQuestionIndex, mode, getCurrentQuestionId, questions, showQuestion, showFinalMessage, conversationId, existingResponses, resetQuestionState]);
 
   // Handle verification "Modify" button
   const handleVerifyModify = useCallback(() => {
-    if (!verificationQuestionId) return;
-
-    // Use currentQuestionIndex state instead of findIndex to avoid stale closure issues
     const currentIndex = currentQuestionIndex;
+    const currentQuestionId = getCurrentQuestionId();
+    
+    console.log('[handleVerifyModify] Called', {
+      currentIndex,
+      currentQuestionId,
+      mode
+    });
+    
+    // Validate that we're in verification mode
+    if (mode !== 'verification') {
+      console.warn('[handleVerifyModify] Not in verification mode', { mode });
+      return;
+    }
     
     // Validate that we have a valid current index
     if (currentIndex < 0 || currentIndex >= questions.length) {
@@ -500,21 +536,26 @@ export function useConversationalIntake(
     }
 
     const question = questions[currentIndex];
-    if (!question || question.id !== verificationQuestionId) {
+    if (!question || question.id !== currentQuestionId) {
       console.error('[handleVerifyModify] Question mismatch:', {
         currentIndex,
-        verificationQuestionId,
+        currentQuestionId,
         questionId: question?.id,
         questionsLength: questions.length
       });
       return;
     }
 
-    setModifyMode(true);
-    setVerificationMode(false);
-    setCurrentInput(existingResponses[verificationQuestionId]);
+    // Switch to modify mode and pre-fill input
+    console.log('[handleVerifyModify] Switching to modify mode', {
+      questionId: question.id,
+      existingValue: existingResponses[question.id]
+    });
+    
+    setMode('modify');
+    setCurrentInput(existingResponses[question.id]);
     setCurrentQuestionIndex(currentIndex);
-  }, [verificationQuestionId, currentQuestionIndex, questions, existingResponses]);
+  }, [currentQuestionIndex, mode, getCurrentQuestionId, questions, existingResponses]);
 
   // Initialize: Create conversation and show welcome message
   useEffect(() => {
@@ -595,13 +636,16 @@ export function useConversationalIntake(
     ? questions[currentQuestionIndex]
     : null;
 
+  // Backward compatibility helpers (derived from mode)
+  const verificationMode = mode === 'verification';
+  const modifyMode = mode === 'modify';
+  const verificationQuestionId = mode === 'verification' ? getCurrentQuestionId() : null;
+
   return {
     conversationId,
     messages,
     currentQuestionIndex,
-    verificationMode,
-    verificationQuestionId,
-    modifyMode,
+    mode,
     currentInput,
     isSaving,
     isLoadingNextQuestion,
@@ -615,6 +659,10 @@ export function useConversationalIntake(
     handleVerifyModify,
     setCurrentInput,
     currentQuestion,
+    // Backward compatibility helpers
+    verificationMode,
+    modifyMode,
+    verificationQuestionId,
   };
 }
 
