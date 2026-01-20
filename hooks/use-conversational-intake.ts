@@ -211,9 +211,6 @@ export function useConversationalIntake(
       conversationId: convId
     });
 
-    // Reset all question state before processing
-    resetQuestionState();
-
     // Check if we're past the last question
     if (index >= questions.length) {
       console.log('[processQuestion] Index >= questions.length, showing final message', {
@@ -245,11 +242,16 @@ export function useConversationalIntake(
       displayOrder: question.displayOrder
     });
 
-    // Set current question index
+    // IMPORTANT: Set current question index FIRST, then reset state, then set mode
+    // This ensures verificationQuestionId helper works correctly
     setCurrentQuestionIndex(index);
+    
+    // Reset input and error, but mode will be set based on hasExisting below
+    setCurrentInput('');
+    setError(null);
 
     if (hasExisting) {
-      // Show verification mode
+      // Show verification mode - set mode AFTER setting currentQuestionIndex
       setMode('verification');
       
       // Build message content
@@ -274,7 +276,7 @@ export function useConversationalIntake(
       
       await addMessage('assistant', content, convId);
     }
-  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage, resetQuestionState]);
+  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage]);
 
   // Show first question (combined with welcome message)
   const showFirstQuestion = useCallback(async (convId: string, chatbotName: string, chatbotPurpose: string) => {
@@ -356,8 +358,8 @@ export function useConversationalIntake(
       await addMessage('user', formatAnswerForDisplay(question, value), conversationId!);
       await addMessage('assistant', 'Thank you.', conversationId!);
 
-      // Reset question state before moving to next question
-      resetQuestionState();
+      // Don't reset state here - let processQuestion handle it
+      // This ensures mode is set correctly based on next question's existing response
 
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
@@ -405,8 +407,7 @@ export function useConversationalIntake(
       await addMessage('user', '(Skipped)', conversationId!);
       await addMessage('assistant', 'Thank you.', conversationId!);
 
-      // Reset question state before moving to next
-      resetQuestionState();
+      // Don't reset state here - let processQuestion handle it
 
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
@@ -482,8 +483,8 @@ export function useConversationalIntake(
       totalQuestions: questions.length
     });
 
-    // Reset question state
-    resetQuestionState();
+    // Don't reset state here - let processQuestion handle it
+    // This ensures mode is set correctly based on next question's existing response
     
     const nextIndex = currentIndex + 1;
     
