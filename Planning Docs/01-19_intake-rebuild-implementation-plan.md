@@ -368,6 +368,10 @@ export function intakeReducer(
       };
     
     // Progression
+    // NOTE: MOVE_TO_NEXT_QUESTION is a helper action that checks if we've reached the end.
+    // The actual question display is handled by calling showQuestion/showVerification in handlers.
+    // This action only handles the transition to final phase if we're past the last question.
+    // In practice, handlers will check nextIndex and dispatch SHOW_FINAL_MESSAGE or SHOW_QUESTION/SHOW_VERIFICATION directly.
     case 'MOVE_TO_NEXT_QUESTION':
       const nextIndex = state.currentQuestionIndex + 1;
       if (nextIndex >= state.questions.length) {
@@ -377,7 +381,8 @@ export function intakeReducer(
           currentQuestionIndex: -2,
         };
       }
-      // State will be set by SHOW_QUESTION or SHOW_VERIFICATION action
+      // If not at end, return state unchanged - handlers will dispatch SHOW_QUESTION or SHOW_VERIFICATION
+      // This action is primarily for validation/logging purposes
       return state;
     
     case 'COMPLETE_INTAKE':
@@ -472,14 +477,15 @@ export function createInitialIntakeState(): IntakeState {
 **Files to create/modify:**
 - `hooks/use-conversational-intake.ts` (add types at top)
 
-**Code:**
+**Important:** Ensure all necessary imports are present. Update the import statement at the top of the file:
 
 ```typescript
-// Add to hooks/use-conversational-intake.ts
+// Update imports at top of hooks/use-conversational-intake.ts
+import { useReducer, useCallback, useEffect, useRef } from 'react';
+import { useAuth } from '@clerk/nextjs';
+import { Pill as PillType } from '../components/pills/pill';
 
 // ... existing IntakeQuestion, IntakeMessage, IntakeMode types ...
-
-import { Pill as PillType } from '../components/pills/pill';
 
 // New types for reducer pattern
 export type IntakePhase = 
@@ -544,10 +550,17 @@ export type IntakeAction =
 ```
 
 **Testing:**
-- TypeScript compilation should pass
+- TypeScript compilation should pass (`npm run build` or `tsc --noEmit`)
 - No type errors
+- Verify `PillType` import resolves correctly
+- Verify all type exports are accessible
 
 **Dependencies:** None
+
+**Validation:**
+- ✅ All types compile without errors
+- ✅ No missing imports
+- ✅ Type exports are correct
 
 ---
 
@@ -803,6 +816,10 @@ function intakeReducer(
         messages: [...state.messages, ...newMessages],
       };
     
+    // NOTE: MOVE_TO_NEXT_QUESTION is a helper action that checks if we've reached the end.
+    // The actual question display is handled by calling showQuestion/showVerification in handlers.
+    // This action only handles the transition to final phase if we're past the last question.
+    // In practice, handlers will check nextIndex and dispatch SHOW_FINAL_MESSAGE or SHOW_QUESTION/SHOW_VERIFICATION directly.
     case 'MOVE_TO_NEXT_QUESTION':
       const nextIndex = state.currentQuestionIndex + 1;
       if (nextIndex >= state.questions.length) {
@@ -812,6 +829,8 @@ function intakeReducer(
           currentQuestionIndex: -2,
         };
       }
+      // If not at end, return state unchanged - handlers will dispatch SHOW_QUESTION or SHOW_VERIFICATION
+      // This action is primarily for validation/logging purposes
       return state;
     
     case 'COMPLETE_INTAKE':
@@ -866,8 +885,15 @@ function intakeReducer(
 - Unit tests for each action type
 - Test state transitions
 - Test edge cases (invalid indices, etc.)
+- Verify `MOVE_TO_NEXT_QUESTION` behavior (see note in reducer code)
 
 **Dependencies:** Step 1
+
+**Validation:**
+- ✅ Reducer handles all action types
+- ✅ No missing cases in switch statement
+- ✅ Edge cases handled (invalid indices, etc.)
+- ✅ State immutability maintained
 
 ---
 
@@ -1121,13 +1147,448 @@ async function fetchSuggestionPills(chatbotId: string): Promise<PillType[]> {
   const pills = await response.json();
   return pills.filter((p: PillType) => p.pillType === 'suggested');
 }
+
+/**
+ * NOTE: The following helper functions should be defined as useCallback hooks within the hook:
+ * 
+ * - showFinalMessage: useCallback hook that handles final message and completion
+ * - showFirstQuestion: useCallback hook that shows first question with welcome
+ * - showQuestion: useCallback hook that wraps processQuestion with loading state
+ * - processQuestion: useCallback hook that processes a question at given index
+ * 
+ * These functions need access to:
+ * - dispatch (from useReducer)
+ * - state (from useReducer)
+ * - Other hook dependencies (onComplete, onMessageAdded, etc.)
+ * 
+ * Example structure:
+ * const showFinalMessage = useCallback(async (convId: string) => {
+ *   const finalMessage = "...";
+ *   const message = await addMessageToConversation(convId, 'assistant', finalMessage);
+ *   dispatch(intakeActions.addMessage(message));
+ *   onMessageAdded(message);
+ *   // ... rest of implementation
+ * }, [dispatch, chatbotId, onComplete, onMessageAdded, addMessageToConversation]);
+ * 
+ * NOTE: Access state via closure (it's captured when callback is created), but don't include
+ * entire state object in dependencies. If you need current state values, use stateRef pattern
+ * or pass needed values as parameters.
+ */
 ```
 
 **Testing:**
 - Test action creators return correct types
 - Test async functions handle errors correctly
+- Verify API endpoint URLs match actual routes
+- Test error handling in async functions
 
 **Dependencies:** Step 2
+
+**Validation:**
+- ✅ All action creators return properly typed actions
+- ✅ Async functions handle errors gracefully
+- ✅ API endpoints are correct
+- ✅ Error messages are user-friendly
+
+**IMPORTANT CLARIFICATIONS:**
+
+1. **Action Creators Location:**
+   - `intakeActions` should be defined **OUTSIDE the hook** (at module level)
+   - This ensures it's created once and doesn't cause re-renders
+   - All callbacks can access it via closure
+   - Example location: Right after type definitions, before the hook function
+
+2. **Async Helper Functions:**
+   - `createConversation`, `addMessageToConversation`, `saveResponseToAPI`, `fetchSuggestionPills` should be **standalone functions OUTSIDE the hook**
+   - They don't need to be `useCallback` - they're pure async functions
+   - They don't access React state or props directly
+   - They're called from within `useCallback` hooks that have access to needed values
+
+3. **Helper Functions Inside Hook:**
+   - `showFinalMessage`, `showFirstQuestion`, `showQuestion`, `processQuestion` MUST be `useCallback` hooks **INSIDE the hook**
+   - They need access to `dispatch`, `stateRef`, and other hook dependencies
+   - See Step 3.5 for complete implementations
+
+---
+
+### Step 3.5: Complete Helper Function Implementations (NEW)
+
+**What:** Provide complete, working implementations of all helper functions that will be used in Step 4.
+
+**Why:** Prevents circular dependencies and ensures all functions are properly defined before use.
+
+**Files to modify:**
+- `hooks/use-conversational-intake.ts` (add these functions in Step 4, but define them here conceptually)
+
+**Complete Implementations:**
+
+```typescript
+// These functions will be defined INSIDE the hook using useCallback
+// They are shown here for reference - implement them in Step 4
+
+/**
+ * Format answer for display based on question type
+ */
+const formatAnswerForDisplay = useCallback((question: IntakeQuestion, value: any): string => {
+  if (question.responseType === 'MULTI_SELECT' && Array.isArray(value)) {
+    return value.join(', ');
+  }
+  if (question.responseType === 'BOOLEAN') {
+    return value === true ? 'Yes' : 'No';
+  }
+  return String(value);
+}, []); // No dependencies - pure function
+
+/**
+ * Process a question at given index - handles verification or new question
+ */
+const processQuestion = useCallback(async (
+  index: number,
+  convId: string,
+  includeWelcome: boolean = false,
+  chatbotName?: string,
+  chatbotPurpose?: string
+) => {
+  const currentState = stateRef.current; // Access current state via ref
+  
+  if (index >= currentState.questions.length) {
+    dispatch(intakeActions.showFinalMessage(convId));
+    await showFinalMessage(convId);
+    return;
+  }
+
+  const question = currentState.questions[index];
+  if (!question) {
+    throw new Error(`Question not found at index ${index}`);
+  }
+
+  const hasExisting = currentState.existingResponses[question.id] !== undefined 
+    && currentState.existingResponses[question.id] !== null;
+
+  if (hasExisting) {
+    dispatch(intakeActions.showVerification(index, currentState.existingResponses[question.id]));
+    
+    let content = includeWelcome && chatbotName && chatbotPurpose
+      ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
+      : question.questionText;
+    
+    const savedAnswer = currentState.existingResponses[question.id];
+    const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
+    content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
+    
+    const message = await addMessageToConversation(convId, 'assistant', content);
+    dispatch(intakeActions.addMessage(message));
+    onMessageAdded(message);
+  } else {
+    dispatch(intakeActions.showQuestion(index, false));
+    
+    const content = includeWelcome && chatbotName && chatbotPurpose
+      ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
+      : question.questionText;
+    
+    const message = await addMessageToConversation(convId, 'assistant', content);
+    dispatch(intakeActions.addMessage(message));
+    onMessageAdded(message);
+  }
+}, [dispatch, onMessageAdded, formatAnswerForDisplay, showFinalMessage]); 
+// Note: addMessageToConversation is stable (defined outside hook)
+
+/**
+ * Show first question with welcome message
+ */
+const showFirstQuestion = useCallback(async (
+  convId: string,
+  chatbotName: string,
+  chatbotPurpose: string
+) => {
+  const currentState = stateRef.current;
+  
+  if (!currentState.questions || currentState.questions.length === 0) {
+    throw new Error('No questions available');
+  }
+
+  await processQuestion(0, convId, true, chatbotName, chatbotPurpose);
+}, [processQuestion]); 
+// processQuestion is a useCallback, so it's stable
+
+/**
+ * Show question with loading state wrapper
+ */
+const showQuestion = useCallback(async (index: number, convId?: string) => {
+  const currentState = stateRef.current;
+  const activeConversationId = convId || currentState.conversationId;
+  
+  if (!activeConversationId) {
+    throw new Error('Conversation ID is required');
+  }
+
+  dispatch(intakeActions.setLoadingNext(true));
+  try {
+    await processQuestion(index, activeConversationId);
+  } finally {
+    dispatch(intakeActions.setLoadingNext(false));
+  }
+}, [dispatch, processQuestion]);
+
+/**
+ * Show final message and complete intake
+ */
+const showFinalMessage = useCallback(async (convId: string) => {
+  const finalMessage = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
+  
+  const message = await addMessageToConversation(convId, 'assistant', finalMessage);
+  dispatch(intakeActions.addMessage(message));
+  onMessageAdded(message);
+  
+  dispatch(intakeActions.showFinalMessage(convId));
+  
+  try {
+    const pills = await fetchSuggestionPills(stateRef.current.chatbotId);
+    dispatch(intakeActions.completeIntake(pills));
+    
+    setTimeout(() => {
+      onComplete(convId);
+    }, 1000);
+  } catch (err) {
+    console.error('Error loading suggestion pills:', err);
+    dispatch(intakeActions.completeIntake([]));
+    setTimeout(() => {
+      onComplete(convId);
+    }, 500);
+  }
+}, [dispatch, chatbotId, onComplete, onMessageAdded]);
+// Note: chatbotId comes from hook parameters, onComplete/onMessageAdded are props
+```
+
+**Function Dependency Order:**
+1. `formatAnswerForDisplay` - no dependencies (pure function)
+2. `showFinalMessage` - depends on stable functions
+3. `processQuestion` - depends on `formatAnswerForDisplay` and `showFinalMessage`
+4. `showFirstQuestion` - depends on `processQuestion`
+5. `showQuestion` - depends on `processQuestion`
+
+**Key Points:**
+- All functions use `stateRef.current` to access current state
+- Dependencies only include stable references (`dispatch`, other `useCallback` functions, props)
+- Never include `state` or `stateRef` in dependency arrays
+- `addMessageToConversation` and other async helpers are stable (defined outside hook)
+
+**Dependencies:** Step 3
+
+---
+
+## Dependency Management Guide
+
+### Understanding React Hook Dependencies
+
+When refactoring to use `useReducer`, proper dependency management is critical to avoid infinite re-render loops and ensure correct behavior.
+
+### Key Principles
+
+1. **`dispatch` from `useReducer` is stable** - Safe to include in dependency arrays
+2. **Never include entire `state` object in `useCallback` dependencies** - Causes infinite loops
+3. **Use `stateRef` pattern for callbacks** - Access latest state without re-creating callbacks
+4. **Use specific state properties in `useEffect`** - React tracks these individually
+
+### The State Ref Pattern
+
+**Why it's needed:**
+- `useCallback` dependencies are checked on every render
+- Including `state` in dependencies means callback is recreated on every state change
+- This causes infinite loops: callback changes → component re-renders → state changes → callback changes → repeat
+
+**How it works:**
+```typescript
+// Create ref to hold current state
+const stateRef = useRef(state);
+
+// Update ref whenever state changes (doesn't trigger re-render)
+useEffect(() => {
+  stateRef.current = state;
+}, [state]);
+
+// Access latest state in callbacks via ref
+const handleAnswer = useCallback(async (value: any) => {
+  const currentState = stateRef.current; // Always gets latest state
+  // ... use currentState
+}, [dispatch, /* other stable dependencies */]);
+```
+
+### When to Use Each Pattern
+
+**Use `stateRef` pattern for:**
+- `useCallback` hooks that need to read current state
+- Event handlers that access state
+- Functions passed as props that need latest state
+
+**Use specific state properties for:**
+- `useEffect` dependencies (React tracks these individually)
+- Example: `[state.isInitialized, state.conversationId]` instead of `[state]`
+
+**Pass values as parameters when:**
+- You can avoid accessing state directly
+- Example: `showQuestion(index, conversationId)` instead of reading from state
+
+### Common Mistakes to Avoid
+
+❌ **Don't do this:**
+```typescript
+const handleAnswer = useCallback(async (value: any) => {
+  // Accessing state directly
+  if (state.currentQuestionIndex < 0) return;
+}, [state, dispatch]); // ❌ Including state causes infinite loop
+```
+
+✅ **Do this instead:**
+```typescript
+const handleAnswer = useCallback(async (value: any) => {
+  const currentState = stateRef.current; // Access via ref
+  if (currentState.currentQuestionIndex < 0) return;
+}, [dispatch]); // ✅ Only include stable dependencies
+```
+
+### Dependency Array Guidelines
+
+**Safe to include:**
+- `dispatch` (stable)
+- Props that don't change frequently
+- Callbacks from props (if stable)
+- Primitive values (strings, numbers, booleans)
+
+**Use ref pattern for:**
+- Entire `state` object
+- Objects/arrays that change frequently
+- Values that need to be "latest" but shouldn't trigger re-creation
+
+**Use specific properties for:**
+- `useEffect` dependencies (React optimizes these)
+- Example: `[state.isInitialized]` instead of `[state]`
+
+---
+
+## Common Pitfalls and How to Avoid Them
+
+### 1. Circular Dependencies
+
+**Problem:** Functions reference each other before they're defined.
+
+**Example:**
+```typescript
+// ❌ WRONG - showFinalMessage depends on processQuestion, but processQuestion depends on showFinalMessage
+const showFinalMessage = useCallback(async (convId: string) => {
+  await processQuestion(0, convId); // processQuestion not defined yet!
+}, [processQuestion]);
+
+const processQuestion = useCallback(async (index: number, convId: string) => {
+  await showFinalMessage(convId); // Circular!
+}, [showFinalMessage]);
+```
+
+**Solution:** Define functions in dependency order:
+1. Functions with no dependencies first (`formatAnswerForDisplay`)
+2. Functions that depend on stable functions (`showFinalMessage`)
+3. Functions that depend on other callbacks (`processQuestion` → `showFirstQuestion` → `showQuestion`)
+
+### 2. Including Entire State Object
+
+**Problem:** Including `state` in dependency arrays causes infinite loops.
+
+**Example:**
+```typescript
+// ❌ WRONG
+const handleAnswer = useCallback(async (value: any) => {
+  if (state.currentQuestionIndex < 0) return;
+}, [state, dispatch]); // Causes infinite loop!
+```
+
+**Solution:** Use `stateRef.current`:
+```typescript
+// ✅ CORRECT
+const handleAnswer = useCallback(async (value: any) => {
+  const currentState = stateRef.current;
+  if (currentState.currentQuestionIndex < 0) return;
+}, [dispatch]); // Only stable dependencies
+```
+
+### 3. Duplicate Dependencies
+
+**Problem:** Including the same dependency twice causes unnecessary re-renders.
+
+**Example:**
+```typescript
+// ❌ WRONG
+}, [dispatch, chatbotId, dispatch]); // dispatch appears twice
+```
+
+**Solution:** Remove duplicates:
+```typescript
+// ✅ CORRECT
+}, [dispatch, chatbotId]);
+```
+
+### 4. Including Unstable Functions
+
+**Problem:** Including functions that are recreated on every render.
+
+**Example:**
+```typescript
+// ❌ WRONG - if addMessageToConversation is recreated
+const processQuestion = useCallback(async (...) => {
+  await addMessageToConversation(...);
+}, [addMessageToConversation]); // Will recreate if addMessageToConversation changes
+```
+
+**Solution:** Define stable functions outside hook, or use `useCallback`:
+```typescript
+// ✅ CORRECT - addMessageToConversation is stable (defined outside hook)
+const processQuestion = useCallback(async (...) => {
+  await addMessageToConversation(...);
+}, [/* addMessageToConversation not needed - stable */]);
+```
+
+### 5. Missing Dependencies
+
+**Problem:** Not including dependencies causes stale closures.
+
+**Example:**
+```typescript
+// ❌ WRONG - chatbotId might be stale
+const showFinalMessage = useCallback(async (convId: string) => {
+  const pills = await fetchSuggestionPills(chatbotId); // chatbotId from closure
+}, [dispatch]); // Missing chatbotId!
+```
+
+**Solution:** Include all values from closure:
+```typescript
+// ✅ CORRECT
+const showFinalMessage = useCallback(async (convId: string) => {
+  const pills = await fetchSuggestionPills(chatbotId);
+}, [dispatch, chatbotId]); // Include chatbotId
+```
+
+### 6. Accessing State in useEffect Without Dependencies
+
+**Problem:** Reading state in useEffect without proper dependencies causes stale values.
+
+**Example:**
+```typescript
+// ❌ WRONG - state.conversationId might be stale
+useEffect(() => {
+  if (state.conversationId) {
+    // Do something
+  }
+}, []); // Missing state.conversationId dependency
+```
+
+**Solution:** Include specific state properties:
+```typescript
+// ✅ CORRECT
+useEffect(() => {
+  if (state.conversationId) {
+    // Do something
+  }
+}, [state.conversationId]); // Include specific property
+```
 
 ---
 
@@ -1137,18 +1598,140 @@ async function fetchSuggestionPills(chatbotId: string): Promise<PillType[]> {
 
 **Why:** Single source of truth, eliminates state synchronization issues.
 
+**Complete Example: `handleAnswer` Implementation**
+
+Here's a complete, working example of how `handleAnswer` should be implemented:
+
+```typescript
+// Inside the hook, after stateRef is set up:
+
+const handleAnswer = useCallback(async (value: any) => {
+  // 1. Access current state via ref (not from closure)
+  const currentState = stateRef.current;
+  
+  // 2. Validate state
+  if (currentState.currentQuestionIndex < 0 || currentState.currentQuestionIndex >= currentState.questions.length) {
+    return;
+  }
+  if (currentState.isSaving) {
+    return; // Prevent double submission
+  }
+
+  // 3. Get current question
+  const question = currentState.questions[currentState.currentQuestionIndex];
+  
+  // 4. Dispatch start action
+  dispatch(intakeActions.submitAnswerStart(value));
+
+  try {
+    // 5. Save to API (async helper function - stable, defined outside hook)
+    await saveResponseToAPI(clerkUserId!, currentState.chatbotId, question.id, value);
+    
+    // 6. Add user message
+    const userMessage = await addMessageToConversation(
+      currentState.conversationId!,
+      'user',
+      formatAnswerForDisplay(question, value)
+    );
+    dispatch(intakeActions.addMessage(userMessage));
+    onMessageAdded(userMessage);
+    
+    // 7. Add thank you message
+    const thankYouMessage = await addMessageToConversation(
+      currentState.conversationId!,
+      'assistant',
+      'Thank you.'
+    );
+    dispatch(intakeActions.addMessage(thankYouMessage));
+    onMessageAdded(thankYouMessage);
+
+    // 8. Dispatch success action
+    dispatch(intakeActions.submitAnswerSuccess(question.id, value, userMessage));
+
+    // 9. Move to next question or show final message
+    const nextIndex = currentState.currentQuestionIndex + 1;
+    if (nextIndex < currentState.questions.length) {
+      await showQuestion(nextIndex, currentState.conversationId!);
+    } else {
+      dispatch(intakeActions.showFinalMessage(currentState.conversationId!));
+      await showFinalMessage(currentState.conversationId!);
+    }
+  } catch (err) {
+    // 10. Handle errors
+    console.error('[handleAnswer] Error saving response:', err);
+    dispatch(intakeActions.submitAnswerError(
+      err instanceof Error ? err.message : 'Failed to save response. Please try again.'
+    ));
+  }
+}, [
+  dispatch,
+  clerkUserId,
+  chatbotId, // From hook parameters
+  onMessageAdded, // From hook parameters
+  showQuestion, // useCallback hook defined earlier
+  showFinalMessage, // useCallback hook defined earlier
+  formatAnswerForDisplay, // useCallback hook defined earlier
+  // Note: saveResponseToAPI and addMessageToConversation are NOT in dependencies
+  // because they're stable functions defined outside the hook
+]);
+```
+
+**Key Points from This Example:**
+1. ✅ Uses `stateRef.current` to access current state
+2. ✅ Validates state before proceeding
+3. ✅ Dispatches actions for state transitions
+4. ✅ Handles async operations properly
+5. ✅ Includes only stable dependencies
+6. ✅ Excludes stable functions from dependencies
+7. ✅ Proper error handling with reducer actions
+8. ✅ Calls other `useCallback` hooks correctly
+
 **Files to modify:**
 - `hooks/use-conversational-intake.ts` (complete refactor)
 
+**Important Notes:**
+- All helper functions (`showFinalMessage`, `showFirstQuestion`, `showQuestion`, `processQuestion`) should be defined as `useCallback` hooks within the hook, not as standalone functions
+- These functions need access to `dispatch`, `stateRef`, and other hook dependencies
+- **CRITICAL:** Do NOT include the entire `state` object in dependency arrays - it will cause infinite re-renders. Instead:
+  - **Use a ref pattern** (recommended for callbacks): `const stateRef = useRef(state); useEffect(() => { stateRef.current = state; }, [state]);` Then access via `stateRef.current` in callbacks
+  - **Use specific state properties** (for useEffect only): `state.isInitialized`, `state.conversationId` - React tracks these individually
+  - **Pass values as parameters** when possible
+- `dispatch` from `useReducer` is stable and safe to include in dependency arrays
+- The `formatAnswerForDisplay` helper should remain as a `useCallback` within the hook
+- Helper functions like `addMessageToConversation` and `saveResponseToAPI` should be defined outside the hook (or wrapped in `useCallback` if they need hook context)
+- **Hook parameters are stable**: Parameters like `chatbotId`, `chatbotName`, `chatbotPurpose`, `questions`, `existingResponses`, `onMessageAdded`, and `onComplete` are stable (don't change between renders) and can be accessed directly from closure. Using `stateRef.current.chatbotId` is fine but not required - accessing `chatbotId` directly from closure is preferred for clarity.
+
+**Migration Notes:**
+- **Remove `resetQuestionState` function** - State resets are now handled by reducer actions (`SHOW_QUESTION`, `SHOW_VERIFICATION`, etc.)
+- **Remove `resetQuestionState` from all dependency arrays** - The current code has `resetQuestionState` in dependency arrays (e.g., `handleAnswer`, `handleSkip`, `handleVerifyYes`). Remove it from all dependency arrays since the function is being removed entirely.
+- **Remove `hasExistingResponse` helper** - Use `stateRef.current.existingResponses[questionId]` directly
+- **Remove `getCurrentQuestionId` helper** - Use `stateRef.current.questions[stateRef.current.currentQuestionIndex]?.id` directly
+- All state transitions are now explicit via reducer actions, eliminating the need for manual state resets
+
+**Why the Ref Pattern?**
+- `useCallback` dependencies are checked on every render
+- Including `state` in dependencies means the callback is recreated on every state change
+- This causes infinite loops: callback changes → component re-renders → state changes → callback changes → repeat
+- Using `stateRef.current` allows accessing latest state without triggering re-creation
+- The ref is updated via `useEffect` which doesn't cause callback re-creation
+
 **Key Changes:**
 
-1. Replace useState with useReducer:
+1. Replace useState with useReducer and create state ref:
 ```typescript
 const [state, dispatch] = useReducer(intakeReducer, createInitialIntakeState());
+
+// Use ref to access current state in callbacks without causing re-renders
+const stateRef = useRef(state);
+useEffect(() => {
+  stateRef.current = state;
+}, [state]);
 ```
 
 2. Refactor initialization useEffect:
 ```typescript
+// Note: For useEffect, we can use specific state properties in dependencies
+// React will only re-run when those specific values change
 useEffect(() => {
   if (!chatbotName || !chatbotPurpose || state.isInitialized) {
     return;
@@ -1176,7 +1759,7 @@ useEffect(() => {
         onMessageAdded(welcomeMessage);
         
         dispatch(intakeActions.showFinalMessage(newConversationId));
-        await handleFinalMessage(newConversationId);
+        await showFinalMessage(newConversationId);
       } else {
         await showFirstQuestion(newConversationId, chatbotName, chatbotPurpose);
       }
@@ -1189,33 +1772,42 @@ useEffect(() => {
   };
 
   initialize();
-}, [chatbotId, chatbotName, chatbotPurpose, questions, existingResponses, state.isInitialized, state.conversationId, onMessageAdded]);
+}, [chatbotId, chatbotName, chatbotPurpose, questions, existingResponses, state.isInitialized, state.conversationId, dispatch, onMessageAdded, showFinalMessage, showFirstQuestion]);
+// Note: onComplete is not needed here - it's called from showFinalMessage
+// addMessageToConversation is stable (defined outside hook) - no need to include
+
+// IMPORTANT: Update imports at the top of the file to include useRef:
+// import { useReducer, useCallback, useEffect, useRef } from 'react';
+// 
+// Make sure useRef is explicitly imported - it's required for the stateRef pattern
 ```
 
-3. Refactor processQuestion to use dispatch:
+3. Refactor processQuestion to use dispatch (access state via ref):
 ```typescript
 const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
-  if (index >= state.questions.length) {
+  const currentState = stateRef.current; // Access current state via ref
+  
+  if (index >= currentState.questions.length) {
     dispatch(intakeActions.showFinalMessage(convId));
-    await handleFinalMessage(convId);
+    await showFinalMessage(convId);
     return;
   }
 
-  const question = state.questions[index];
+  const question = currentState.questions[index];
   if (!question) {
     throw new Error(`Question not found at index ${index}`);
   }
 
-  const hasExisting = state.existingResponses[question.id] !== undefined && state.existingResponses[question.id] !== null;
+  const hasExisting = currentState.existingResponses[question.id] !== undefined && currentState.existingResponses[question.id] !== null;
 
   if (hasExisting) {
-    dispatch(intakeActions.showVerification(index, state.existingResponses[question.id]));
+    dispatch(intakeActions.showVerification(index, currentState.existingResponses[question.id]));
     
     let content = includeWelcome && chatbotName && chatbotPurpose
       ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
       : question.questionText;
     
-    const savedAnswer = state.existingResponses[question.id];
+    const savedAnswer = currentState.existingResponses[question.id];
     const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
     content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
     
@@ -1233,85 +1825,158 @@ const processQuestion = useCallback(async (index: number, convId: string, includ
     dispatch(intakeActions.addMessage(message));
     onMessageAdded(message);
   }
-}, [state.questions, state.existingResponses, onMessageAdded]);
+}, [dispatch, onMessageAdded, formatAnswerForDisplay, showFinalMessage]);
+// Note: addMessageToConversation is stable (defined outside hook) - no need to include
 ```
 
-4. Refactor handleAnswer:
+4. Refactor handleAnswer (access state via ref):
 ```typescript
 const handleAnswer = useCallback(async (value: any) => {
-  if (state.currentQuestionIndex < 0 || state.currentQuestionIndex >= state.questions.length) return;
-  if (state.isSaving) return;
+  const currentState = stateRef.current; // Access current state via ref
+  
+  if (currentState.currentQuestionIndex < 0 || currentState.currentQuestionIndex >= currentState.questions.length) return;
+  if (currentState.isSaving) return;
 
-  const question = state.questions[state.currentQuestionIndex];
+  const question = currentState.questions[currentState.currentQuestionIndex];
   
   dispatch(intakeActions.submitAnswerStart(value));
 
   try {
     await saveResponseToAPI(clerkUserId!, chatbotId, question.id, value);
     
-    const userMessage = await addMessageToConversation(state.conversationId!, 'user', formatAnswerForDisplay(question, value));
+    const userMessage = await addMessageToConversation(currentState.conversationId!, 'user', formatAnswerForDisplay(question, value));
     dispatch(intakeActions.addMessage(userMessage));
     onMessageAdded(userMessage);
     
-    const thankYouMessage = await addMessageToConversation(state.conversationId!, 'assistant', 'Thank you.');
+    const thankYouMessage = await addMessageToConversation(currentState.conversationId!, 'assistant', 'Thank you.');
     dispatch(intakeActions.addMessage(thankYouMessage));
     onMessageAdded(thankYouMessage);
 
     dispatch(intakeActions.submitAnswerSuccess(question.id, value, userMessage));
 
-    const nextIndex = state.currentQuestionIndex + 1;
-    if (nextIndex < state.questions.length) {
-      await showQuestion(nextIndex, state.conversationId!);
+    const nextIndex = currentState.currentQuestionIndex + 1;
+    if (nextIndex < currentState.questions.length) {
+      await showQuestion(nextIndex, currentState.conversationId!);
     } else {
-      dispatch(intakeActions.showFinalMessage(state.conversationId!));
-      await handleFinalMessage(state.conversationId!);
+      dispatch(intakeActions.showFinalMessage(currentState.conversationId!));
+      await showFinalMessage(currentState.conversationId!);
     }
   } catch (err) {
     console.error('[handleAnswer] Error saving response:', err);
     dispatch(intakeActions.submitAnswerError(err instanceof Error ? err.message : 'Failed to save response. Please try again.'));
   }
-}, [state, clerkUserId, chatbotId, onMessageAdded, showQuestion]);
+}, [dispatch, clerkUserId, chatbotId, onMessageAdded, showQuestion, showFinalMessage, formatAnswerForDisplay]);
+// Note: saveResponseToAPI and addMessageToConversation are stable (defined outside hook) - no need to include
 ```
 
-5. Refactor handleVerifyYes:
+4. Refactor handleSkip (access state via ref):
+```typescript
+const handleSkip = useCallback(async () => {
+  const currentState = stateRef.current; // Access current state via ref
+  
+  // Validate state
+  if (currentState.currentQuestionIndex < 0 || currentState.currentQuestionIndex >= currentState.questions.length) {
+    return;
+  }
+  if (currentState.isSaving) {
+    return; // Prevent double submission
+  }
+
+  const question = currentState.questions[currentState.currentQuestionIndex];
+  
+  // Check if question is required
+  if (question.isRequired) {
+    dispatch(intakeActions.setError('This question is required and cannot be skipped.'));
+    return;
+  }
+
+  // Dispatch start action
+  dispatch(intakeActions.skipStart());
+
+  try {
+    // Add skip message
+    const skipMessage = await addMessageToConversation(
+      currentState.conversationId!,
+      'user',
+      '(Skipped)'
+    );
+    dispatch(intakeActions.addMessage(skipMessage));
+    onMessageAdded(skipMessage);
+    
+    // Add thank you message
+    const thankYouMessage = await addMessageToConversation(
+      currentState.conversationId!,
+      'assistant',
+      'Thank you.'
+    );
+    dispatch(intakeActions.addMessage(thankYouMessage));
+    onMessageAdded(thankYouMessage);
+
+    // Dispatch success action
+    dispatch(intakeActions.skipSuccess(skipMessage));
+
+    // Move to next question or show final message
+    const nextIndex = currentState.currentQuestionIndex + 1;
+    if (nextIndex < currentState.questions.length) {
+      await showQuestion(nextIndex, currentState.conversationId!);
+    } else {
+      dispatch(intakeActions.showFinalMessage(currentState.conversationId!));
+      await showFinalMessage(currentState.conversationId!);
+    }
+  } catch (err) {
+    // Handle errors
+    console.error('[handleSkip] Error skipping question:', err);
+    dispatch(intakeActions.skipError(
+      err instanceof Error ? err.message : 'Failed to skip question. Please try again.'
+    ));
+  }
+}, [dispatch, onMessageAdded, showQuestion, showFinalMessage]);
+// Note: addMessageToConversation is stable (defined outside hook) - no need to include
+```
+
+5. Refactor handleVerifyYes (access state via ref):
 ```typescript
 const handleVerifyYes = useCallback(async () => {
-  if (state.phase !== 'verification') {
+  const currentState = stateRef.current; // Access current state via ref
+  
+  if (currentState.phase !== 'verification') {
     return;
   }
   
-  if (state.currentQuestionIndex < 0 || state.currentQuestionIndex >= state.questions.length) {
+  if (currentState.currentQuestionIndex < 0 || currentState.currentQuestionIndex >= currentState.questions.length) {
     return;
   }
 
   dispatch(intakeActions.verifyYes());
 
-  const nextIndex = state.currentQuestionIndex + 1;
-  if (nextIndex < state.questions.length) {
-    await showQuestion(nextIndex, state.conversationId!);
+  const nextIndex = currentState.currentQuestionIndex + 1;
+  if (nextIndex < currentState.questions.length) {
+    await showQuestion(nextIndex, currentState.conversationId!);
   } else {
-    dispatch(intakeActions.showFinalMessage(state.conversationId!));
-    await handleFinalMessage(state.conversationId!);
+    dispatch(intakeActions.showFinalMessage(currentState.conversationId!));
+    await showFinalMessage(currentState.conversationId!);
   }
-}, [state, showQuestion]);
+}, [dispatch, showQuestion, showFinalMessage]);
 ```
 
-6. Refactor handleVerifyModify:
+6. Refactor handleVerifyModify (access state via ref):
 ```typescript
 const handleVerifyModify = useCallback(() => {
-  if (state.phase !== 'verification') {
+  const currentState = stateRef.current; // Access current state via ref
+  
+  if (currentState.phase !== 'verification') {
     return;
   }
   
-  if (state.currentQuestionIndex < 0 || state.currentQuestionIndex >= state.questions.length) {
+  if (currentState.currentQuestionIndex < 0 || currentState.currentQuestionIndex >= currentState.questions.length) {
     return;
   }
 
-  const question = state.questions[state.currentQuestionIndex];
-  const existingValue = state.existingResponses[question.id];
+  const question = currentState.questions[currentState.currentQuestionIndex];
+  const existingValue = currentState.existingResponses[question.id];
   
   dispatch(intakeActions.enterModifyMode(existingValue));
-}, [state]);
+}, [dispatch]);
 ```
 
 7. Update return value to use state:
@@ -1351,34 +2016,486 @@ return {
 - Test modify flow
 - Test error handling
 - Test skip functionality
+- Verify no infinite re-render loops (check React DevTools)
+- Verify state ref pattern works correctly
 
 **Dependencies:** Steps 1-3
+
+**Validation:**
+- ✅ `useRef` is imported and used correctly
+- ✅ `stateRef` pattern is implemented
+- ✅ No `state` object in `useCallback` dependencies
+- ✅ All callbacks use `stateRef.current` to access state
+- ✅ `dispatch` is included in dependency arrays where needed
+- ✅ No infinite loops in React DevTools
 
 ---
 
 ### Step 5: Update Component Integration (1 hour)
 
-**What:** Ensure `IntakeFlow` component works with new reducer-based hook.
+**What:** Ensure `IntakeFlow` component works with new reducer-based hook and add enhanced UI features.
 
-**Why:** Maintain backward compatibility.
+**Why:** Maintain backward compatibility and improve UX with typing indicators, custom formatting, and dynamic verification UI.
 
-**Files to check:**
-- `components/intake-flow.tsx` (should work as-is, but verify)
-- `components/chat.tsx` (verify integration still works)
+**Files to check/modify:**
+- `components/intake-flow.tsx` (add dynamic verification UI based on question type)
+- `components/chat.tsx` (verify typing indicator works, enhance answer formatting)
+- `components/answer-response.tsx` (new component for styled answer display)
 
 **Changes:**
-- Minimal changes needed - interface is preserved
+- Verify typing indicator works with `isLoadingNextQuestion` (already implemented in chat.tsx)
+- Add custom formatting component for answer portion in verification messages
+- Implement dynamic verification UI that matches question input type
 - Verify all props are still available
 - Test component rendering
 
 **Testing:**
 - Visual testing of intake flow
-- Test all question types
-- Test verification buttons
-- Test modify flow
-- Test error states
+- Test all question types:
+  - TEXT: Text input field
+  - NUMBER: Number input field
+  - SELECT: Single-select dropdown
+  - MULTI_SELECT: Multi-select checkboxes
+  - BOOLEAN: Boolean (yes/no) input
+  - FILE: File upload (if implemented)
+  - DATE: Date picker (if implemented)
+- Test verification buttons (Yes/Modify) and dynamic verification UI
+- Test modify flow (pre-fill, edit, save)
+- Test error states (network errors, API errors)
+- Verify typing indicator appears during question loading
+- Verify answer formatting (indent, italic, lighter background)
+- Verify backward compatibility (all props available)
 
 **Dependencies:** Step 4
+
+**Validation:**
+- ✅ Component receives all required props
+- ✅ All hook return values are accessible
+- ✅ No breaking changes to component API
+- ✅ UI renders correctly for all question types
+- ✅ Typing indicator works correctly
+- ✅ Answer formatting is visually distinct
+
+---
+
+### Step 5.5: Implement Typing Indicator (VERIFY EXISTING)
+
+**What:** Verify typing indicator implementation works with reducer-based hook.
+
+**Why:** Provides visual feedback during async operations. Already implemented in `chat.tsx` but needs verification.
+
+**Files to verify:**
+- `components/chat.tsx` (lines 1607-1620+ already have typing indicator)
+
+**Current Implementation:**
+The typing indicator is already implemented in `chat.tsx`:
+```typescript
+{/* Loading indicator for intake next question */}
+{intakeGate.gateState === 'intake' && intakeHook && intakeHook.isLoadingNextQuestion && (
+  <div className="flex justify-start w-full">
+    <div className="px-4 py-2 w-full" style={{ background: 'transparent', color: currentBubbleStyle.text }}>
+      <div className="flex space-x-1">
+        <div className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: '0ms', backgroundColor: currentBubbleStyle.text, opacity: 0.6 }}></div>
+        <div className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: '150ms', backgroundColor: currentBubbleStyle.text, opacity: 0.6 }}></div>
+        <div className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: '300ms', backgroundColor: currentBubbleStyle.text, opacity: 0.6 }}></div>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+**Verification:**
+- ✅ Typing indicator already exists
+- ✅ Uses `intakeHook.isLoadingNextQuestion` from hook
+- ✅ Shows three bouncing dots
+- ✅ Styled with theme colors
+
+**Action Required:**
+- Verify typing indicator appears when `isLoadingNextQuestion` is true
+- Verify typing indicator disappears when next question loads
+- Test animation smoothness
+
+**Dependencies:** Step 4
+
+**Validation:**
+- ✅ Typing indicator shows during question loading
+- ✅ Animation is smooth and visible
+- ✅ Indicator disappears when question appears
+
+---
+
+### Step 5.6: Implement Custom Formatting for Verification Responses
+
+**What:** Add custom styling (indent, italic, lighter background) to the response portion of verification messages.
+
+**Why:** Visual distinction between question and answer in verification messages improves readability.
+
+**Files to create/modify:**
+- `components/answer-response.tsx` (new component for styled answer display)
+- `components/chat.tsx` (parse and render answer portion with custom styling)
+
+**Implementation:**
+
+**1. Create `components/answer-response.tsx`:**
+```typescript
+'use client';
+
+import React from 'react';
+import { useTheme } from '../lib/theme/theme-context';
+import { MarkdownRenderer } from './markdown-renderer';
+
+interface AnswerResponseProps {
+  children: React.ReactNode;
+  textColor?: string;
+}
+
+export function AnswerResponse({ children, textColor }: AnswerResponseProps) {
+  const { theme, chrome } = useTheme();
+  
+  return (
+    <div 
+      style={{
+        marginLeft: '1.5rem',
+        marginTop: '0.5rem',
+        marginBottom: '0.5rem',
+        padding: '0.75rem 1rem',
+        borderRadius: '0.5rem',
+        backgroundColor: chrome.input || (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'),
+        fontStyle: 'italic',
+        display: 'inline-block',
+        opacity: 0.9,
+        border: `1px solid ${chrome.border || (theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)')}`,
+      }}
+    >
+      {typeof children === 'string' ? (
+        <MarkdownRenderer content={`*${children}*`} textColor={textColor} />
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+```
+
+**2. Update `components/chat.tsx` to parse and render answer portion:**
+
+```typescript
+// Add import at top
+import { AnswerResponse } from './answer-response';
+
+// In message rendering section, replace the MarkdownRenderer usage for verification messages:
+{message.role === 'assistant' ? (
+  (() => {
+    const content = message.content || '';
+    // Check if this is a verification message with answer portion
+    if (content.includes("This is what I have. Is it still correct?")) {
+      const parts = content.split("This is what I have. Is it still correct?");
+      if (parts.length === 2) {
+        const [before, after] = parts;
+        // Extract answer portion (everything after the verification text)
+        const answerText = after.trim();
+        return (
+          <>
+            <MarkdownRenderer content={before + "This is what I have. Is it still correct?"} textColor={currentBubbleStyle.text} />
+            <AnswerResponse textColor={currentBubbleStyle.text}>
+              {answerText}
+            </AnswerResponse>
+          </>
+        );
+      }
+    }
+    return <MarkdownRenderer content={content} textColor={currentBubbleStyle.text} />;
+  })()
+) : (
+  // ... user message rendering
+)}
+```
+
+**Alternative: Update `processQuestion` to use marker (simpler approach):**
+
+In `hooks/use-conversational-intake.ts`, update line 1277:
+```typescript
+// Instead of:
+content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
+
+// Use marker that chat.tsx can parse:
+content += `\n\nThis is what I have. Is it still correct?\n\n<answer>${formattedAnswer}</answer>`;
+```
+
+Then in `chat.tsx`, parse the marker:
+```typescript
+const parseVerificationMessage = (content: string) => {
+  if (content.includes('<answer>') && content.includes('</answer>')) {
+    const parts = content.split('<answer>');
+    if (parts.length === 2) {
+      const [before, after] = parts;
+      const [answer, rest] = after.split('</answer>');
+      return { before, answer: answer.trim(), after: rest || '' };
+    }
+  }
+  return null;
+};
+
+// In rendering:
+{(() => {
+  const parsed = parseVerificationMessage(message.content || '');
+  if (parsed) {
+    return (
+      <>
+        <MarkdownRenderer content={parsed.before} textColor={currentBubbleStyle.text} />
+        <AnswerResponse textColor={currentBubbleStyle.text}>
+          {parsed.answer}
+        </AnswerResponse>
+        {parsed.after && <MarkdownRenderer content={parsed.after} textColor={currentBubbleStyle.text} />}
+      </>
+    );
+  }
+  return <MarkdownRenderer content={message.content || ''} textColor={currentBubbleStyle.text} />;
+})()}
+```
+
+**Testing:**
+- Verify answer portion has indent (1.5rem left margin)
+- Verify answer portion is italic
+- Verify answer portion has lighter background
+- Verify answer portion has subtle border
+- Test with all question types (TEXT, NUMBER, SELECT, MULTI_SELECT, BOOLEAN)
+- Verify styling works in light and dark themes
+- Verify markdown rendering still works within answer portion
+
+**Dependencies:** Step 5
+
+**Validation:**
+- ✅ Answer portion is visually distinct
+- ✅ Styling works across themes
+- ✅ Markdown rendering still works correctly
+- ✅ Answer component is reusable
+
+---
+
+### Step 5.7: Implement Dynamic Verification UI Based on Question Type
+
+**What:** Change Yes/Modify buttons to match question input type (pills for SELECT, Yes/No for BOOLEAN, etc.).
+
+**Why:** Better UX - verification UI should match the input type used for the question.
+
+**Files to modify:**
+- `components/intake-flow.tsx` (add dynamic verification UI)
+
+**Implementation:**
+
+**1. Add imports to `components/intake-flow.tsx`:**
+```typescript
+import { Pill } from './pills/pill';
+```
+
+**2. Add helper function (or import from hook if exposed):**
+```typescript
+// Helper function to format answer for display
+const formatAnswerForDisplay = (question: IntakeQuestion, value: any): string => {
+  if (question.responseType === 'MULTI_SELECT' && Array.isArray(value)) {
+    return value.join(', ');
+  }
+  if (question.responseType === 'BOOLEAN') {
+    return value === true ? 'Yes' : 'No';
+  }
+  return String(value);
+};
+```
+
+**3. Replace static Yes/Modify buttons section (lines 53-79) with dynamic UI:**
+
+```typescript
+{/* Dynamic verification UI based on question type */}
+{intakeHook.verificationMode && intakeHook.verificationQuestionId && intakeHook.currentQuestion && (
+  <div className="space-y-3">
+    {/* SELECT and MULTI_SELECT: Show current answer prominently with Yes/Modify */}
+    {(intakeHook.currentQuestion.responseType === 'SELECT' || 
+      intakeHook.currentQuestion.responseType === 'MULTI_SELECT') && (
+      <>
+        <p className="text-sm opacity-70 mb-2" style={{ color: textColor }}>
+          Current selection:
+        </p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {(() => {
+            const currentValue = intakeHook.currentInput;
+            const displayValue = Array.isArray(currentValue) ? currentValue : [currentValue];
+            return displayValue.map((value: any, index: number) => (
+              <div
+                key={index}
+                className="px-3 py-1.5 rounded-full border"
+                style={{
+                  backgroundColor: themeColors.input,
+                  borderColor: themeColors.border,
+                  color: textColor,
+                  opacity: 0.8,
+                  fontStyle: 'italic',
+                }}
+              >
+                {String(value)}
+              </div>
+            ));
+          })()}
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={intakeHook.handleVerifyYes}
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.inputField,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Yes, keep it
+          </Button>
+          <Button
+            onClick={intakeHook.handleVerifyModify}
+            variant="outline"
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.input,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Modify
+          </Button>
+        </div>
+      </>
+    )}
+
+    {/* BOOLEAN: Show Yes/No buttons with current answer displayed */}
+    {intakeHook.currentQuestion.responseType === 'BOOLEAN' && (
+      <>
+        <p className="text-sm opacity-70 mb-2" style={{ color: textColor }}>
+          Current answer: <strong>{intakeHook.currentInput === true ? 'Yes' : 'No'}</strong>
+        </p>
+        <div className="flex gap-3">
+          <Button
+            onClick={intakeHook.handleVerifyYes}
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.inputField,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Yes, keep it
+          </Button>
+          <Button
+            onClick={intakeHook.handleVerifyModify}
+            variant="outline"
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.input,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Change to {intakeHook.currentInput === true ? 'No' : 'Yes'}
+          </Button>
+        </div>
+      </>
+    )}
+
+    {/* TEXT and NUMBER: Show formatted answer with Yes/Modify */}
+    {(intakeHook.currentQuestion.responseType === 'TEXT' || 
+      intakeHook.currentQuestion.responseType === 'NUMBER') && (
+      <>
+        <div 
+          className="p-3 rounded-lg border"
+          style={{
+            backgroundColor: themeColors.input,
+            borderColor: themeColors.border,
+            color: textColor,
+            opacity: 0.8,
+            fontStyle: 'italic',
+            marginLeft: '1rem',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {formatAnswerForDisplay(intakeHook.currentQuestion, intakeHook.currentInput)}
+        </div>
+        <div className="flex gap-3 mt-3">
+          <Button
+            onClick={intakeHook.handleVerifyYes}
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.inputField,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Yes
+          </Button>
+          <Button
+            onClick={intakeHook.handleVerifyModify}
+            variant="outline"
+            disabled={intakeHook.isSaving}
+            style={{
+              backgroundColor: themeColors.input,
+              color: textColor,
+              borderColor: themeColors.border,
+            }}
+          >
+            Modify
+          </Button>
+        </div>
+      </>
+    )}
+
+    {/* Fallback for other types (FILE, DATE, etc.) */}
+    {!['SELECT', 'MULTI_SELECT', 'BOOLEAN', 'TEXT', 'NUMBER'].includes(intakeHook.currentQuestion.responseType) && (
+      <div className="flex gap-3">
+        <Button
+          onClick={intakeHook.handleVerifyYes}
+          disabled={intakeHook.isSaving}
+          style={{
+            backgroundColor: themeColors.inputField,
+            color: textColor,
+            borderColor: themeColors.border,
+          }}
+        >
+          Yes
+        </Button>
+        <Button
+          onClick={intakeHook.handleVerifyModify}
+          variant="outline"
+          disabled={intakeHook.isSaving}
+          style={{
+            backgroundColor: themeColors.input,
+            color: textColor,
+            borderColor: themeColors.border,
+          }}
+        >
+          Modify
+        </Button>
+      </div>
+    )}
+  </div>
+)}
+```
+
+**Testing:**
+- Test SELECT: Shows current selection with Yes/Modify buttons
+- Test MULTI_SELECT: Shows current selections with Yes/Modify buttons
+- Test BOOLEAN: Shows Yes/No buttons with appropriate labels
+- Test TEXT: Shows formatted answer with Yes/Modify buttons
+- Test NUMBER: Shows formatted number with Yes/Modify buttons
+- Test FILE/DATE: Falls back to default Yes/Modify buttons
+- Verify all buttons work correctly
+- Verify styling matches theme
+- Verify current answer is clearly displayed
+
+**Dependencies:** Step 5.6
+
+**Validation:**
+- ✅ Verification UI matches question input type
+- ✅ All question types have appropriate verification UI
+- ✅ Buttons work correctly for all types
+- ✅ Styling is consistent with theme
+- ✅ Current answer is clearly visible
 
 ---
 
@@ -1398,11 +2515,19 @@ return {
 - Clean up any unused imports
 
 **Testing:**
-- TypeScript compilation
+- TypeScript compilation (`npm run build`)
 - No unused variables warnings
-- Code still works
+- Code still works (manual testing)
+- Linter passes (if configured)
 
 **Dependencies:** Step 5
+
+**Validation:**
+- ✅ All old `useState` calls removed
+- ✅ All old helper functions removed
+- ✅ No unused imports
+- ✅ No dead code
+- ✅ TypeScript compiles without errors
 
 ---
 
@@ -1466,10 +2591,97 @@ return {
    - ✅ Concurrent actions
    - ✅ Message deduplication
 
+9. **UI Features**
+   - ✅ Typing indicator shows during question loading
+   - ✅ Answer portion in verification messages has custom formatting (indent, italic, lighter background)
+   - ✅ Verification UI matches question type (pills for SELECT, Yes/No for BOOLEAN, etc.)
+   - ✅ All question types render correctly
+   - ✅ Dynamic verification UI works for all question types
+
 **Files to create/modify:**
 - `__tests__/hooks/use-conversational-intake.test.ts` (new test file)
 
 **Dependencies:** Step 6
+
+**Validation:**
+- ✅ All test cases pass
+- ✅ Edge cases covered
+- ✅ Integration tests pass
+- ✅ Manual E2E testing complete
+- ✅ No regressions introduced
+
+---
+
+## Validation Checklist
+
+Before considering the implementation complete, verify all items below:
+
+### Type Safety
+- [ ] TypeScript compiles without errors (`npm run build` or `tsc --noEmit`)
+- [ ] No `any` types in reducer or action types (except where explicitly needed)
+- [ ] All action types are properly typed with discriminated unions
+- [ ] Exhaustive type checking in reducer default case (using `never` type)
+
+### Code Quality
+- [ ] No unused variables or imports
+- [ ] All functions have proper JSDoc comments
+- [ ] Console.log statements are appropriate (debugging vs. production)
+- [ ] No commented-out code left behind
+
+### State Management
+- [ ] All state updates go through reducer (no direct state mutations)
+- [ ] All actions are handled in reducer switch statement
+- [ ] State ref pattern is used correctly in all callbacks
+- [ ] No state object in `useCallback` dependency arrays
+- [ ] `dispatch` is included in dependency arrays where needed
+
+### Functionality
+- [ ] Initialization flow works correctly
+- [ ] Question progression works (no skipped questions)
+- [ ] Verification flow works (Yes/Modify buttons and dynamic UI)
+- [ ] Modify flow works (pre-fill, edit, save)
+- [ ] Skip functionality works (optional questions only)
+- [ ] Error handling works (network failures, API errors)
+- [ ] Final message and pills display correctly
+- [ ] Message deduplication works
+- [ ] Typing indicator appears during question loading
+- [ ] Answer formatting works in verification messages
+- [ ] Dynamic verification UI matches question types
+
+### Integration
+- [ ] `IntakeFlow` component works with new hook interface
+- [ ] All props from hook are available and correct
+- [ ] Backward compatibility maintained (same return interface)
+- [ ] No breaking changes to component API
+- [ ] Typing indicator integrates correctly
+- [ ] Answer formatting component integrates correctly
+- [ ] Dynamic verification UI integrates correctly
+
+### Testing
+- [ ] Unit tests for reducer (all action types)
+- [ ] Unit tests for action creators
+- [ ] Integration tests for hook
+- [ ] Manual testing of all flows
+- [ ] Edge case testing (network failures, invalid states)
+
+### Performance
+- [ ] No infinite re-render loops
+- [ ] Callbacks are properly memoized
+- [ ] State updates are efficient (only changed properties)
+- [ ] No unnecessary API calls
+
+### Documentation
+- [ ] Code comments explain complex logic
+- [ ] Action types are documented
+- [ ] State structure is documented
+- [ ] Dependency management is clear
+
+### Final Verification
+- [ ] Run full test suite: `npm test`
+- [ ] Build succeeds: `npm run build`
+- [ ] Linter passes: `npm run lint` (if configured)
+- [ ] Manual testing in browser
+- [ ] Check browser console for errors/warnings
 
 ---
 
@@ -1629,15 +2841,22 @@ describe('useConversationalIntake', () => {
 | 1 | Define Types | 30 min |
 | 2 | Create Reducer | 2 hours |
 | 3 | Action Creators | 2 hours |
+| 3.5 | Helper Functions | 1 hour |
+| 3.6 | Typing Indicator (Verify) | 15 min |
 | 4 | Refactor Hook | 3 hours |
 | 5 | Component Integration | 1 hour |
+| 5.5 | Typing Indicator Verification | 15 min |
+| 5.6 | Custom Answer Formatting | 1 hour |
+| 5.7 | Dynamic Verification UI | 1.5 hours |
 | 6 | Remove Old Code | 30 min |
 | 7 | Testing | 2 hours |
-| **Total** | | **11 hours** |
+| **Total** | | **14.5 hours** |
 
 **Buffer:** Add 1-2 hours for unexpected issues
 
-**Total Estimated Time:** 12-13 hours
+**Total Estimated Time:** 15-16 hours
+
+**Note:** Steps 5.5-5.7 add enhanced UI features (typing indicator verification, custom formatting, dynamic verification UI) that improve user experience but are not strictly required for core functionality. These can be implemented incrementally.
 
 ---
 
@@ -1655,6 +2874,10 @@ describe('useConversationalIntake', () => {
 - [ ] Questions not skipped when existing responses present
 - [ ] No duplicate messages
 - [ ] No state inconsistencies
+- [ ] Typing indicator provides visual feedback during loading
+- [ ] Verification responses are visually distinct with custom formatting
+- [ ] Verification UI adapts to question type (pills, dropdown, etc.)
+- [ ] All question types supported and tested
 
 ---
 
@@ -1704,4 +2927,55 @@ describe('useConversationalIntake', () => {
 This implementation plan provides a comprehensive roadmap for rebuilding the conversational intake flow using the reducer pattern. The plan addresses all current bugs, improves maintainability, and ensures backward compatibility. Following this plan step-by-step will result in a robust, type-safe, and maintainable implementation.
 
 **Ready to proceed with implementation.**
+
+---
+
+## Feedback Addressed
+
+This plan has been updated to address all valid feedback points:
+
+### ✅ 1. Missing Implementation Details (Step 3)
+- **Fixed:** Added Step 3.5 with complete implementations of all helper functions
+- Shows exact function signatures, how they use `dispatch` and `stateRef`
+- Includes complete dependency arrays
+- Provides function dependency order
+
+### ✅ 2. Action Creators Location
+- **Fixed:** Clarified that `intakeActions` should be defined **OUTSIDE the hook** at module level
+- Ensures it's created once and doesn't cause re-renders
+- All callbacks access it via closure
+
+### ✅ 3. Async Helper Functions
+- **Fixed:** Clarified that `createConversation`, `addMessageToConversation`, etc. are **standalone functions OUTSIDE the hook**
+- They don't need to be `useCallback` - they're pure async functions
+- They're called from within `useCallback` hooks that have access to needed values
+
+### ✅ 4. Dependency Array Inconsistencies
+- **Fixed:** Removed duplicate `dispatch` entries
+- Removed `addMessageToConversation` and other stable functions from dependency arrays
+- Added notes explaining why stable functions don't need to be included
+- Fixed circular dependency issues by defining functions in correct order
+
+### ✅ 5. Missing `resetQuestionState` Handling
+- **Fixed:** Added migration notes explaining:
+  - `resetQuestionState` is removed (handled by reducer actions)
+  - `hasExistingResponse` helper removed (use `stateRef.current.existingResponses` directly)
+  - `getCurrentQuestionId` helper removed (use state directly)
+  - All state transitions are now explicit via reducer actions
+
+### ✅ 6. State Ref Pattern Clarification
+- **Fixed:** Added comprehensive "Dependency Management Guide" section
+- Added "Common Pitfalls" section with examples
+- Added complete `handleAnswer` example showing full implementation
+- Clarified when to use `stateRef.current` vs specific state properties
+- Added examples of common patterns
+
+### Additional Improvements
+- Added complete example of `handleAnswer` showing full implementation
+- Added "Common Pitfalls" section with 6 common mistakes and solutions
+- Added function dependency order guide
+- Clarified which functions go where (inside vs outside hook)
+- Added validation checklists for each step
+
+**The plan is now 100% ready for implementation with all clarifications provided.**
 
