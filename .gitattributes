@@ -3,3 +3,5 @@
 prisma/migrations/**/*.sql -text -diff -merge
 prisma/migrations/**/*.sql linguist-generated=true
 
+
+

@@ -60,6 +60,7 @@ export function IntakeFlow({
     intakeHook.currentQuestionIndex,
     intakeHook.mode,
     intakeHook.currentInput,
+    intakeHook.verificationQuestionId,
     intakeHook.verificationMode,
     intakeHook.currentQuestion?.id,
   ]);

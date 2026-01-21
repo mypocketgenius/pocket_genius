@@ -167,16 +167,27 @@ export async function GET(
         }))
       : undefined;
 
-    return NextResponse.json({
-      chatbotName: chatbot.title,
-      chatbotPurpose,
-      intakeCompleted,
-      hasQuestions,
-      existingResponses: existingResponses && Object.keys(existingResponses).length > 0
-        ? existingResponses
-        : undefined,
-      questions,
-    });
+    // Set cache headers to prevent caching of intake completion status
+    // This ensures fresh data when responses are deleted or updated
+    return NextResponse.json(
+      {
+        chatbotName: chatbot.title,
+        chatbotPurpose,
+        intakeCompleted,
+        hasQuestions,
+        existingResponses: existingResponses && Object.keys(existingResponses).length > 0
+          ? existingResponses
+          : undefined,
+        questions,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching chatbot welcome data:', error);
     return NextResponse.json(

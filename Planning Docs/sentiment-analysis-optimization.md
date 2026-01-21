@@ -446,9 +446,7 @@ export interface SentimentAnalysis {
     frustration: number;  // 0.0-1.0
   };
   intent: 'question' | 'clarification' | 'followup' | 'gratitude' | 'complaint';
-}
-
-export async function analyzeMessageSentiment(
+}export async function analyzeMessageSentiment(
   userMessage: string,
   botResponse: string
 ): Promise<SentimentAnalysis> {
@@ -658,4 +656,3 @@ For very high-volume chatbots (>1000 messages/day), consider:
 **For Production/Scale**: Use **Approach A** (Filter + Immediate Batch) - maximum efficiency, 93% cost reduction
 
 Both approaches eliminate unnecessary complexity while providing better results at lower cost than the original proposal.
-

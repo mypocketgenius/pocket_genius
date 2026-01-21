@@ -5009,6 +5009,196 @@ If the context doesn't contain relevant information to answer the question, say 
 
 ---
 
+### Side Quest: Intake Flow Rebuild with Reducer Pattern ✅ COMPLETE (Jan 19, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 19, 2026)
+
+**Objective:** Rebuild the conversational intake flow using React's `useReducer` pattern to replace the multi-state implementation. This eliminates state synchronization bugs, improves maintainability, and creates a single source of truth for intake flow state.
+
+**Why:** After the chat component refactoring, the `useConversationalIntake` hook still used multiple `useState` calls that could get out of sync, leading to bugs and difficult debugging. The reducer pattern provides type-safe state transitions, predictable updates, and eliminates race conditions.
+
+**What Was Done:**
+
+1. **Created Comprehensive State Structure:**
+   - ✅ Defined `IntakeState` interface with all state properties (phase, questions, responses, messages, loading states, errors, etc.)
+   - ✅ Defined `IntakePhase` type: `'initializing' | 'welcome' | 'question' | 'verification' | 'modify' | 'saving' | 'final' | 'completed'`
+   - ✅ Defined `IntakeMode` type: `'question' | 'verification' | 'modify'`
+   - ✅ Single state object replaces multiple `useState` calls
+
+2. **Created Action Type System:**
+   - ✅ Defined comprehensive `IntakeAction` union type with 30+ action types
+   - ✅ Actions cover initialization, question flow, user interactions, message management, progression, error handling, and loading states
+   - ✅ Type-safe action dispatching with payload types
+
+3. **Implemented Pure Reducer Function:**
+   - ✅ Created `intakeReducer` function handling all state transitions
+   - ✅ Pure function with no side effects
+   - ✅ Comprehensive logging for debugging
+   - ✅ Handles all edge cases and error states
+
+4. **Refactored Hook to Use Reducer:**
+   - ✅ Replaced multiple `useState` calls with single `useReducer` hook
+   - ✅ Created action creators for type-safe dispatching
+   - ✅ Refactored all handlers to dispatch actions instead of setting state directly
+   - ✅ Maintained backward compatibility with existing return interface
+   - ✅ Added `stateRef` pattern for accessing current state in async operations
+
+5. **Critical Bug Fix During Implementation:**
+   - ✅ Discovered and fixed bug where verification buttons wouldn't appear after modifying questions
+   - ✅ Root cause: `hasPassedIntakePhase.current` was set to `true` prematurely during intake
+   - ✅ Fix: Added check `if (intakeGate.gateState === 'intake') return;` before setting `hasPassedIntakePhase.current`
+   - ✅ Additional improvements: Added `stateVersion` counter, simplified render conditions, added force update fallback
+
+**Key Features:**
+- ✅ **Single source of truth** - One reducer state object replaces multiple useState calls
+- ✅ **Type-safe transitions** - All state changes go through typed actions
+- ✅ **Predictable updates** - Pure reducer function ensures consistent state
+- ✅ **Eliminates race conditions** - Sequential state updates via reducer
+- ✅ **Fixes all bugs** - Resolves state synchronization issues
+- ✅ **Backward compatible** - Same return interface, same prop types, same callbacks
+- ✅ **Better debugging** - Comprehensive logging of all state transitions
+
+**Implementation Details:**
+- **Reducer Pattern:** Single `useReducer` hook manages all intake flow state
+- **Action Creators:** Module-level action creator object for type-safe dispatching
+- **State Ref Pattern:** `useRef` for accessing current state in async callbacks without dependency issues
+- **Dependency Management:** Proper use of `stateRef.current` vs specific state properties in dependency arrays
+- **Error Handling:** Error state in reducer, error actions, retry mechanism
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` - Complete rebuild using reducer pattern (~430 lines, reduced complexity)
+- `components/chat.tsx` - Updated to work with new reducer-based hook (bug fix for `hasPassedIntakePhase`)
+- `components/intake-flow.tsx` - Updated to work with new hook interface (force update mechanism)
+
+**Deliverables:**
+- ✅ Reducer-based intake hook with comprehensive state management
+- ✅ Type-safe action system with 30+ action types
+- ✅ Pure reducer function handling all state transitions
+- ✅ Backward compatible hook interface
+- ✅ Critical bug fix for verification buttons
+- ✅ Improved maintainability and debuggability
+
+**Documentation:**
+- Full implementation details documented in `Planning Docs/01-19_intake-rebuild-implementation-plan.md`
+- Bug fix details documented in `VERIFICATION_BUTTONS_ISSUE.md`
+- All state transitions documented and tested
+
+**Note:** This rebuild significantly improves code quality and maintainability. The reducer pattern makes state transitions explicit and predictable, eliminating the bugs that plagued the multi-state implementation. The critical bug fix during implementation also improved the reliability of the verification flow, ensuring buttons appear correctly after modifying questions.
+
+---
+
+### Side Quest: Verification Buttons Bug Fix ✅ COMPLETE (Jan 19, 2026)
+
+**Status:** ✅ **RESOLVED** (Jan 19, 2026)
+
+**Objective:** Fix critical bug where verification buttons (Yes/Modify) would not appear after modifying and saving a question in the intake flow, even though the hook state was correct.
+
+**Problem:** After modifying question 2 and saving, question 3 would load with an input field but verification buttons wouldn't appear, despite:
+- The question having an existing response
+- The reducer correctly setting `mode: 'verification'` and `currentInput: existingValue`
+- The hook return values showing correct state
+
+**Root Cause Analysis:**
+
+The real issue was **NOT React re-rendering** - it was the render condition in `chat.tsx` preventing the component from rendering:
+
+1. User modifies question 2 and saves
+2. Hook state updates correctly (`mode: 'verification'`, `stateVersion` increments)
+3. Hook return values are correct (logs confirm this)
+4. **BUT: `hasPassedIntakePhase.current` is set to `true`** when user messages exist
+5. The render condition in `chat.tsx` includes `!hasPassedIntakePhase.current`
+6. **When `hasPassedIntakePhase.current` is `true`, `IntakeFlow` doesn't render at all**
+
+**Why It Was Failing:**
+
+The `useEffect` in `chat.tsx` (lines 335-359) was setting `hasPassedIntakePhase.current = true` when user messages existed. However, **during the intake flow, user messages are part of the intake process itself** (when users answer questions). This caused `hasPassedIntakePhase.current` to be set to `true` prematurely, preventing `IntakeFlow` from rendering even though we're still in intake mode.
+
+**The Fix:**
+
+**Primary Fix: Prevent `hasPassedIntakePhase` from being set during intake**
+
+Added a check in the `useEffect` that sets `hasPassedIntakePhase.current`:
+
+```tsx
+// In chat.tsx, lines 335-365
+useEffect(() => {
+  if (hasPassedIntakePhase.current) return;
+  
+  // ✅ CRITICAL FIX: Don't set hasPassedIntakePhase to true while still in intake mode
+  // User messages during intake are part of the intake flow, not regular conversation
+  if (intakeGate.gateState === 'intake') {
+    // Still in intake - don't mark as passed yet
+    return;
+  }
+  
+  // ... rest of logic to check for final intake message
+}, [messages, intakeGate.gateState]);
+```
+
+**Additional Supporting Mechanisms:**
+
+While investigating, we also implemented several supporting mechanisms that improve reliability:
+
+1. **State Version Counter** - Ensures React detects state changes reliably
+   - Added `stateVersion` state that increments when key state values change
+   - Used in `key` prop to force React reconciliation
+   - Included in hook return interface
+
+2. **Simplified Render Condition** - Removed `currentQuestion` check
+   - Allows component to render even when `currentQuestion` is temporarily null
+   - `IntakeFlow` handles null cases internally
+
+3. **Force Update Fallback** - Defensive mechanism in `IntakeFlow`
+   - Added `useEffect` with `forceUpdate` to ensure re-renders
+   - Watches `stateVersion` and key state values
+
+4. **Key Prop with State Version** - React-level guarantee
+   - Uses `stateVersion` in `key` prop: `key={`intake-${intakeHook.stateVersion}-${intakeHook.currentQuestionIndex}-${intakeHook.mode}`}`
+
+**Files Modified:**
+- `components/chat.tsx` - Added check to prevent premature `hasPassedIntakePhase` setting, added `intakeGate.gateState` to dependencies
+- `hooks/use-conversational-intake.ts` - Added `stateVersion` state and increment logic (supporting mechanism)
+- `components/intake-flow.tsx` - Added `forceUpdate` mechanism for defensive re-renders (supporting mechanism)
+
+**Key Benefits:**
+- ✅ **Fixes root cause** - Prevents premature `hasPassedIntakePhase` setting
+- ✅ **Non-breaking** - Only adds a guard check, doesn't change existing logic
+- ✅ **Always reliable** - Works regardless of React re-render timing
+- ✅ **Simple** - Single check solves the problem
+- ✅ **Maintainable** - Clear, easy to understand
+
+**Testing Results:**
+- ✅ Verification buttons appear for question 1 with existing response
+- ✅ Verification buttons appear for question 2 after modifying question 1
+- ✅ Verification buttons appear for question 3 after modifying question 2
+- ✅ Verification buttons disappear when clicking "Modify"
+- ✅ Verification buttons appear again after saving modified answer
+- ✅ Component re-renders reliably after each state change
+- ✅ No console errors or warnings
+- ✅ `stateVersion` increments correctly in hook logs
+- ✅ `key` prop changes when state changes
+- ✅ `hasPassedIntakePhase.current` stays `false` during intake flow
+- ✅ `hasPassedIntakePhase.current` is set to `true` only after intake completes
+
+**Documentation:**
+- Full bug investigation and fix details documented in `VERIFICATION_BUTTONS_ISSUE.md`
+- Root cause analysis with evidence from logs
+- Multiple attempted fixes documented (for learning purposes)
+- Final solution with implementation details
+
+**Key Insight:**
+
+**The fundamental issue was NOT React re-rendering - it was the render condition preventing the component from rendering.**
+
+The `hasPassedIntakePhase.current` ref was being set to `true` when user messages existed, but during intake, user messages are part of the intake flow itself. This caused the render condition `!hasPassedIntakePhase.current` to evaluate to `false`, preventing `IntakeFlow` from rendering even though:
+- Hook state was correct
+- Hook return values were correct
+- React was ready to re-render
+
+**Lesson learned:** When debugging React rendering issues, check ALL conditions in render logic, not just React's re-render detection. A single condition evaluating incorrectly can prevent rendering even when everything else is correct.
+
+---
+
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
 **Objective:** Add required database models and fields for Phase 4 analytics
@@ -6197,6 +6387,9 @@ If critical issues arise in production:
 - [x] Side Quest: Theme Component Refactor ✅ **COMPLETE** (Dec 29, 2024)
 - [x] Side Quest: Suggestion Pills Beneath Edit Context Button ✅ **COMPLETE** (Jan 18, 2026)
 - [x] Side Quest: Conversational Intake Flow ✅ **COMPLETE** (Jan 18, 2026)
+- [x] Side Quest: Chat Component Refactoring ✅ **COMPLETE** (Jan 19, 2026)
+- [x] Side Quest: Intake Flow Rebuild with Reducer Pattern ✅ **COMPLETE** (Jan 19, 2026)
+- [x] Side Quest: Verification Buttons Bug Fix ✅ **COMPLETE** (Jan 19, 2026)
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

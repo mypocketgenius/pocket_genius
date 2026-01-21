@@ -62,3 +62,5 @@ Prisma's checksum system is designed to detect manual edits to migration files, 
 3. **Run the fix script** if checksum errors appear
 4. **Commit the `.gitattributes` file** to prevent git normalization
 
+
+

@@ -323,6 +323,20 @@ export function ChatbotSettingsModal({
                 contexts={contexts}
                 userId={userId!}
                 questionMap={questionMap}
+                onDelete={async () => {
+                  // Refetch contexts after deletion
+                  try {
+                    const response = await fetch(`/api/user-context?chatbotId=${encodeURIComponent(chatbotId)}`);
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.contexts) {
+                        setContexts(data.contexts);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error refetching contexts after deletion:', error);
+                  }
+                }}
               />
             </>
           )}

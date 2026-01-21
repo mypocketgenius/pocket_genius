@@ -49,7 +49,8 @@ export function useIntakeGate(
   const [gateState, setGateState] = useState<'checking' | 'intake' | 'chat'>('checking');
   const [welcomeData, setWelcomeData] = useState<WelcomeData | null>(null);
 
-  // Fetch welcome data when: no conversationId, signed in, auth loaded
+  // Fetch welcome data when: signed in, auth loaded
+  // Check intake completion even when conversationId exists (to handle incomplete intake)
   useEffect(() => {
     console.log('[useIntakeGate] Effect running', {
       conversationId,
@@ -58,23 +59,20 @@ export function useIntakeGate(
       currentGateState: gateState
     });
     
-    // Skip if conversationId exists (already in chat mode)
-    if (conversationId) {
-      console.log('[useIntakeGate] conversationId exists, setting gateState to chat');
-      setGateState('chat');
-      return;
-    }
-
     // Skip if not signed in or auth not loaded
     if (!isSignedIn || !isLoaded) {
       setGateState('chat'); // Will show empty state
       return;
     }
 
-    // Fetch welcome data
+    // Fetch welcome data to check intake completion status
+    // This is needed even when conversationId exists to determine if intake should resume
+    // Add cache-busting timestamp to ensure fresh data (especially after deleting responses)
     const fetchWelcomeData = async () => {
       try {
-        const response = await fetch(`/api/chatbots/${chatbotId}/welcome`);
+        const response = await fetch(`/api/chatbots/${chatbotId}/welcome?t=${Date.now()}`, {
+          cache: 'no-store', // Prevent browser caching
+        });
         if (response.ok) {
           const data = await response.json();
           setWelcomeData(data);
@@ -82,19 +80,33 @@ export function useIntakeGate(
           // Debug logging to help diagnose intake gate issues
           console.log('[useIntakeGate] Welcome data received:', {
             chatbotId,
+            conversationId,
             hasQuestions: data.hasQuestions,
             intakeCompleted: data.intakeCompleted,
             questionsCount: data.questions?.length || 0,
-            gateDecision: data.hasQuestions ? 'intake' : 'chat',
           });
           
-          // Gate logic: show intake if has questions (regardless of completion status)
-          // The intake hook handles verification flow for completed intake (Yes/Modify buttons)
-          // This allows users to review/edit their responses even after completing intake
-          if (data.hasQuestions) {
-            setGateState('intake');
-          } else {
+          // Gate logic:
+          // - If conversationId exists AND intake is completed: skip intake, go to chat
+          // - If conversationId exists BUT intake is NOT completed: show intake (resume)
+          // - If no conversationId AND intake is NOT completed: show intake (new)
+          // - If no conversationId AND intake is completed: skip intake, go to chat
+          // - If no questions: always skip intake
+          
+          if (!data.hasQuestions) {
+            // No questions - always skip intake
+            console.log('[useIntakeGate] No questions, setting gateState to chat');
             setGateState('chat');
+          } else if (data.intakeCompleted) {
+            // Intake completed - skip intake, go to chat
+            // This handles both new chats (after intake completed) and existing chats (intake already done)
+            console.log('[useIntakeGate] Intake completed, setting gateState to chat');
+            setGateState('chat');
+          } else {
+            // Intake not completed - show intake flow
+            // This handles both new chats (start intake) and existing chats (resume intake)
+            console.log('[useIntakeGate] Intake not completed, setting gateState to intake');
+            setGateState('intake');
           }
         } else {
           const errorText = await response.text();

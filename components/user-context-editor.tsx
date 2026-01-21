@@ -4,15 +4,23 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { X } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@/lib/theme/theme-context';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 interface UserContext {
   id: string;
@@ -35,6 +43,7 @@ interface UserContextEditorProps {
   contexts: UserContext[];
   userId: string;
   questionMap: Map<string, IntakeQuestion>;
+  onDelete?: () => void; // Optional callback to refetch contexts after deletion
 }
 
 /**
@@ -50,13 +59,22 @@ interface UserContextEditorProps {
  * - Shows source badge (INTAKE_FORM, USER_PROVIDED, etc.)
  * - Only allows editing if isEditable is true
  */
-export function UserContextEditor({ contexts, userId, questionMap }: UserContextEditorProps) {
+export function UserContextEditor({ contexts, userId, questionMap, onDelete }: UserContextEditorProps) {
   const router = useRouter();
   const theme = useTheme();
+  const [localContexts, setLocalContexts] = useState<UserContext[]>(contexts);
   const [editing, setEditing] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [contextToDelete, setContextToDelete] = useState<UserContext | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
+  // Update local contexts when props change
+  useEffect(() => {
+    setLocalContexts(contexts);
+  }, [contexts]);
 
   // Theme-aware hover colors
   const hoverBgColor = theme.theme === 'light' 
@@ -100,17 +118,32 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
   }
 
   /**
-   * Handles deleting an intake response
+   * Opens the delete confirmation dialog
    */
-  async function handleDelete(context: UserContext) {
-    // Only allow deletion of intake form responses
+  function handleDeleteClick(context: UserContext) {
     if (context.source !== 'INTAKE_FORM') {
       return;
     }
+    setContextToDelete(context);
+    setDeleteConfirmOpen(true);
+  }
 
+  /**
+   * Handles deleting an intake response after confirmation
+   */
+  async function handleDeleteConfirmed() {
+    if (!contextToDelete) return;
+
+    const context = contextToDelete;
     const contextId = context.id;
+    
+    setDeleteConfirmOpen(false);
     setDeleting({ ...deleting, [contextId]: true });
     setErrors({ ...errors, [contextId]: '' });
+    setDeleteSuccess(null);
+
+    // Store previous state in case we need to restore
+    const previousContexts = localContexts;
 
     try {
       const response = await fetch('/api/intake/responses', {
@@ -128,16 +161,35 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
         throw new Error(errorData.error || 'Failed to delete response');
       }
 
-      // Refresh page to show updated values
-      router.refresh();
+      // Optimistically remove from UI
+      setLocalContexts(prev => prev.filter(ctx => ctx.id !== contextId));
+      
+      // Show success message
+      setDeleteSuccess('Response deleted successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setDeleteSuccess(null);
+      }, 3000);
+
+      // Call parent callback if provided (for refetching)
+      if (onDelete) {
+        onDelete();
+      } else {
+        // Refresh page to show updated values (for server-rendered pages)
+        router.refresh();
+      }
     } catch (error) {
       console.error('Error deleting intake response:', error);
+      // Restore previous state if deletion failed
+      setLocalContexts(previousContexts);
       setErrors({
         ...errors,
         [contextId]: error instanceof Error ? error.message : 'Failed to delete',
       });
     } finally {
       setDeleting({ ...deleting, [contextId]: false });
+      setContextToDelete(null);
     }
   }
 
@@ -207,7 +259,7 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
   }
 
   // Group contexts by question (key) instead of chatbot
-  const byQuestion = contexts.reduce((acc, ctx) => {
+  const byQuestion = localContexts.reduce((acc, ctx) => {
     const key = ctx.key;
     if (!acc[key]) acc[key] = [];
     acc[key].push(ctx);
@@ -226,8 +278,74 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
     return a.localeCompare(b);
   });
 
+  // Get question text for the context being deleted
+  const deleteQuestionText = contextToDelete 
+    ? (questionMap.get(contextToDelete.key)?.questionText || contextToDelete.key.replace(/_/g, ' '))
+    : '';
+
   return (
     <div className="space-y-8">
+      {/* Success message */}
+      {deleteSuccess && (
+        <div 
+          className="p-4 rounded-lg border flex items-center gap-2"
+          style={{
+            backgroundColor: theme.theme === 'light' ? '#f0fdf4' : '#14532d',
+            borderColor: theme.theme === 'light' ? '#86efac' : '#22c55e',
+          }}
+        >
+          <CheckCircle2 className="h-5 w-5" style={{ color: theme.theme === 'light' ? '#16a34a' : '#86efac' }} />
+          <p className="text-sm font-medium" style={{ color: theme.theme === 'light' ? '#16a34a' : '#86efac' }}>
+            {deleteSuccess}
+          </p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent style={{ backgroundColor: theme.chrome.header, borderColor: theme.chrome.border }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: theme.textColor }}>
+              Delete Response?
+            </DialogTitle>
+            <DialogDescription style={{ color: theme.textColor, opacity: 0.8 }}>
+              Are you sure you want to delete your response to &quot;{deleteQuestionText}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setContextToDelete(null);
+              }}
+              style={{
+                backgroundColor: theme.chrome.header,
+                color: theme.textColor,
+                borderColor: theme.chrome.border,
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirmed}
+              style={{
+                backgroundColor: '#ef4444',
+                color: 'white',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#ef4444';
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Group by Question */}
       {sortedQuestionKeys.map((key) => {
         const question = questionMap.get(key);
@@ -353,7 +471,7 @@ export function UserContextEditor({ contexts, userId, questionMap }: UserContext
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => handleDelete(ctx)}
+                                  onClick={() => handleDeleteClick(ctx)}
                                   disabled={isDeleting}
                                   style={{
                                     color: '#ef4444',

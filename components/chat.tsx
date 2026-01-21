@@ -27,6 +27,8 @@ import { getCurrentPeriod } from '../lib/theme/config';
 import { MarkdownRenderer } from './markdown-renderer';
 import { FollowUpPills } from './follow-up-pills';
 import { IntakeFlow } from './intake-flow';
+import { DebugLoopViewer } from './debug-loop-viewer';
+import '../lib/debug-helpers'; // Attach debug helpers to window
 
 interface Message {
   id: string;
@@ -206,8 +208,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Load existing messages when conversationId is available
   useEffect(() => {
-    // Guard: Don't load messages during active intake (hook manages messages)
-    if (intakeGate.gateState === 'intake') return;
+    // When resuming intake for an existing conversation, we need to load messages
+    // to show conversation history. The intake hook will manage new messages via onMessageAdded.
+    // Only skip loading if we're in a new intake flow (no conversationId yet).
     if (!conversationId || hasLoadedMessages.current) return;
     // If messages already exist (e.g., from intake completion), skip loading to prevent flicker
     if (messages.length > 0) {
@@ -316,7 +319,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
 
     loadMessages();
-  }, [conversationId, chatbotId, intakeGate.gateState, router]);
+  }, [conversationId, chatbotId, intakeGate.gateState, router, messages.length]);
 
   // Persist conversationId to localStorage when it changes
   useEffect(() => {
@@ -955,6 +958,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Use conversational intake hook (always called, but only active when gate state is 'intake')
   // Must be called before any early returns to satisfy React hooks rules
   // Only pass data when gate state is 'intake' AND welcome data is loaded - prevents premature initialization
+  // Pass existing conversationId when resuming intake for an existing conversation
   const intakeHook = useConversationalIntake(
     chatbotId,
     intakeGate.gateState === 'intake' && intakeGate.welcomeData
@@ -1057,8 +1061,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       localStorage.setItem(`conversationId_${chatbotId}`, convId);
       // Update URL without causing full navigation (preserves state)
       router.replace(`/chat/${chatbotId}?conversationId=${convId}`, { scroll: false });
-    }
-  );
+    },
+  // Pass existing conversationId when resuming intake for an existing conversation
+  intakeGate.gateState === 'intake' ? conversationId : null
+);
 
   // Sync intake hook suggestion pills to component state for persistence
   useEffect(() => {
@@ -1889,6 +1895,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         open={settingsModalOpen}
         onOpenChange={setSettingsModalOpen}
       />
+
+      {/* Debug Loop Viewer - Remove after debugging */}
+      <DebugLoopViewer />
     </div>
   );
 }
