@@ -1,0 +1,5 @@
+# Prevent Git from modifying Prisma migration files
+# Migration checksums are based on exact file content, so any modification breaks them
+prisma/migrations/**/*.sql -text -diff -merge
+prisma/migrations/**/*.sql linguist-generated=true
+

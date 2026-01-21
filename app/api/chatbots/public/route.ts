@@ -52,9 +52,16 @@ import { prisma } from '@/lib/prisma';
  * ```
  */
 export async function GET(req: Request) {
+  const requestStartTime = Date.now();
+  const url = req.url;
+  console.log(`[API:chatbots/public] Request started at ${new Date().toISOString()}, URL: ${url}`);
+  
   try {
     // Check authentication (optional - don't require it)
+    const authStartTime = Date.now();
     const { userId: clerkUserId } = await auth();
+    const authTime = Date.now() - authStartTime;
+    console.log(`[API:chatbots/public] Auth check completed in ${authTime}ms, userId: ${clerkUserId || 'null'}`);
     let dbUserId: string | null = null;
     
     if (clerkUserId) {
@@ -207,6 +214,8 @@ export async function GET(req: Request) {
     }
 
     // Fetch chatbots and total count in parallel
+    const dbQueryStartTime = Date.now();
+    console.log(`[API:chatbots/public] Starting database queries, type: ${type || 'all'}, page: ${page}, pageSize: ${pageSize}`);
     const [chatbots, totalItems] = await Promise.all([
       prisma.chatbot.findMany({
         where,
@@ -219,6 +228,8 @@ export async function GET(req: Request) {
       }),
       prisma.chatbot.count({ where }),
     ]);
+    const dbQueryTime = Date.now() - dbQueryStartTime;
+    console.log(`[API:chatbots/public] Database queries completed in ${dbQueryTime}ms, chatbots: ${chatbots.length}, totalItems: ${totalItems}`);
 
     // Transform response to match spec
     // TypeScript has trouble inferring types from Prisma's conditional include, so we use type assertion
@@ -270,7 +281,9 @@ export async function GET(req: Request) {
 
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalItems / pageSize);
+    const totalTime = Date.now() - requestStartTime;
 
+    console.log(`[API:chatbots/public] Request completed successfully in ${totalTime}ms (db: ${dbQueryTime}ms), returning ${transformedChatbots.length} chatbots`);
     return NextResponse.json({
       chatbots: transformedChatbots,
       pagination: {
@@ -281,7 +294,8 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('Error fetching public chatbots:', error);
+    const totalTime = Date.now() - requestStartTime;
+    console.error(`[API:chatbots/public] Request failed after ${totalTime}ms:`, error);
     return NextResponse.json(
       { error: 'Failed to fetch chatbots' },
       { status: 500 }

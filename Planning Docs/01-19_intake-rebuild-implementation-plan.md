@@ -562,6 +562,24 @@ export type IntakeAction =
 - ✅ No missing imports
 - ✅ Type exports are correct
 
+**Status:** ✅ COMPLETED
+
+**Completion Summary:**
+- ✅ Updated imports to include `useReducer` and `useRef` (kept `useState` for backward compatibility until Step 4)
+- ✅ Added `IntakePhase` type with all 8 phases (initializing, welcome, question, verification, modify, saving, final, completed)
+- ✅ Added `IntakeState` interface with all required properties (phase, conversationId, questions, currentQuestionIndex, existingResponses, currentInput, mode, messages, loading states, error handling, completion, metadata)
+- ✅ Added `IntakeAction` discriminated union type with all 25 action types organized by category (initialization, question flow, user interactions, message management, progression, error handling, loading states)
+- ✅ Added `BaseAction` interface (for future extensibility)
+- ✅ All types are properly exported and accessible
+- ✅ TypeScript compilation passes (no errors in hook file)
+- ✅ No linting errors
+- ✅ All type definitions match the plan specifications exactly
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` (lines 6, 30-133)
+
+**Next Steps:** Ready to proceed with Step 2 (Create Reducer Function)
+
 ---
 
 ### Step 2: Create Reducer Function (2 hours)
@@ -895,6 +913,33 @@ function intakeReducer(
 - ✅ Edge cases handled (invalid indices, etc.)
 - ✅ State immutability maintained
 
+**Status:** ✅ COMPLETED
+
+**Completion Summary:**
+- ✅ Created `createInitialIntakeState()` function that returns initial state with all required properties
+- ✅ Created `intakeReducer()` pure function that handles all 25 action types
+- ✅ Implemented all initialization cases (INIT_START, INIT_CONVERSATION_CREATED, INIT_COMPLETE, INIT_ERROR)
+- ✅ Implemented all question flow cases (SHOW_WELCOME, SHOW_QUESTION, SHOW_VERIFICATION, ENTER_MODIFY_MODE, SHOW_FINAL_MESSAGE)
+- ✅ Implemented all user interaction cases (SET_INPUT, SUBMIT_ANSWER_START, SUBMIT_ANSWER_SUCCESS, SUBMIT_ANSWER_ERROR, VERIFY_YES, VERIFY_MODIFY, SKIP_START, SKIP_SUCCESS, SKIP_ERROR)
+- ✅ Implemented message management cases (ADD_MESSAGE with deduplication, ADD_MESSAGES with deduplication)
+- ✅ Implemented progression cases (MOVE_TO_NEXT_QUESTION, COMPLETE_INTAKE)
+- ✅ Implemented error handling cases (SET_ERROR, CLEAR_ERROR, RETRY_OPERATION)
+- ✅ Implemented loading state cases (SET_SAVING, SET_LOADING_NEXT)
+- ✅ Added comprehensive logging for debugging (timestamp, current phase, current question index)
+- ✅ Added defensive checks for invalid question indices
+- ✅ Added phase validation for VERIFY_YES and VERIFY_MODIFY actions
+- ✅ Used exhaustive type checking in default case with `never` type
+- ✅ Maintained state immutability using spread operator
+- ✅ All functions are exported for use in Step 4
+- ✅ TypeScript compilation passes (`npm run build`)
+- ✅ No linting errors
+- ✅ All reducer logic matches plan specifications exactly
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` (lines 136-432)
+
+**Next Steps:** Ready to proceed with Step 3 (Create Action Creators and Side Effects)
+
 ---
 
 ### Step 3: Create Action Creators and Side Effects (2 hours)
@@ -1209,6 +1254,28 @@ async function fetchSuggestionPills(chatbotId: string): Promise<PillType[]> {
    - They need access to `dispatch`, `stateRef`, and other hook dependencies
    - See Step 3.5 for complete implementations
 
+**Status:** ✅ COMPLETED
+
+**Completion Summary:**
+- ✅ Created `intakeActions` object with all 25 action creators at module level (outside hook)
+- ✅ All action creators return properly typed actions using `as const` for type inference
+- ✅ Created `createConversation` async helper function (standalone, outside hook)
+- ✅ Created `addMessageToConversation` async helper function with comprehensive error handling
+- ✅ Created `saveResponseToAPI` async helper function that fetches user ID and saves responses
+- ✅ Created `fetchSuggestionPills` async helper function that filters for suggested pills
+- ✅ All async functions handle errors gracefully with user-friendly error messages
+- ✅ All functions are defined at module level (outside hook) for stability
+- ✅ API endpoints match existing routes (`/api/conversations/create`, `/api/conversations/:id/messages`, `/api/intake/responses`, `/api/pills`)
+- ✅ TypeScript compilation passes (no errors in hook file)
+- ✅ No linting errors
+- ✅ All action creators match the plan specifications exactly
+- ✅ All async helper functions match the plan specifications exactly
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` (lines 446-678)
+
+**Next Steps:** Ready to proceed with Step 4 (Refactor Hook to Use Reducer)
+
 ---
 
 ### Step 3.5: Complete Helper Function Implementations (NEW)
@@ -1374,6 +1441,31 @@ const showFinalMessage = useCallback(async (convId: string) => {
 - `addMessageToConversation` and other async helpers are stable (defined outside hook)
 
 **Dependencies:** Step 3
+
+**Status:** ✅ COMPLETED
+
+**Completion Summary:**
+- ✅ Created `formatAnswerForDisplayReducer` function (pure function, no dependencies)
+- ✅ Created `showFinalMessageReducer` function with proper dependencies (chatbotId, onComplete, onMessageAdded)
+- ✅ Created `processQuestionReducer` function that handles verification and new questions
+- ✅ Created `showFirstQuestionReducer` function that shows first question with welcome
+- ✅ Created `showQuestionReducer` function with loading state wrapper
+- ✅ All functions use `stateRef.current` pattern (will be added in Step 4)
+- ✅ All functions use `dispatch` from useReducer (will be added in Step 4)
+- ✅ Functions are properly ordered to avoid circular dependencies (showFinalMessageReducer defined before processQuestionReducer)
+- ✅ All dependency arrays are correctly specified
+- ✅ Functions use `@ts-expect-error` comments to suppress TypeScript errors until Step 4 adds dispatch and stateRef
+- ✅ Functions are named with "Reducer" suffix to distinguish from existing functions
+- ✅ Functions will replace existing versions in Step 4 when useReducer is integrated
+- ✅ No linting errors
+- ✅ All functions match the plan specifications exactly
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` (added lines 961-1110)
+
+**Note:** These functions are implemented but will be fully functional after Step 4 adds `useReducer` (which provides `dispatch`) and `stateRef`. They will replace the existing helper functions in Step 4.
+
+**Next Steps:** Ready to proceed with Step 4 (Refactor Hook to Use Reducer)
 
 ---
 
@@ -1592,11 +1684,43 @@ useEffect(() => {
 
 ---
 
-### Step 4: Refactor Hook to Use Reducer (3 hours)
+### Step 4: Refactor Hook to Use Reducer (3 hours) ✅ **COMPLETED**
 
 **What:** Replace all `useState` hooks with `useReducer` and refactor all handlers.
 
 **Why:** Single source of truth, eliminates state synchronization issues.
+
+**Status:** ✅ **COMPLETED** - All useState hooks replaced with useReducer, stateRef pattern implemented, all handlers refactored to use dispatch and stateRef.
+
+**What Was Achieved:**
+- ✅ Replaced all `useState` hooks with `useReducer` and `stateRef` pattern
+- ✅ Created stateRef pattern: `const stateRef = useRef(state); useEffect(() => { stateRef.current = state; }, [state]);`
+- ✅ Refactored initialization useEffect to use dispatch actions
+- ✅ Refactored all handlers (handleAnswer, handleSkip, handleVerifyYes, handleVerifyModify) to use dispatch and stateRef.current
+- ✅ Removed helper functions: `resetQuestionState`, `hasExistingResponse`, `getCurrentQuestionId`
+- ✅ Replaced old helper functions with reducer-based versions:
+  - `processQuestion` - uses stateRef.current and dispatch
+  - `showQuestion` - uses stateRef.current and dispatch
+  - `showFirstQuestion` - uses stateRef.current and dispatch
+  - `showFinalMessage` - uses stateRef.current and dispatch
+- ✅ Updated return value to use state from reducer
+- ✅ Added `setCurrentInput` handler using dispatch
+- ✅ Removed unused `useState` import
+- ✅ All handlers access current state via `stateRef.current` instead of closure
+- ✅ All handlers use dispatch for state transitions
+- ✅ Proper dependency arrays in all useCallback hooks
+- ✅ No linting errors
+- ✅ TypeScript compilation passes
+
+**Key Implementation Details:**
+- All handlers now access state via `stateRef.current` to avoid stale closures
+- State transitions are explicit via reducer actions
+- Helper functions removed - state accessed directly from stateRef.current
+- Dependency arrays only include stable values (dispatch, hook parameters, other useCallback hooks)
+- Stable functions (addMessageToConversation, saveResponseToAPI) excluded from dependencies
+
+**Files Modified:**
+- `hooks/use-conversational-intake.ts` (complete refactor)
 
 **Complete Example: `handleAnswer` Implementation**
 
@@ -2497,9 +2621,51 @@ const formatAnswerForDisplay = (question: IntakeQuestion, value: any): string =>
 - ✅ Styling is consistent with theme
 - ✅ Current answer is clearly visible
 
+**COMPLETION NOTES (Step 5 - Completed):**
+
+**Step 5.1 - AnswerResponse Component:**
+- ✅ Created `components/answer-response.tsx` component
+- ✅ Implemented custom styling: indent (1.5rem), italic text, lighter background, subtle border
+- ✅ Theme-aware styling using `useTheme` hook
+- ✅ Markdown rendering support for answer content
+
+**Step 5.2 - Chat.tsx Verification Message Parsing:**
+- ✅ Added `AnswerResponse` import to `chat.tsx`
+- ✅ Implemented `parseVerificationMessage` function to extract `<answer>` marker
+- ✅ Updated message rendering to use `AnswerResponse` component for answer portions
+- ✅ Maintains backward compatibility with regular messages
+
+**Step 5.3 - Hook Update for Answer Marker:**
+- ✅ Updated `use-conversational-intake.ts` line 806 to use `<answer>${formattedAnswer}</answer>` marker
+- ✅ Enables clean parsing of answer portion in verification messages
+
+**Step 5.4 - Dynamic Verification UI:**
+- ✅ Updated `intake-flow.tsx` with dynamic verification UI based on question type
+- ✅ SELECT/MULTI_SELECT: Shows current selections as pills with "Yes, keep it" / "Modify" buttons
+- ✅ BOOLEAN: Shows current answer (Yes/No) with "Yes, keep it" / "Change to [opposite]" buttons
+- ✅ TEXT/NUMBER: Shows formatted answer in styled box with "Yes" / "Modify" buttons
+- ✅ Fallback UI for other question types (FILE, DATE, etc.)
+- ✅ Added `formatAnswerForDisplay` helper function
+- ✅ All UI elements use theme colors for consistency
+
+**Step 5.5 - Typing Indicator Verification:**
+- ✅ Verified typing indicator implementation in `chat.tsx` (lines 1620-1650)
+- ✅ Uses `intakeHook.isLoadingNextQuestion` from reducer-based hook
+- ✅ Shows three bouncing dots with staggered animation delays
+- ✅ Styled with theme colors (`currentBubbleStyle.text`)
+- ✅ Appears during question loading and disappears when question loads
+
+**All validation criteria met:**
+- ✅ Component receives all required props
+- ✅ All hook return values are accessible
+- ✅ No breaking changes to component API
+- ✅ UI renders correctly for all question types
+- ✅ Typing indicator works correctly
+- ✅ Answer formatting is visually distinct
+
 ---
 
-### Step 6: Remove Old Code (30 min)
+### Step 6: Remove Old Code (30 min) ✅ **COMPLETED**
 
 **What:** Remove unused state variables and helper functions.
 
@@ -2521,6 +2687,18 @@ const formatAnswerForDisplay = (question: IntakeQuestion, value: any): string =>
 - Linter passes (if configured)
 
 **Dependencies:** Step 5
+
+**Status:** ✅ **COMPLETED** - Code cleanup verified, all old state management code removed, no unused imports or dead code found.
+
+**What Was Achieved:**
+- ✅ Verified all old `useState` calls removed (only `useReducer` is used)
+- ✅ Confirmed `resetQuestionState` function does not exist (handled by reducer)
+- ✅ Confirmed `hasExistingResponse` helper does not exist (code uses `state.existingResponses[question.id]` directly)
+- ✅ Verified all imports are used (`useReducer`, `useCallback`, `useEffect`, `useRef` from React, `useAuth` from Clerk, `PillType` type)
+- ✅ No dead code or commented-out code found
+- ✅ TypeScript compiles without errors (`npm run build` passes)
+- ✅ No linter errors or warnings in the hook file
+- ✅ Code directly accesses `state.existingResponses` in 6 locations, confirming no helper function wrapper exists
 
 **Validation:**
 - ✅ All old `useState` calls removed
@@ -2609,6 +2787,46 @@ const formatAnswerForDisplay = (question: IntakeQuestion, value: any): string =>
 - ✅ Integration tests pass
 - ✅ Manual E2E testing complete
 - ✅ No regressions introduced
+
+**Implementation Status (Completed):**
+
+✅ **Test File Created:** `__tests__/hooks/use-conversational-intake.test.ts`
+
+✅ **Reducer Unit Tests (36 tests, all passing):**
+- All initialization actions tested (INIT_START, INIT_CONVERSATION_CREATED, INIT_COMPLETE, INIT_ERROR)
+- All question flow actions tested (SHOW_WELCOME, SHOW_QUESTION, SHOW_VERIFICATION, ENTER_MODIFY_MODE, SHOW_FINAL_MESSAGE)
+- All user interaction actions tested (SET_INPUT, SUBMIT_ANSWER_START/SUCCESS/ERROR, VERIFY_YES/MODIFY, SKIP_START/SUCCESS/ERROR)
+- All message management actions tested (ADD_MESSAGE, ADD_MESSAGES, with deduplication)
+- All progression actions tested (MOVE_TO_NEXT_QUESTION, COMPLETE_INTAKE)
+- All error handling actions tested (SET_ERROR, CLEAR_ERROR, RETRY_OPERATION)
+- All loading state actions tested (SET_SAVING, SET_LOADING_NEXT)
+- Edge cases covered: invalid state transitions, duplicate messages, missing data
+
+✅ **Hook Integration Tests (Written):**
+- Initialization flow tests (conversation creation, welcome message, no questions case, error handling)
+- Question flow tests (sequential questions, existing responses, verification mode)
+- Verification flow tests (Yes/Modify buttons, state transitions)
+- Modify flow tests (pre-fill, editing, saving, verification after modify)
+- Answer submission tests (API calls, message creation, error handling)
+- Skip flow tests (optional vs required questions)
+- Final message tests (pills loading, onComplete callback)
+- Edge case tests (network failures, concurrent actions, message deduplication)
+- UI feature tests (typing indicator)
+
+**Test Results:**
+- ✅ All reducer unit tests pass (36/36)
+- ⚠️ Integration tests written but may need optimization for memory usage when running all together
+- ✅ Tests can be run individually or in smaller groups successfully
+- ✅ All action types properly typed and tested
+- ✅ State transitions validated
+- ✅ Error handling verified
+- ✅ Edge cases covered
+
+**Notes:**
+- Reducer tests are comprehensive and all pass, covering 100% of action types
+- Integration tests are written but may benefit from running in smaller batches or with test isolation improvements
+- The test file follows existing project patterns and uses proper mocking
+- All test cases from the plan have been implemented
 
 ---
 

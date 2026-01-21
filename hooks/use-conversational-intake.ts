@@ -3,7 +3,7 @@
 // hooks/use-conversational-intake.ts
 // Custom hook for managing conversational intake flow state and logic
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { Pill as PillType } from '../components/pills/pill';
 
@@ -49,6 +49,8 @@ export interface UseConversationalIntakeReturn {
   verificationMode: boolean;
   modifyMode: boolean;
   verificationQuestionId: string | null;
+  // State version counter - increments on every state change to ensure React detects updates
+  stateVersion: number;
 }
 
 /**
@@ -77,6 +79,8 @@ export function useConversationalIntake(
   const [showPills, setShowPills] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoadingNextQuestion, setIsLoadingNextQuestion] = useState(false);
+  // State version counter - increments whenever key state changes to ensure React detects updates
+  const [stateVersion, setStateVersion] = useState<number>(0);
 
   // Add message to conversation and notify parent
   const addMessage = useCallback(async (role: 'user' | 'assistant', content: string, convId: string): Promise<IntakeMessage> => {
@@ -245,14 +249,30 @@ export function useConversationalIntake(
     // IMPORTANT: Set current question index FIRST, then reset state, then set mode
     // This ensures verificationQuestionId helper works correctly
     setCurrentQuestionIndex(index);
-    
-    // Reset input and error, but mode will be set based on hasExisting below
     setCurrentInput('');
     setError(null);
 
     if (hasExisting) {
       // Show verification mode - set mode AFTER setting currentQuestionIndex
+      console.log('[processQuestion] Setting verification mode', {
+        index,
+        questionId: question.id,
+        currentQuestionIndex: index,
+      });
       setMode('verification');
+      
+      // Increment state version IMMEDIATELY after setting mode to ensure React detects the change
+      // This happens synchronously before the async addMessage
+      setStateVersion((prev) => {
+        const newVersion = prev + 1;
+        console.log('[processQuestion] Incrementing state version for verification mode', {
+          index,
+          mode: 'verification',
+          from: prev,
+          to: newVersion,
+        });
+        return newVersion;
+      });
       
       // Build message content
       let content = includeWelcome && chatbotName && chatbotPurpose
@@ -265,9 +285,27 @@ export function useConversationalIntake(
       content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
       
       await addMessage('assistant', content, convId);
+      
+      console.log('[processQuestion] Verification mode set, message added', {
+        index,
+        questionId: question.id,
+        mode: 'verification',
+      });
     } else {
       // Show question input mode
       setMode('question');
+      
+      // Increment state version IMMEDIATELY after setting mode
+      setStateVersion((prev) => {
+        const newVersion = prev + 1;
+        console.log('[processQuestion] Incrementing state version for question mode', {
+          index,
+          mode: 'question',
+          from: prev,
+          to: newVersion,
+        });
+        return newVersion;
+      });
       
       // Build message content
       const content = includeWelcome && chatbotName && chatbotPurpose
@@ -633,6 +671,9 @@ export function useConversationalIntake(
     initialize();
   }, [chatbotId, chatbotName, chatbotPurpose, questions, addMessage, showFinalMessage, showFirstQuestion, isInitialized, conversationId]);
 
+  // Note: stateVersion is now incremented directly when state changes in processQuestion
+  // This ensures the version increments synchronously with the state update
+
   const currentQuestion = currentQuestionIndex >= 0 && currentQuestionIndex < questions.length
     ? questions[currentQuestionIndex]
     : null;
@@ -642,6 +683,28 @@ export function useConversationalIntake(
   const modifyMode = mode === 'modify';
   const verificationQuestionId = mode === 'verification' ? getCurrentQuestionId() : null;
 
+  // Debug: Log hook return values when they change
+  useEffect(() => {
+    console.log('[useConversationalIntake] Hook return values', {
+      currentQuestionIndex,
+      mode,
+      verificationMode,
+      verificationQuestionId,
+      currentQuestionId: currentQuestion?.id,
+      stateVersion,
+    });
+  }, [currentQuestionIndex, mode, verificationMode, verificationQuestionId, currentQuestion?.id, stateVersion]);
+
+  // Always return a new object to ensure React detects changes
+  // The stateVersion ensures the object reference changes when state changes
+  // This forces React to detect the change and re-render parent components
+  console.log('[useConversationalIntake] Creating return object', {
+    stateVersion,
+    currentQuestionIndex,
+    mode,
+    verificationMode,
+  });
+  
   return {
     conversationId,
     messages,
@@ -664,6 +727,8 @@ export function useConversationalIntake(
     verificationMode,
     modifyMode,
     verificationQuestionId,
+    // State version counter for reliable re-renders
+    stateVersion,
   };
 }
 

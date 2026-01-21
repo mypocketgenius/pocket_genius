@@ -25,7 +25,12 @@ import { prisma } from '@/lib/prisma';
  * }
  */
 export async function GET() {
+  const requestStartTime = Date.now();
+  console.log(`[API:creators] Request started at ${new Date().toISOString()}`);
+  
   try {
+    const dbQueryStartTime = Date.now();
+    console.log(`[API:creators] Starting database query`);
     const creators = await prisma.creator.findMany({
       where: {
         chatbots: {
@@ -58,6 +63,9 @@ export async function GET() {
       },
     });
 
+    const dbQueryTime = Date.now() - dbQueryStartTime;
+    console.log(`[API:creators] Database query completed in ${dbQueryTime}ms, creators: ${creators.length}`);
+
     // Transform response to include chatbotCount
     const transformedCreators = creators.map(creator => ({
       id: creator.id,
@@ -69,9 +77,12 @@ export async function GET() {
       chatbotCount: creator._count.chatbots,
     }));
 
+    const totalTime = Date.now() - requestStartTime;
+    console.log(`[API:creators] Request completed successfully in ${totalTime}ms (db: ${dbQueryTime}ms), returning ${transformedCreators.length} creators`);
     return NextResponse.json({ creators: transformedCreators });
   } catch (error) {
-    console.error('Error fetching creators:', error);
+    const totalTime = Date.now() - requestStartTime;
+    console.error(`[API:creators] Request failed after ${totalTime}ms:`, error);
     return NextResponse.json(
       { error: 'Failed to fetch creators' },
       { status: 500 }

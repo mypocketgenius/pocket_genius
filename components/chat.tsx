@@ -337,6 +337,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // If already passed, no need to check again
     if (hasPassedIntakePhase.current) return;
     
+    // IMPORTANT: Don't set hasPassedIntakePhase to true while still in intake mode
+    // User messages during intake are part of the intake flow, not regular conversation
+    if (intakeGate.gateState === 'intake') {
+      // Still in intake - don't mark as passed yet
+      return;
+    }
+    
     // Find the final intake message (contains "When our conversation is finished")
     const finalIntakeMessageIndex = messages.findIndex((msg) => 
       msg.role === 'assistant' && 
@@ -344,6 +351,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     );
     
     // If no intake message exists, or there are user messages after intake, we've passed it
+    // Only check this if we're NOT in intake mode (already checked above)
     if (finalIntakeMessageIndex === -1) {
       // No intake message - check if there are any user messages (normal conversation)
       if (messages.some(msg => msg.role === 'user')) {
@@ -356,7 +364,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         hasPassedIntakePhase.current = true;
       }
     }
-  }, [messages]);
+  }, [messages, intakeGate.gateState]);
 
   // Focus input field on mount (after messages are loaded)
   useEffect(() => {
@@ -1787,14 +1795,58 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         )}
         {/* Show intake UI in input area when in intake mode, otherwise show normal input */}
         {/* Only show intake UI if gateState is 'intake' AND we haven't passed the intake phase yet */}
-        {intakeGate.gateState === 'intake' && !hasPassedIntakePhase.current && intakeHook && intakeGate.welcomeData && intakeHook.isInitialized && intakeHook.currentQuestionIndex >= 0 && intakeHook.currentQuestion ? (
-          <IntakeFlow
-            intakeHook={intakeHook}
-            welcomeData={intakeGate.welcomeData}
-            themeColors={{ ...chromeColors, inputField: chromeColors.inputField, text: chromeTextColor }}
-            textColor={chromeTextColor}
-          />
-        ) : (
+        {/* Removed currentQuestion check - let IntakeFlow handle null case internally */}
+        {(() => {
+          const shouldRenderIntake = intakeGate.gateState === 'intake' && 
+            !hasPassedIntakePhase.current && 
+            intakeHook && 
+            intakeGate.welcomeData && 
+            intakeHook.isInitialized && 
+            intakeHook.currentQuestionIndex >= 0;
+          
+          console.log('[Chat] Checking intake render condition', {
+            gateState: intakeGate.gateState,
+            hasPassedIntakePhase: hasPassedIntakePhase.current,
+            intakeHook: !!intakeHook,
+            welcomeData: !!intakeGate.welcomeData,
+            isInitialized: intakeHook?.isInitialized,
+            currentQuestionIndex: intakeHook?.currentQuestionIndex,
+            stateVersion: intakeHook?.stateVersion,
+            mode: intakeHook?.mode,
+            verificationMode: intakeHook?.verificationMode,
+            verificationQuestionId: intakeHook?.verificationQuestionId,
+            shouldRenderIntake,
+          });
+          
+          return shouldRenderIntake ? (
+            (() => {
+              // TypeScript guard: shouldRenderIntake already ensures welcomeData and intakeHook are non-null
+              if (!intakeGate.welcomeData || !intakeHook) {
+                return null;
+              }
+              
+              const intakeKey = `intake-${intakeHook.stateVersion}-${intakeHook.currentQuestionIndex}-${intakeHook.mode}`;
+              console.log('[Chat] Rendering IntakeFlow', {
+                key: intakeKey,
+                stateVersion: intakeHook.stateVersion,
+                currentQuestionIndex: intakeHook.currentQuestionIndex,
+                mode: intakeHook.mode,
+                verificationMode: intakeHook.verificationMode,
+                verificationQuestionId: intakeHook.verificationQuestionId,
+              });
+              return (
+                <IntakeFlow
+                  key={intakeKey}
+                  intakeHook={intakeHook}
+                  welcomeData={intakeGate.welcomeData!}
+                  themeColors={{ ...chromeColors, inputField: chromeColors.inputField, text: chromeTextColor }}
+                  textColor={chromeTextColor}
+                />
+              );
+            })()
+          ) : null;
+        })()}
+        {intakeGate.gateState !== 'intake' || hasPassedIntakePhase.current || !intakeHook || !intakeGate.welcomeData || !intakeHook.isInitialized || intakeHook.currentQuestionIndex < 0 ? (
           <div className="flex gap-2">
             <textarea
               ref={inputRef}
@@ -1828,7 +1880,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               <ArrowUp className="w-5 h-5" />
             </button>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Phase 5: Copy feedback modal (kept per plan decision) */}

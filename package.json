@@ -11,7 +11,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "postinstall": "prisma generate",
-    "test:db-connection": "npx tsx scripts/test-db-connection.ts"
+    "test:db-connection": "npx tsx scripts/test-db-connection.ts",
+    "migrate:dev": "./scripts/migrate-dev.sh",
+    "migrate:fix-checksums": "npx tsx scripts/fix-migration-checksums.ts"
   },
   "prisma": {
     "seed": "npx dotenv-cli -e .env.local -- npx tsx prisma/seed.ts"

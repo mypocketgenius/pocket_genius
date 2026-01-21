@@ -157,6 +157,9 @@ model Chatbot {
   @@index([isActive])
   @@index([type])
   @@index([publicDashboard])
+  // Composite index for homepage queries: filters by isPublic, isActive, and type
+  // This significantly improves performance for /api/chatbots/public queries
+  @@index([isPublic, isActive, type])
 }
 
 // Phase 3.7.1: Category model - For categorizing chatbots

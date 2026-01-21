@@ -4,7 +4,7 @@
 // Extracted intake UI component - handles all intake question rendering, input fields, and verification buttons
 // Separates intake UI logic from chat component
 
-import React from 'react';
+import React, { useEffect, useReducer } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -40,6 +40,41 @@ export function IntakeFlow({
   themeColors,
   textColor,
 }: IntakeFlowProps) {
+  // Force re-render when key state values change
+  // This is a defensive fallback to ensure component always re-renders when state changes
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
+  
+  useEffect(() => {
+    // Force re-render when state version or key state values change
+    console.log('[IntakeFlow] Force update triggered', {
+      stateVersion: intakeHook.stateVersion,
+      currentQuestionIndex: intakeHook.currentQuestionIndex,
+      mode: intakeHook.mode,
+      verificationMode: intakeHook.verificationMode,
+      verificationQuestionId: intakeHook.verificationQuestionId,
+      currentQuestionId: intakeHook.currentQuestion?.id,
+    });
+    forceUpdate();
+  }, [
+    intakeHook.stateVersion, // Primary trigger - increments on every state change
+    intakeHook.currentQuestionIndex,
+    intakeHook.mode,
+    intakeHook.currentInput,
+    intakeHook.verificationMode,
+    intakeHook.currentQuestion?.id,
+  ]);
+
+  // Debug: Log render with current state
+  console.log('[IntakeFlow] Rendering', {
+    stateVersion: intakeHook.stateVersion,
+    currentQuestionIndex: intakeHook.currentQuestionIndex,
+    mode: intakeHook.mode,
+    verificationMode: intakeHook.verificationMode,
+    verificationQuestionId: intakeHook.verificationQuestionId,
+    currentQuestionId: intakeHook.currentQuestion?.id,
+    shouldShowVerification: intakeHook.verificationMode && intakeHook.verificationQuestionId,
+  });
+
   return (
     <div className="space-y-3">
       {/* Question counter */}
