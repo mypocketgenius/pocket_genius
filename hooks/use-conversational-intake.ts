@@ -119,20 +119,10 @@ export function useConversationalIntake(
         createdAt: new Date(data.message.createdAt),
       };
 
-      console.log('[addMessage] Message added to intake hook', {
-        messageId: newMessage.id,
-        role: newMessage.role,
-        contentPreview: newMessage.content.substring(0, 50),
-        conversationId: convId
-      });
-
       // Add to hook's internal messages state (deduplicate by ID)
       setMessages((prev) => {
         // Check if message already exists
         if (prev.some(msg => msg.id === newMessage.id)) {
-          console.warn('[addMessage] Message already exists in hook state, skipping', {
-            messageId: newMessage.id
-          });
           return prev;
         }
         return [...prev, newMessage];
@@ -154,7 +144,6 @@ export function useConversationalIntake(
 
   // Reset question state - consolidates all state resets into one function
   const resetQuestionState = useCallback(() => {
-    console.log('[resetQuestionState] Resetting question state');
     setMode('question');
     setCurrentInput('');
     setError(null);
@@ -208,43 +197,20 @@ export function useConversationalIntake(
 
   // Single function to process a question - handles all question flow logic
   const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
-    console.log('[processQuestion] Processing question', {
-      index,
-      includeWelcome,
-      totalQuestions: questions.length,
-      conversationId: convId
-    });
-
     // Check if we're past the last question
     if (index >= questions.length) {
-      console.log('[processQuestion] Index >= questions.length, showing final message', {
-        index,
-        questionsLength: questions.length
-      });
       await showFinalMessage(convId);
       return;
     }
 
     // Defensive check: ensure question exists at index
     if (!questions[index]) {
-      console.error('[processQuestion] Question not found at index', {
-        index,
-        questionsLength: questions.length,
-        availableIndices: questions.map((_, i) => i)
-      });
+      console.error('[processQuestion] Question not found at index', index);
       throw new Error(`Question not found at index ${index}`);
     }
 
     const question = questions[index];
     const hasExisting = hasExistingResponse(question.id);
-    
-    console.log('[processQuestion] Question details', {
-      index,
-      questionId: question.id,
-      questionText: question.questionText.substring(0, 50),
-      hasExisting,
-      displayOrder: question.displayOrder
-    });
 
     // IMPORTANT: Set current question index FIRST, then reset state, then set mode
     // This ensures verificationQuestionId helper works correctly
@@ -254,25 +220,10 @@ export function useConversationalIntake(
 
     if (hasExisting) {
       // Show verification mode - set mode AFTER setting currentQuestionIndex
-      console.log('[processQuestion] Setting verification mode', {
-        index,
-        questionId: question.id,
-        currentQuestionIndex: index,
-      });
       setMode('verification');
       
       // Increment state version IMMEDIATELY after setting mode to ensure React detects the change
-      // This happens synchronously before the async addMessage
-      setStateVersion((prev) => {
-        const newVersion = prev + 1;
-        console.log('[processQuestion] Incrementing state version for verification mode', {
-          index,
-          mode: 'verification',
-          from: prev,
-          to: newVersion,
-        });
-        return newVersion;
-      });
+      setStateVersion((prev) => prev + 1);
       
       // Build message content
       let content = includeWelcome && chatbotName && chatbotPurpose
@@ -285,27 +236,12 @@ export function useConversationalIntake(
       content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
       
       await addMessage('assistant', content, convId);
-      
-      console.log('[processQuestion] Verification mode set, message added', {
-        index,
-        questionId: question.id,
-        mode: 'verification',
-      });
     } else {
       // Show question input mode
       setMode('question');
       
       // Increment state version IMMEDIATELY after setting mode
-      setStateVersion((prev) => {
-        const newVersion = prev + 1;
-        console.log('[processQuestion] Incrementing state version for question mode', {
-          index,
-          mode: 'question',
-          from: prev,
-          to: newVersion,
-        });
-        return newVersion;
-      });
+      setStateVersion((prev) => prev + 1);
       
       // Build message content
       const content = includeWelcome && chatbotName && chatbotPurpose
@@ -320,9 +256,7 @@ export function useConversationalIntake(
   const showFirstQuestion = useCallback(async (convId: string, chatbotName: string, chatbotPurpose: string) => {
     // Defensive check: ensure questions array has at least one question
     if (!questions || questions.length === 0) {
-      console.error('[showFirstQuestion] No questions available', {
-        questionsLength: questions?.length || 0
-      });
+      console.error('[showFirstQuestion] No questions available');
       throw new Error('No questions available');
     }
 
@@ -381,13 +315,6 @@ export function useConversationalIntake(
     if (isSaving) return;
 
     const question = questions[currentQuestionIndex];
-    console.log('[handleAnswer] Saving answer', {
-      questionId: question.id,
-      questionIndex: currentQuestionIndex,
-      mode,
-      value
-    });
-
     setError(null);
     setIsSaving(true);
 
@@ -423,17 +350,7 @@ export function useConversationalIntake(
 
     const question = questions[currentQuestionIndex];
     
-    console.log('[handleSkip] Called', {
-      questionIndex: currentQuestionIndex,
-      questionId: question.id,
-      isRequired: question.isRequired,
-      mode
-    });
-    
     if (question.isRequired) {
-      console.warn('[handleSkip] Cannot skip required question', {
-        questionId: question.id
-      });
       setError('This question is required and cannot be skipped.');
       return;
     }
@@ -449,16 +366,8 @@ export function useConversationalIntake(
 
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < questions.length) {
-        console.log('[handleSkip] Moving to next question', {
-          nextIndex,
-          nextQuestionId: questions[nextIndex]?.id
-        });
         await showQuestion(nextIndex, conversationId!);
       } else {
-        console.log('[handleSkip] No more questions, showing final message', {
-          nextIndex,
-          questionsLength: questions.length
-        });
         // Immediately clear currentQuestionIndex to prevent input field from showing
         // while transitioning to final message
         setCurrentQuestionIndex(-2);
@@ -477,49 +386,21 @@ export function useConversationalIntake(
     const currentIndex = currentQuestionIndex;
     const currentQuestionId = getCurrentQuestionId();
     
-    // Comprehensive logging
-    console.log('[handleVerifyYes] Called', {
-      currentIndex,
-      currentQuestionId,
-      mode,
-      totalQuestions: questions.length,
-      questionIds: questions.map(q => ({ id: q.id, order: q.displayOrder })),
-      existingResponseIds: Object.keys(existingResponses)
-    });
-    
     // Validate that we're in verification mode and have a valid current index
     if (mode !== 'verification') {
-      console.warn('[handleVerifyYes] Not in verification mode', { mode });
       return;
     }
     
     if (currentIndex < 0 || currentIndex >= questions.length) {
-      console.error('[handleVerifyYes] Invalid currentQuestionIndex:', {
-        currentIndex,
-        questionsLength: questions.length,
-        questionIds: questions.map(q => q.id)
-      });
+      console.error('[handleVerifyYes] Invalid currentQuestionIndex:', currentIndex);
       return;
     }
 
     const question = questions[currentIndex];
     if (!question || question.id !== currentQuestionId) {
-      console.error('[handleVerifyYes] Question mismatch:', {
-        currentIndex,
-        currentQuestionId,
-        questionId: question?.id,
-        questionsLength: questions.length,
-        questionIds: questions.map(q => q.id)
-      });
+      console.error('[handleVerifyYes] Question mismatch:', currentIndex, currentQuestionId);
       return;
     }
-
-    console.log('[handleVerifyYes] Verified question, moving to next', {
-      currentIndex,
-      questionId: question.id,
-      nextIndex: currentIndex + 1,
-      totalQuestions: questions.length
-    });
 
     // Don't reset state here - let processQuestion handle it
     // This ensures mode is set correctly based on next question's existing response
@@ -528,17 +409,8 @@ export function useConversationalIntake(
     
     // Defensive check: ensure we have all questions before proceeding
     if (nextIndex < questions.length) {
-      console.log('[handleVerifyYes] Showing next question', {
-        nextIndex,
-        nextQuestionId: questions[nextIndex]?.id,
-        nextQuestionText: questions[nextIndex]?.questionText?.substring(0, 50)
-      });
       await showQuestion(nextIndex, conversationId!);
     } else {
-      console.log('[handleVerifyYes] No more questions, showing final message', {
-        nextIndex,
-        questionsLength: questions.length
-      });
       // Immediately clear currentQuestionIndex to prevent input field from showing
       // while transitioning to final message
       setCurrentQuestionIndex(-2);
@@ -556,41 +428,24 @@ export function useConversationalIntake(
     const currentIndex = currentQuestionIndex;
     const currentQuestionId = getCurrentQuestionId();
     
-    console.log('[handleVerifyModify] Called', {
-      currentIndex,
-      currentQuestionId,
-      mode
-    });
-    
     // Validate that we're in verification mode
     if (mode !== 'verification') {
-      console.warn('[handleVerifyModify] Not in verification mode', { mode });
       return;
     }
     
     // Validate that we have a valid current index
     if (currentIndex < 0 || currentIndex >= questions.length) {
-      console.error('[handleVerifyModify] Invalid currentQuestionIndex:', currentIndex, 'questions.length:', questions.length);
+      console.error('[handleVerifyModify] Invalid currentQuestionIndex:', currentIndex);
       return;
     }
 
     const question = questions[currentIndex];
     if (!question || question.id !== currentQuestionId) {
-      console.error('[handleVerifyModify] Question mismatch:', {
-        currentIndex,
-        currentQuestionId,
-        questionId: question?.id,
-        questionsLength: questions.length
-      });
+      console.error('[handleVerifyModify] Question mismatch:', currentIndex, currentQuestionId);
       return;
     }
 
     // Switch to modify mode and pre-fill input
-    console.log('[handleVerifyModify] Switching to modify mode', {
-      questionId: question.id,
-      existingValue: existingResponses[question.id]
-    });
-    
     setMode('modify');
     setCurrentInput(existingResponses[question.id]);
     setCurrentQuestionIndex(currentIndex);
@@ -613,18 +468,8 @@ export function useConversationalIntake(
 
     // Guard: Prevent multiple initializations if conversation already exists
     if (conversationId) {
-      console.log('[Intake] Skipping initialization - conversation already exists', {
-        conversationId
-      });
       return;
     }
-
-    console.log('[Intake] Initializing intake flow', {
-      chatbotId,
-      chatbotName,
-      chatbotPurpose,
-      questionsCount: questions.length
-    });
 
     const initialize = async () => {
       try {
@@ -641,27 +486,20 @@ export function useConversationalIntake(
         const convData = await convResponse.json();
         const newConversationId = convData.conversation.id;
         
-        console.log('[Intake] Conversation created', {
-          conversationId: newConversationId
-        });
-        
         setConversationId(newConversationId);
 
         // Defensive check: ensure questions array is still valid
         if (questions.length === 0) {
           // No questions - show welcome + final message
           const welcomeContent = `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.`;
-          console.log('[Intake] Showing welcome + final message (no questions)');
           await addMessage('assistant', welcomeContent, newConversationId);
           await showFinalMessage(newConversationId);
         } else {
           // Show welcome + first question (combined in one message)
-          console.log('[Intake] Showing first question');
           await showFirstQuestion(newConversationId, chatbotName, chatbotPurpose);
         }
 
         setIsInitialized(true);
-        console.log('[Intake] Initialization complete');
       } catch (err) {
         console.error('Error initializing intake flow:', err);
         setError('Failed to initialize intake flow. Please refresh the page.');
@@ -683,28 +521,6 @@ export function useConversationalIntake(
   const modifyMode = mode === 'modify';
   const verificationQuestionId = mode === 'verification' ? getCurrentQuestionId() : null;
 
-  // Debug: Log hook return values when they change
-  useEffect(() => {
-    console.log('[useConversationalIntake] Hook return values', {
-      currentQuestionIndex,
-      mode,
-      verificationMode,
-      verificationQuestionId,
-      currentQuestionId: currentQuestion?.id,
-      stateVersion,
-    });
-  }, [currentQuestionIndex, mode, verificationMode, verificationQuestionId, currentQuestion?.id, stateVersion]);
-
-  // Always return a new object to ensure React detects changes
-  // The stateVersion ensures the object reference changes when state changes
-  // This forces React to detect the change and re-render parent components
-  console.log('[useConversationalIntake] Creating return object', {
-    stateVersion,
-    currentQuestionIndex,
-    mode,
-    verificationMode,
-  });
-  
   return {
     conversationId,
     messages,

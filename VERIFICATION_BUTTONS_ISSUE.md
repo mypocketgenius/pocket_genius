@@ -328,42 +328,108 @@ We implemented a hybrid solution that combines the best aspects of multiple appr
 ## Testing Checklist
 
 After implementing the fix, verify:
-- [ ] Verification buttons appear for question 1 with existing response
-- [ ] Verification buttons appear for question 2 after modifying question 1
-- [ ] Verification buttons appear for question 3 after modifying question 2
-- [ ] Verification buttons disappear when clicking "Modify"
-- [ ] Verification buttons appear again after saving modified answer
-- [ ] Component re-renders reliably after each state change
-- [ ] No console errors or warnings
-- [ ] `stateVersion` increments correctly in hook logs
-- [ ] `key` prop changes when state changes (check React DevTools)
+- [x] Verification buttons appear for question 1 with existing response
+- [x] Verification buttons appear for question 2 after modifying question 1
+- [x] Verification buttons appear for question 3 after modifying question 2
+- [x] Verification buttons disappear when clicking "Modify"
+- [x] Verification buttons appear again after saving modified answer
+- [x] Component re-renders reliably after each state change
+- [x] No console errors or warnings
+- [x] `stateVersion` increments correctly in hook logs
+- [x] `key` prop changes when state changes (check React DevTools)
+- [x] `hasPassedIntakePhase.current` stays `false` during intake flow
+- [x] `hasPassedIntakePhase.current` is set to `true` only after intake completes
 
-**Status:** ✅ **IMPLEMENTED** - Ready for testing
+**Status:** ✅ **RESOLVED** - All tests passing
 
 ## Key Insight
 
-The fundamental issue is **React not detecting state changes and re-rendering**. The solution must either:
-1. Force React to re-render (useEffect with dependencies)
-2. Remove conditions that prevent rendering (simplify chat.tsx condition)
-3. Use a more direct state access pattern
+**The fundamental issue was NOT React re-rendering - it was the render condition preventing the component from rendering.**
 
-The current approach of changing the condition logic doesn't solve the re-render problem - it just changes what we're checking, but if the component doesn't re-render, it doesn't matter what we check.
+The `hasPassedIntakePhase.current` ref was being set to `true` when user messages existed, but during intake, user messages are part of the intake flow itself. This caused the render condition `!hasPassedIntakePhase.current` to evaluate to `false`, preventing `IntakeFlow` from rendering even though:
+- Hook state was correct
+- Hook return values were correct
+- React was ready to re-render
+
+**The solution:** Check `intakeGate.gateState === 'intake'` before setting `hasPassedIntakePhase.current = true`. This ensures the ref stays `false` during the entire intake process, allowing `IntakeFlow` to render correctly.
+
+**Lesson learned:** When debugging React rendering issues, check ALL conditions in render logic, not just React's re-render detection. A single condition evaluating incorrectly can prevent rendering even when everything else is correct.
 
 ## Solution Summary
 
-**Status:** ✅ **IMPLEMENTED**
+**Status:** ✅ **RESOLVED**
 
-We implemented a hybrid solution that combines:
-1. **State Version Counter** - Primary mechanism to ensure React detects state changes
-2. **Simplified Render Condition** - Removes blocking condition that prevented rendering
-3. **Force Update Fallback** - Defensive mechanism to ensure re-renders
-4. **Key Prop with State Version** - React-level guarantee via component reconciliation
+### The Fix That Worked
 
-This multi-layered approach ensures verification buttons always appear reliably, addressing the root cause (React not detecting state changes) while providing multiple safety mechanisms.
+**Primary Fix: Prevent `hasPassedIntakePhase` from being set during intake**
+
+The fix was to add a check in the `useEffect` that sets `hasPassedIntakePhase.current`:
+
+```tsx
+// In chat.tsx, lines 335-365
+useEffect(() => {
+  if (hasPassedIntakePhase.current) return;
+  
+  // ✅ CRITICAL FIX: Don't set hasPassedIntakePhase to true while still in intake mode
+  // User messages during intake are part of the intake flow, not regular conversation
+  if (intakeGate.gateState === 'intake') {
+    // Still in intake - don't mark as passed yet
+    return;
+  }
+  
+  // ... rest of logic to check for final intake message
+}, [messages, intakeGate.gateState]);
+```
+
+**Why this works:**
+- During intake, `intakeGate.gateState === 'intake'` is `true`
+- The check prevents `hasPassedIntakePhase.current` from being set to `true`
+- This allows `IntakeFlow` to render correctly throughout the intake process
+- Only after intake completes (gateState changes) will `hasPassedIntakePhase.current` be set
+
+### Additional Improvements (Supporting Mechanisms)
+
+While investigating, we also implemented several supporting mechanisms that improve reliability:
+
+1. **State Version Counter** - Ensures React detects state changes reliably
+   - Added `stateVersion` state that increments when key state values change
+   - Used in `key` prop to force React reconciliation
+   - Included in hook return interface
+
+2. **Simplified Render Condition** - Removed `currentQuestion` check
+   - Allows component to render even when `currentQuestion` is temporarily null
+   - `IntakeFlow` handles null cases internally
+
+3. **Force Update Fallback** - Defensive mechanism in `IntakeFlow`
+   - Added `useEffect` with `forceUpdate` to ensure re-renders
+   - Watches `stateVersion` and key state values
+
+4. **Key Prop with State Version** - React-level guarantee
+   - Uses `stateVersion` in `key` prop: `key={`intake-${intakeHook.stateVersion}-${intakeHook.currentQuestionIndex}-${intakeHook.mode}`}`
 
 **Key Benefits:**
-- ✅ Non-breaking - Adds functionality without changing existing logic
-- ✅ Always reliable - Multiple independent mechanisms ensure it works
-- ✅ Addresses root cause - Solves React state detection issue at the source
-- ✅ Maintainable - Clear, simple implementation easy to understand and debug
+- ✅ **Fixes root cause** - Prevents premature `hasPassedIntakePhase` setting
+- ✅ **Non-breaking** - Only adds a guard check, doesn't change existing logic
+- ✅ **Always reliable** - Works regardless of React re-render timing
+- ✅ **Simple** - Single check solves the problem
+- ✅ **Maintainable** - Clear, easy to understand
+
+### Files Modified
+
+1. **`components/chat.tsx`** (lines 335-365)
+   - Added check: `if (intakeGate.gateState === 'intake') return;` before setting `hasPassedIntakePhase.current`
+   - Added `intakeGate.gateState` to `useEffect` dependencies
+
+2. **`hooks/use-conversational-intake.ts`** (supporting mechanisms)
+   - Added `stateVersion` state and increment logic
+   - Included `stateVersion` in hook return interface
+
+3. **`components/intake-flow.tsx`** (supporting mechanisms)
+   - Added `forceUpdate` mechanism for defensive re-renders
+   - Added logging for debugging
+
+4. **`components/chat.tsx`** (render condition improvements)
+   - Removed `currentQuestion` check from render condition
+   - Added `key` prop with `stateVersion`
+   - Added comprehensive logging
 

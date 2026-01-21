@@ -175,10 +175,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       return;
     }
     
-    // Guard: Don't clear messages if we have messages and a conversationId (transitioning from intake)
+    // Guard: Don't clear messages if we have messages (e.g., transitioning from intake)
     // This prevents flicker when intake completes and URL updates
-    if (messages.length > 0 && conversationId) {
-      console.log('[Chat] Guard preventing message clear - messages exist with conversationId');
+    // Note: conversationId may be null during transition, but messages should be preserved
+    // Explicit message clearing (e.g., ?new=true) is handled by Priority 2 above
+    if (messages.length > 0) {
+      console.log('[Chat] Guard preventing message clear - messages exist');
       return;
     }
     
@@ -548,7 +550,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 // Update message with pills using assistantMessageId (temporary ID)
                 // The message will be reloaded with real database ID later, but pills are attached now
                 // Pills stored in separate followUpPills field (not in RAG context)
-                console.log('Received follow-up pills:', { messageId, pillsCount: pills.length, assistantMessageId });
                 setMessages((prev) => prev.map((msg) =>
                   msg.id === assistantMessageId
                     ? {
@@ -978,20 +979,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         createdAt: message.createdAt,
       };
       
-      console.log('[Chat] onMessageAdded callback called', {
-        messageId: convertedMessage.id,
-        role: convertedMessage.role,
-        contentPreview: convertedMessage.content?.substring(0, 50),
-        currentMessagesCount: messages.length
-      });
-      
       setMessages((prev) => {
         // Check if message already exists
         if (prev.some(msg => msg.id === convertedMessage.id)) {
-          console.warn('[Chat] Message already exists, skipping duplicate', {
-            messageId: convertedMessage.id,
-            existingMessageIds: prev.map(m => m.id)
-          });
           return prev;
         }
         return [...prev, convertedMessage];
@@ -1001,15 +991,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       // Intake completed - transition to normal chat
       // Update gate state first, then update conversationId and URL
       // This ensures UI transitions immediately
-      console.log('[Chat] Intake completion callback called', {
-        conversationId: convId,
-        currentConversationId: conversationId,
-        gateState: intakeGate.gateState,
-        currentMessagesCount: messages.length
-      });
-      
       intakeGate.onIntakeComplete(convId);
-      console.log('[Chat] After onIntakeComplete, setting conversationId', convId);
       
       // Reload messages from API to ensure consistency and persistence
       // This ensures all intake messages are properly loaded and scrollable
@@ -1031,18 +1013,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           const existingMessageIds = new Set(messages.map(m => m.id));
           const newMessages = loadedMessages.filter(msg => !existingMessageIds.has(msg.id));
           
-          console.log('[Chat] Reloaded messages after intake completion', {
-            loadedCount: loadedMessages.length,
-            existingCount: messages.length,
-            newMessagesCount: newMessages.length,
-            duplicateCount: loadedMessages.length - newMessages.length,
-            intakeMessages: loadedMessages.filter(m => 
-              m.content?.includes("When our conversation is finished") || 
-              m.content?.includes("First, let's personalise")
-            ).length
-          });
-          
           // Only add new messages, don't replace entire array to avoid duplicates
+          // Always sort by createdAt to ensure correct order (especially important for intake flow)
           if (newMessages.length > 0) {
             setMessages((prev) => {
               // Merge and deduplicate by ID
@@ -1050,7 +1022,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               const uniqueMessages = merged.filter((msg, index, self) => 
                 index === self.findIndex(m => m.id === msg.id)
               );
-              return uniqueMessages;
+              // Sort by createdAt to ensure correct order
+              return uniqueMessages.sort((a, b) => {
+                const aTime = a.createdAt?.getTime() || 0;
+                const bTime = b.createdAt?.getTime() || 0;
+                return aTime - bTime;
+              });
             });
           } else {
             // No new messages, but ensure we have all messages from API (in case of ordering issues)
@@ -1068,10 +1045,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               });
             });
           }
-        } else {
-          console.warn('[Chat] Failed to reload messages after intake, using existing messages', {
-            status: response.status
-          });
         }
       } catch (error) {
         console.error('[Chat] Error reloading messages after intake completion', error);
@@ -1275,25 +1248,30 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           </div>
         )}
 
-        {messages.map((message, index) => {
-          // Find the most recent assistant message
-          const mostRecentAssistantMessage = [...messages]
-            .reverse()
-            .find((msg) => msg.role === 'assistant' && msg.content);
-          const isMostRecentAssistant = mostRecentAssistantMessage?.id === message.id;
+        {(() => {
+          // Calculate final intake message index once (used by multiple checks below)
+          const finalIntakeMessageIndex = messages.findIndex((msg) => 
+            msg.role === 'assistant' && 
+            msg.content?.includes("When our conversation is finished")
+          );
           
-          // Check if this is the first user message
-          const isFirstUserMessage = index === 0 && message.role === 'user';
+          return messages.map((message, index) => {
+            // Find the most recent assistant message
+            const mostRecentAssistantMessage = [...messages]
+              .reverse()
+              .find((msg) => msg.role === 'assistant' && msg.content);
+            const isMostRecentAssistant = mostRecentAssistantMessage?.id === message.id;
+            
+            // Check if this is the first user message AFTER intake completion
+            // Don't show pills above user messages that are part of intake flow
+            const isFirstUserMessage = index === 0 && message.role === 'user' && 
+              // Only show initial pills if there's no final intake message (intakeSuggestionPills will handle that case)
+              finalIntakeMessageIndex === -1;
 
-          // Check if this message is part of the intake conversation
-          // Hide copy/save buttons for intake messages and the final intake message with suggestion pills
-          // Show buttons for regular chat messages that come AFTER the final intake message
-          const isIntakeMessage = (() => {
-            // Find the index of the final intake message (contains "When our conversation is finished")
-            const finalIntakeMessageIndex = messages.findIndex((msg) => 
-              msg.role === 'assistant' && 
-              msg.content?.includes("When our conversation is finished")
-            );
+            // Check if this message is part of the intake conversation
+            // Hide copy/save buttons for intake messages and the final intake message with suggestion pills
+            // Show buttons for regular chat messages that come AFTER the final intake message
+            const isIntakeMessage = (() => {
             
             // If no final intake message exists, check if we're in intake mode
             if (finalIntakeMessageIndex === -1) {
@@ -1546,7 +1524,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               </div>
             </div>
           );
-        })}
+          });
+        })()}
 
         {/* Intake UI is now rendered in the input area for seamless experience */}
         {/* Show loading state while hook initializes */}
@@ -1804,20 +1783,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             intakeHook.isInitialized && 
             intakeHook.currentQuestionIndex >= 0;
           
-          console.log('[Chat] Checking intake render condition', {
-            gateState: intakeGate.gateState,
-            hasPassedIntakePhase: hasPassedIntakePhase.current,
-            intakeHook: !!intakeHook,
-            welcomeData: !!intakeGate.welcomeData,
-            isInitialized: intakeHook?.isInitialized,
-            currentQuestionIndex: intakeHook?.currentQuestionIndex,
-            stateVersion: intakeHook?.stateVersion,
-            mode: intakeHook?.mode,
-            verificationMode: intakeHook?.verificationMode,
-            verificationQuestionId: intakeHook?.verificationQuestionId,
-            shouldRenderIntake,
-          });
-          
           return shouldRenderIntake ? (
             (() => {
               // TypeScript guard: shouldRenderIntake already ensures welcomeData and intakeHook are non-null
@@ -1826,14 +1791,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               }
               
               const intakeKey = `intake-${intakeHook.stateVersion}-${intakeHook.currentQuestionIndex}-${intakeHook.mode}`;
-              console.log('[Chat] Rendering IntakeFlow', {
-                key: intakeKey,
-                stateVersion: intakeHook.stateVersion,
-                currentQuestionIndex: intakeHook.currentQuestionIndex,
-                mode: intakeHook.mode,
-                verificationMode: intakeHook.verificationMode,
-                verificationQuestionId: intakeHook.verificationQuestionId,
-              });
               return (
                 <IntakeFlow
                   key={intakeKey}

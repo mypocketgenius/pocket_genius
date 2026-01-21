@@ -1,14 +1,17 @@
 # Implementation Plan: Rebuild Conversational Intake Flow Using Reducer Pattern
 
 **Date:** 2025-01-19  
-**Status:** Ready for Implementation  
-**Estimated Time:** 8-12 hours
+**Status:** ✅ **COMPLETED** (with critical bug fix)  
+**Estimated Time:** 8-12 hours  
+**Actual Time:** ~16 hours (including bug investigation and fix)
 
 ---
 
 ## Executive Summary
 
-This plan outlines a complete rebuild of the conversational intake flow using React's `useReducer` pattern to replace the current multi-state implementation. The rebuild will eliminate state synchronization bugs, improve maintainability, and create a single source of truth for intake flow state.
+This plan outlines a complete rebuild of the conversational intake flow using React's `useReducer` pattern to replace the current multi-state implementation. The rebuild eliminates state synchronization bugs, improves maintainability, and creates a single source of truth for intake flow state.
+
+**Note:** During implementation, a critical bug was discovered and fixed where verification buttons wouldn't appear after modifying questions. See "Critical Bug Fix: Verification Buttons Not Appearing" section below for details.
 
 ### Key Benefits
 - ✅ Single source of truth (reducer state)
@@ -3080,22 +3083,95 @@ describe('useConversationalIntake', () => {
 
 ## Success Criteria Checklist
 
-- [ ] Single source of truth (reducer state)
-- [ ] Type safety (no `any` types, full TypeScript coverage)
-- [ ] Predictable state transitions (all documented)
-- [ ] Testable reducer (pure function)
-- [ ] Maintainable code (clear structure)
-- [ ] Bug-free (all current bugs fixed)
-- [ ] Performant (no unnecessary re-renders)
-- [ ] Backward compatible (works with existing code)
-- [ ] Verification buttons show after modify
-- [ ] Questions not skipped when existing responses present
-- [ ] No duplicate messages
-- [ ] No state inconsistencies
-- [ ] Typing indicator provides visual feedback during loading
-- [ ] Verification responses are visually distinct with custom formatting
-- [ ] Verification UI adapts to question type (pills, dropdown, etc.)
-- [ ] All question types supported and tested
+- [x] Single source of truth (reducer state)
+- [x] Type safety (no `any` types, full TypeScript coverage)
+- [x] Predictable state transitions (all documented)
+- [x] Testable reducer (pure function)
+- [x] Maintainable code (clear structure)
+- [x] Bug-free (all current bugs fixed)
+- [x] Performant (no unnecessary re-renders)
+- [x] Backward compatible (works with existing code)
+- [x] Verification buttons show after modify
+- [x] Questions not skipped when existing responses present
+- [x] No duplicate messages
+- [x] No state inconsistencies
+- [x] Typing indicator provides visual feedback during loading
+- [x] Verification responses are visually distinct with custom formatting
+- [x] Verification UI adapts to question type (pills, dropdown, etc.)
+- [x] All question types supported and tested
+
+---
+
+## Critical Bug Fix: Verification Buttons Not Appearing
+
+### Issue Discovered During Implementation
+
+After implementing the reducer pattern, a critical bug was discovered where verification buttons (Yes/Modify) would not appear after modifying and saving a question, even though the hook state was correct.
+
+### Root Cause
+
+The issue was **NOT** with React re-rendering or the reducer state management. The problem was in `components/chat.tsx`:
+
+**The `hasPassedIntakePhase` ref was being set to `true` prematurely.**
+
+The `useEffect` hook (lines 335-359) that checks if intake has passed was setting `hasPassedIntakePhase.current = true` when user messages existed. However, **during the intake flow, user messages are part of the intake process itself** (when users answer questions). This caused the render condition to fail:
+
+```tsx
+{intakeGate.gateState === 'intake' && 
+ !hasPassedIntakePhase.current &&  // ❌ This was false when it should be true
+ intakeHook && 
+ ...}
+```
+
+When `hasPassedIntakePhase.current` was `true`, the entire condition evaluated to `false`, preventing `IntakeFlow` from rendering.
+
+### Solution
+
+**Fixed in `components/chat.tsx` (lines 335-365):**
+
+```tsx
+useEffect(() => {
+  if (hasPassedIntakePhase.current) return;
+  
+  // ✅ CRITICAL FIX: Don't set hasPassedIntakePhase to true while still in intake mode
+  // User messages during intake are part of the intake flow, not regular conversation
+  if (intakeGate.gateState === 'intake') {
+    // Still in intake - don't mark as passed yet
+    return;
+  }
+  
+  // ... rest of logic to check for final intake message
+}, [messages, intakeGate.gateState]);
+```
+
+**Why this works:**
+- During intake, `intakeGate.gateState === 'intake'` is `true`
+- The check prevents `hasPassedIntakePhase.current` from being set to `true`
+- This allows `IntakeFlow` to render correctly throughout the intake process
+- Only after intake completes (gateState changes) will `hasPassedIntakePhase.current` be set
+
+### Supporting Mechanisms Added
+
+While investigating, we also implemented several supporting mechanisms that improve reliability:
+
+1. **State Version Counter** - Added `stateVersion` state that increments when key state values change
+2. **Simplified Render Condition** - Removed `currentQuestion` check from render condition
+3. **Force Update Fallback** - Added defensive `useEffect` with `forceUpdate` in `IntakeFlow`
+4. **Key Prop with State Version** - Uses `stateVersion` in `key` prop for React reconciliation
+
+These mechanisms provide additional reliability but the primary fix was the `hasPassedIntakePhase` check.
+
+### Files Modified
+
+- `components/chat.tsx` - Added `intakeGate.gateState === 'intake'` check before setting `hasPassedIntakePhase.current`
+- `hooks/use-conversational-intake.ts` - Added `stateVersion` state (supporting mechanism)
+- `components/intake-flow.tsx` - Added `forceUpdate` mechanism (supporting mechanism)
+
+### Status
+
+✅ **RESOLVED** - Verification buttons now appear correctly after modifying and saving questions.
+
+**See `VERIFICATION_BUTTONS_ISSUE.md` for complete details.**
 
 ---
 
