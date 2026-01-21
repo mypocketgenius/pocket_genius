@@ -1471,7 +1471,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 </div>
                 
                 {/* Message actions for user messages */}
-                {message.role === 'user' && message.content && !isLoading && (
+                {/* Hide Branch button for intake messages */}
+                {message.role === 'user' && message.content && !isLoading && !isIntakeMessage && (
                   <div className="space-y-3 mt-1 flex justify-end">
                     <button
                       onClick={handleBranch}
