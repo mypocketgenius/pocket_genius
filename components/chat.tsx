@@ -27,8 +27,6 @@ import { getCurrentPeriod } from '../lib/theme/config';
 import { MarkdownRenderer } from './markdown-renderer';
 import { FollowUpPills } from './follow-up-pills';
 import { IntakeFlow } from './intake-flow';
-import { DebugLoopViewer } from './debug-loop-viewer';
-import '../lib/debug-helpers'; // Attach debug helpers to window
 
 interface Message {
   id: string;
@@ -1895,9 +1893,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         open={settingsModalOpen}
         onOpenChange={setSettingsModalOpen}
       />
-
-      {/* Debug Loop Viewer - Remove after debugging */}
-      <DebugLoopViewer />
     </div>
   );
 }

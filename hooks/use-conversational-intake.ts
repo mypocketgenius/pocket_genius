@@ -56,12 +56,9 @@ export interface UseConversationalIntakeReturn {
 /**
  * Custom hook for managing conversational intake flow
  * Handles conversation creation, message management, and question flow
- * 
+ *
  * @param existingConversationId - Optional existing conversation ID to resume intake for
  */
-// Debug flag - set to true to enable detailed logging
-const DEBUG_INTAKE = false;
-
 export function useConversationalIntake(
   chatbotId: string,
   chatbotName: string,
@@ -97,59 +94,8 @@ export function useConversationalIntake(
   // State version counter - increments whenever key state changes to ensure React detects updates
   const [stateVersion, setStateVersion] = useState<number>(0);
 
-  // Loop detection - track function calls to detect infinite loops
-  const callCounterRef = useRef<Record<string, number>>({});
-  const lastResetRef = useRef<number>(Date.now());
-
-  // Use ref to prevent initialization loop
+  // Use ref to prevent initialization loop (prevent re-entry during async initialization)
   const isInitializingRef = useRef(false);
-
-  const detectLoop = useCallback((functionName: string) => {
-    const now = Date.now();
-
-    // Reset counter every 2 seconds
-    if (now - lastResetRef.current > 2000) {
-      callCounterRef.current = {};
-      lastResetRef.current = now;
-    }
-
-    // Increment counter
-    callCounterRef.current[functionName] = (callCounterRef.current[functionName] || 0) + 1;
-
-    // If function called more than 5 times in 2 seconds, likely a loop
-    if (callCounterRef.current[functionName] > 5) {
-      console.error(`🔴 LOOP DETECTED: ${functionName} called ${callCounterRef.current[functionName]} times in 2 seconds`);
-      console.error('Current state:', {
-        currentQuestionIndex,
-        mode,
-        conversationId,
-        isInitialized,
-        messagesCount: messages.length,
-      });
-
-      // Store in localStorage for later inspection
-      const loopData = {
-        timestamp: new Date().toISOString(),
-        functionName,
-        callCount: callCounterRef.current[functionName],
-        state: {
-          currentQuestionIndex,
-          mode,
-          conversationId,
-          isInitialized,
-          messagesCount: messages.length,
-        },
-      };
-      localStorage.setItem('intake-loop-error', JSON.stringify(loopData));
-
-      // Throw error to stop the loop
-      throw new Error(`Loop detected in ${functionName}`);
-    }
-
-    if (DEBUG_INTAKE) {
-      console.log(`[${functionName}] Call #${callCounterRef.current[functionName]}`);
-    }
-  }, [currentQuestionIndex, mode, conversationId, isInitialized, messages.length]);
 
   // Add message to conversation and notify parent
   const addMessage = useCallback(async (role: 'user' | 'assistant', content: string, convId: string): Promise<IntakeMessage> => {
@@ -266,8 +212,6 @@ export function useConversationalIntake(
 
   // Single function to process a question - handles all question flow logic
   const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
-    detectLoop('processQuestion');
-
     // Check if we're past the last question
     if (index >= questions.length) {
       await showFinalMessage(convId);
@@ -321,7 +265,7 @@ export function useConversationalIntake(
 
       await addMessage('assistant', content, convId);
     }
-  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage, detectLoop]);
+  }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage]);
 
   // Show first question (combined with welcome message)
   const showFirstQuestion = useCallback(async (convId: string, chatbotName: string, chatbotPurpose: string) => {
@@ -336,8 +280,6 @@ export function useConversationalIntake(
 
   // Show question (with verification if needed) - now uses processQuestion
   const showQuestion = useCallback(async (index: number, convId?: string) => {
-    detectLoop('showQuestion');
-
     const activeConversationId = convId || conversationId;
     if (!activeConversationId) {
       throw new Error('Conversation ID is required');
@@ -349,7 +291,7 @@ export function useConversationalIntake(
     } finally {
       setIsLoadingNextQuestion(false);
     }
-  }, [conversationId, processQuestion, detectLoop]);
+  }, [conversationId, processQuestion]);
 
   // Save response to API
   const saveResponse = useCallback(async (questionId: string, value: any) => {
@@ -456,8 +398,6 @@ export function useConversationalIntake(
 
   // Handle verification "Yes" button
   const handleVerifyYes = useCallback(async () => {
-    detectLoop('handleVerifyYes');
-
     const currentIndex = currentQuestionIndex;
     const currentQuestionId = getCurrentQuestionId();
 
@@ -496,7 +436,7 @@ export function useConversationalIntake(
         setIsLoadingNextQuestion(false);
       }
     }
-  }, [currentQuestionIndex, mode, getCurrentQuestionId, questions, showQuestion, showFinalMessage, conversationId, existingResponses, resetQuestionState, detectLoop]);
+  }, [currentQuestionIndex, mode, getCurrentQuestionId, questions, showQuestion, showFinalMessage, conversationId, existingResponses, resetQuestionState]);
 
   // Handle verification "Modify" button
   const handleVerifyModify = useCallback(() => {
