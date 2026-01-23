@@ -225,7 +225,27 @@ Install the `svix` package for webhook signature verification:
 npm install svix
 ```
 
-**Step 1: Create Webhook Endpoint**
+**Step 1: Update Middleware to Exclude Webhook Route**
+
+The webhook route must be excluded from Clerk's authentication middleware since Clerk's servers (not authenticated users) call this endpoint.
+
+Update `middleware.ts`:
+```typescript
+import { clerkMiddleware } from '@clerk/nextjs/server';
+
+export default clerkMiddleware();
+
+export const config = {
+  matcher: [
+    // Skip Next.js internals, static files, and webhook routes
+    '/((?!_next|api/webhooks|[^?]*\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes EXCEPT webhooks
+    '/(api(?!/webhooks)|trpc)(.*)',
+  ],
+};
+```
+
+**Step 2: Create Webhook Endpoint**
 
 Create `app/api/webhooks/clerk/route.ts`:
 ```typescript
@@ -301,6 +321,8 @@ export async function POST(req: Request) {
     }
 
     // Handle user.updated event
+    // Use upsert for robustness: handles cases where update event arrives
+    // before create event, or if webhook was enabled after users existed
     if (evt.type === 'user.updated') {
       const { id: clerkId, email_addresses, first_name, last_name } = evt.data;
 
@@ -313,9 +335,15 @@ export async function POST(req: Request) {
         e => e.id === evt.data.primary_email_address_id
       )?.email_address;
 
-      await prisma.user.update({
+      await prisma.user.upsert({
         where: { clerkId },
-        data: {
+        update: {
+          email: primaryEmail || '',
+          firstName: first_name,
+          lastName: last_name,
+        },
+        create: {
+          clerkId,
           email: primaryEmail || '',
           firstName: first_name,
           lastName: last_name,
@@ -326,6 +354,8 @@ export async function POST(req: Request) {
     }
 
     // Handle user.deleted event
+    // Use deleteMany for idempotency: safe for webhook retries or if user
+    // was never synced to local database (no-op if user doesn't exist)
     if (evt.type === 'user.deleted') {
       const { id: clerkId } = evt.data;
 
@@ -336,11 +366,15 @@ export async function POST(req: Request) {
 
       // Delete user and cascade to related records
       // Note: Prisma cascade rules in schema will handle related data cleanup
-      await prisma.user.delete({
+      const result = await prisma.user.deleteMany({
         where: { clerkId },
       });
 
-      console.log(`✅ User deleted: ${clerkId}`);
+      if (result.count > 0) {
+        console.log(`✅ User deleted: ${clerkId}`);
+      } else {
+        console.log(`ℹ️ User not found (already deleted or never synced): ${clerkId}`);
+      }
     }
 
     return Response.json({ success: true, type: evt.type });
@@ -356,21 +390,21 @@ export async function POST(req: Request) {
 
 **Note:** The User schema does not include an `avatarUrl` field, so avatar images are not synced to the local database. If you need to store avatars, add `avatarUrl String?` to the User model and create a migration first.
 
-**Step 2: Add Environment Variable**
+**Step 3: Add Environment Variable**
 
 Add to `.env.local` and production environment:
 ```
 CLERK_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxx
 ```
 
-**Step 3: Configure Clerk Dashboard**
+**Step 4: Configure Clerk Dashboard**
 
 1. Go to Clerk Dashboard → Webhooks
 2. Create new webhook endpoint: `https://www.mypocketgenius.com/api/webhooks/clerk`
 3. Subscribe to events: `user.created`, `user.updated`, `user.deleted`
 4. Copy the signing secret to your environment variable
 
-**Step 4: Test Webhook Locally**
+**Step 5: Test Webhook Locally**
 
 Before deploying, test the webhook locally:
 
@@ -395,7 +429,7 @@ Before deploying, test the webhook locally:
 
 3. **Verify logs show successful webhook processing**
 
-**Step 5: Backfill Existing Clerk Users**
+**Step 6: Backfill Existing Clerk Users**
 
 Run a one-time script to sync existing Clerk users who don't have local records:
 
@@ -461,7 +495,7 @@ Run the script:
 npx tsx scripts/sync-clerk-users.ts
 ```
 
-**Step 6: Add Monitoring**
+**Step 7: Add Monitoring**
 
 Add monitoring to catch webhook failures:
 
@@ -490,6 +524,7 @@ Follow this sequence to deploy the webhook implementation:
 
 ### Pre-Deployment
 - [ ] Install `svix` dependency: `npm install svix`
+- [ ] Update `middleware.ts` to exclude `/api/webhooks` from Clerk auth
 - [ ] Create webhook endpoint file: `app/api/webhooks/clerk/route.ts`
 - [ ] Create backfill script: `scripts/sync-clerk-users.ts`
 - [ ] Test webhook locally using ngrok or Clerk's test UI
@@ -524,6 +559,13 @@ The Clerk webhook is the correct architectural solution. Clerk is the source of 
 The slightly higher setup cost (env var + dashboard config) is worth it for a clean, reliable, future-proof solution.
 
 ### Implementation Notes
+
+**Idempotency:** The webhook handlers are designed to be idempotent (safe for retries):
+- `user.created` and `user.updated` use `upsert` - safe to call multiple times
+- `user.deleted` uses `deleteMany` - no-op if user doesn't exist
+- Clerk may retry webhooks on network failures, so idempotency is essential
+
+**Race Condition Consideration:** In rare cases, a user may hit an API route before the webhook completes (network latency). If this causes issues in production, consider adding Option 3's helper function (`ensureUser`) as a defensive fallback in critical routes like `/api/conversations/create`. This provides belt-and-suspenders protection while maintaining the webhook as the primary sync mechanism.
 
 **Email Field:** The User schema requires `email: String` (non-optional). The webhook code sets empty string as fallback for users without primary email addresses. If this is unacceptable, consider making email optional in the schema: `email: String?`
 
