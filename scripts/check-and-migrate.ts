@@ -85,6 +85,48 @@ try {
     console.error('='.repeat(70) + '\n');
   }
 
+  // Check for failed migrations (P3009) in the error output
+  const hasFailedMigration =
+    errorMessage.includes('P3009') ||
+    errorOutput.includes('P3009') ||
+    errorMessage.includes('failed migrations') ||
+    errorOutput.includes('failed migrations');
+
+  if (hasFailedMigration) {
+    console.log('⚠️  Found failed migration(s) in database. Attempting to resolve...');
+
+    // Extract failed migration name from error output
+    const failedMatch = (errorMessage + errorOutput).match(/The `([^`]+)` migration.*failed/);
+    if (failedMatch) {
+      const failedMigration = failedMatch[1];
+      console.log(`🔧 Marking migration "${failedMigration}" as rolled back...`);
+      try {
+        execSync(`npx prisma migrate resolve --rolled-back "${failedMigration}"`, {
+          encoding: 'utf-8',
+          stdio: 'inherit',
+        });
+        console.log('✅ Failed migration marked as rolled back.');
+
+        // Now retry migrate deploy
+        console.log('📦 Retrying migrate deploy...');
+        execSync('npx prisma migrate deploy', {
+          encoding: 'utf-8',
+          stdio: 'inherit',
+        });
+        console.log('✅ Migrations applied successfully.');
+        process.exit(0);
+      } catch (resolveError: any) {
+        console.error('❌ Failed to resolve migration:', resolveError.message);
+        process.exit(1);
+      }
+    } else {
+      console.error('❌ Could not extract failed migration name from error.');
+      console.error('   Please manually resolve in Neon SQL Editor:');
+      console.error('   DELETE FROM "_prisma_migrations" WHERE applied_steps_count = 0;');
+      process.exit(1);
+    }
+  }
+
   // If migrate status fails, try running migrate deploy anyway
   // (might be a connection issue, not a migration issue)
   if (errorMessage?.includes('migrate status') && !isConnectionError) {
