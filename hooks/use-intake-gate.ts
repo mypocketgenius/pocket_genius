@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { IntakeQuestion } from './use-conversational-intake';
+import { decideGate } from '@/lib/intake-gate';
 
 /**
  * Welcome data structure returned from /api/chatbots/[chatbotId]/welcome
@@ -17,6 +18,11 @@ export interface WelcomeData {
   hasQuestions: boolean;
   existingResponses?: Record<string, any>;
   questions?: IntakeQuestion[];
+  // Conversation-scoped data from API (for gate decision)
+  conversation?: {
+    intakeCompleted: boolean;
+    hasMessages: boolean;
+  } | null;
 }
 
 /**
@@ -70,7 +76,7 @@ export function useIntakeGate(
     // Add cache-busting timestamp to ensure fresh data (especially after deleting responses)
     const fetchWelcomeData = async () => {
       try {
-        const response = await fetch(`/api/chatbots/${chatbotId}/welcome?t=${Date.now()}`, {
+        const response = await fetch(`/api/chatbots/${chatbotId}/welcome?t=${Date.now()}${conversationId ? `&conversationId=${conversationId}` : ''}`, {
           cache: 'no-store', // Prevent browser caching
         });
         if (response.ok) {
@@ -84,30 +90,21 @@ export function useIntakeGate(
             hasQuestions: data.hasQuestions,
             intakeCompleted: data.intakeCompleted,
             questionsCount: data.questions?.length || 0,
+            conversation: data.conversation,
           });
-          
-          // Gate logic:
-          // - If conversationId exists AND intake is completed: skip intake, go to chat
-          // - If conversationId exists BUT intake is NOT completed: show intake (resume)
-          // - If no conversationId AND intake is NOT completed: show intake (new)
-          // - If no conversationId AND intake is completed: skip intake, go to chat
-          // - If no questions: always skip intake
-          
-          if (!data.hasQuestions) {
-            // No questions - always skip intake
-            console.log('[useIntakeGate] No questions, setting gateState to chat');
-            setGateState('chat');
-          } else if (data.intakeCompleted) {
-            // Intake completed - skip intake, go to chat
-            // This handles both new chats (after intake completed) and existing chats (intake already done)
-            console.log('[useIntakeGate] Intake completed, setting gateState to chat');
-            setGateState('chat');
-          } else {
-            // Intake not completed - show intake flow
-            // This handles both new chats (start intake) and existing chats (resume intake)
-            console.log('[useIntakeGate] Intake not completed, setting gateState to intake');
-            setGateState('intake');
-          }
+
+          // Use pure decision function for gate logic
+          const gateInput = {
+            conversationId,
+            hasMessages: data.conversation?.hasMessages ?? false,
+            intakeCompletedForConversation: data.conversation?.intakeCompleted ?? false,
+            chatbotHasQuestions: data.hasQuestions,
+            userAnsweredAllQuestions: data.intakeCompleted,
+          };
+
+          const decision = decideGate(gateInput);
+          console.log('[useIntakeGate] Gate decision:', decision, 'from input:', gateInput);
+          setGateState(decision);
         } else {
           const errorText = await response.text();
           console.error('[useIntakeGate] Welcome API error:', {

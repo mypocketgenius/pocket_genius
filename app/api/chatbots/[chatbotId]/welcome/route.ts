@@ -64,7 +64,25 @@ export async function GET(
       dbUserId = user?.id || null;
     }
 
-    // 2. Fetch chatbot with relations needed for purpose text generation
+    // 2. Fetch conversation data if conversationId provided
+    const url = new URL(request.url);
+    const conversationId = url.searchParams.get('conversationId');
+    let conversationData: { intakeCompleted: boolean; messageCount: number } | null = null;
+
+    if (conversationId) {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: {
+          intakeCompleted: true,
+          messageCount: true,
+        },
+      });
+      if (conversation) {
+        conversationData = conversation;
+      }
+    }
+
+    // 3. Fetch chatbot with relations needed for purpose text generation
     const chatbot = await prisma.chatbot.findUnique({
       where: { id: chatbotId },
       select: {
@@ -92,7 +110,7 @@ export async function GET(
       );
     }
 
-    // 3. Generate purpose text
+    // 4. Generate purpose text
     const chatbotPurpose = generatePurposeText({
       type: chatbot.type,
       creator: chatbot.creator,
@@ -100,7 +118,7 @@ export async function GET(
       sources: chatbot.sources,
     });
 
-    // 4. Get all intake questions for the chatbot through junction table
+    // 5. Get all intake questions for the chatbot through junction table
     const associations = await prisma.chatbot_Intake_Question.findMany({
       where: { chatbotId },
       include: {
@@ -111,7 +129,7 @@ export async function GET(
 
     const hasQuestions = associations.length > 0;
 
-    // 5. Get existing responses if user is authenticated
+    // 6. Get existing responses if user is authenticated
     let existingResponses: Record<string, any> | undefined = undefined;
     let intakeCompleted = false;
 
@@ -151,7 +169,7 @@ export async function GET(
       intakeCompleted = false;
     }
 
-    // 6. Transform questions for response (always return questions if they exist, even if completed)
+    // 7. Transform questions for response (always return questions if they exist, even if completed)
     // This allows verification flow to show questions when intake is already completed
     const questions = associations.length > 0
       ? associations.map((association) => ({
@@ -179,6 +197,11 @@ export async function GET(
           ? existingResponses
           : undefined,
         questions,
+        // Conversation-scoped data (for gate decision)
+        conversation: conversationData ? {
+          intakeCompleted: conversationData.intakeCompleted,
+          hasMessages: conversationData.messageCount > 0,
+        } : null,
       },
       {
         headers: {

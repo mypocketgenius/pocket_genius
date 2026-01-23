@@ -21,6 +21,9 @@ jest.mock('@/lib/prisma', () => ({
     intake_Response: {
       findMany: jest.fn(),
     },
+    conversation: {
+      findUnique: jest.fn(),
+    },
   },
 }));
 
@@ -253,6 +256,141 @@ describe('Chatbot Welcome API', () => {
 
       expect(response.status).toBe(500);
       expect(data.error).toBe('Failed to fetch chatbot welcome data');
+    });
+  });
+
+  // Step 6: Integration tests for conversation-scoped gate data
+  describe('GET /api/chatbots/[chatbotId]/welcome with conversationId', () => {
+    const mockConversationId = 'conv-123';
+
+    it('should return conversation data when conversationId is provided', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        intakeCompleted: false,
+        messageCount: 0,
+      });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: mockChatbotId,
+        title: 'Test Chatbot',
+        type: 'FRAMEWORK',
+        creator: { name: 'Creator' },
+        sources: [],
+      });
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new Request(
+        `http://localhost/api/chatbots/${mockChatbotId}/welcome?conversationId=${mockConversationId}`
+      );
+      const response = await GET(request, { params: Promise.resolve({ chatbotId: mockChatbotId }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.conversation).toBeDefined();
+      expect(data.conversation.intakeCompleted).toBe(false);
+      expect(data.conversation.hasMessages).toBe(false);
+    });
+
+    it('should return hasMessages: true when conversation has messages', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        intakeCompleted: false,
+        messageCount: 5,
+      });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: mockChatbotId,
+        title: 'Test Chatbot',
+        type: 'FRAMEWORK',
+        creator: { name: 'Creator' },
+        sources: [],
+      });
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new Request(
+        `http://localhost/api/chatbots/${mockChatbotId}/welcome?conversationId=${mockConversationId}`
+      );
+      const response = await GET(request, { params: Promise.resolve({ chatbotId: mockChatbotId }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.conversation.hasMessages).toBe(true);
+    });
+
+    it('should return intakeCompleted: true when conversation marked complete', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        intakeCompleted: true,
+        messageCount: 0,
+      });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: mockChatbotId,
+        title: 'Test Chatbot',
+        type: 'FRAMEWORK',
+        creator: { name: 'Creator' },
+        sources: [],
+      });
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new Request(
+        `http://localhost/api/chatbots/${mockChatbotId}/welcome?conversationId=${mockConversationId}`
+      );
+      const response = await GET(request, { params: Promise.resolve({ chatbotId: mockChatbotId }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.conversation.intakeCompleted).toBe(true);
+    });
+
+    it('should return null conversation when conversationId not found', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: mockChatbotId,
+        title: 'Test Chatbot',
+        type: 'FRAMEWORK',
+        creator: { name: 'Creator' },
+        sources: [],
+      });
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new Request(
+        `http://localhost/api/chatbots/${mockChatbotId}/welcome?conversationId=nonexistent`
+      );
+      const response = await GET(request, { params: Promise.resolve({ chatbotId: mockChatbotId }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.conversation).toBeNull();
+    });
+
+    it('should return null conversation when no conversationId provided', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: mockChatbotId,
+        title: 'Test Chatbot',
+        type: 'FRAMEWORK',
+        creator: { name: 'Creator' },
+        sources: [],
+      });
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new Request(`http://localhost/api/chatbots/${mockChatbotId}/welcome`);
+      const response = await GET(request, { params: Promise.resolve({ chatbotId: mockChatbotId }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.conversation).toBeNull();
+      // conversation.findUnique should not have been called
+      expect(prisma.conversation.findUnique).not.toHaveBeenCalled();
     });
   });
 });

@@ -39,9 +39,29 @@ export function useIntakeGate(
 ): UseIntakeGateReturn
 ```
 
+### WelcomeData Interface Update Required
+```typescript
+// hooks/use-intake-gate.ts - Update WelcomeData interface to include conversation data
+export interface WelcomeData {
+  chatbotName: string;
+  chatbotPurpose: string;
+  intakeCompleted: boolean;
+  hasQuestions: boolean;
+  existingResponses?: Record<string, any>;
+  questions?: IntakeQuestion[];
+  // NEW: Conversation-scoped data from API
+  conversation?: {
+    intakeCompleted: boolean;
+    hasMessages: boolean;
+  } | null;
+}
+```
+
 ---
 
-## Step 1: Database Schema Change
+## Step 1: Database Schema Change ✅ COMPLETED
+
+**Summary:** Added `intakeCompleted` (Boolean, default false) and `intakeCompletedAt` (DateTime, nullable) fields to the Conversation model. Database synced via `prisma db push` and Prisma client regenerated.
 
 ### 1.1 Update Prisma Schema
 
@@ -111,7 +131,9 @@ npx prisma migrate dev --name add_intake_completed_to_conversation
 
 ---
 
-## Step 2: Create Pure Gate Decision Function
+## Step 2: Create Pure Gate Decision Function ✅ COMPLETED
+
+**Summary:** Created `lib/intake-gate/types.ts` with `GateDecision`, `GateInput`, `GateData`, and `IntakeQuestion` types. Created `lib/intake-gate/index.ts` with pure `decideGate()` function implementing the 5-rule decision tree. All 5 unit tests pass.
 
 ### 2.1 Create Types File
 
@@ -279,7 +301,9 @@ describe('decideGate', () => {
 
 ---
 
-## Step 3: Update Welcome API to Include Conversation Data
+## Step 3: Update Welcome API to Include Conversation Data ✅ COMPLETED
+
+**Summary:** Updated welcome API endpoint to accept `conversationId` query parameter and return conversation-scoped data (`intakeCompleted`, `hasMessages`). Updated `WelcomeData` interface in hook to include new `conversation` field. Updated fetch URL to pass `conversationId` when available.
 
 ### 3.1 Modify Welcome Endpoint
 
@@ -348,7 +372,9 @@ const response = await fetch(
 
 ---
 
-## Step 4: Update useIntakeGate to Use Pure Function
+## Step 4: Update useIntakeGate to Use Pure Function ✅ COMPLETED
+
+**Summary:** Refactored `useIntakeGate` hook to import and use the pure `decideGate()` function from `@/lib/intake-gate`. Replaced inline gate logic with a call to `decideGate()` using proper `GateInput` object. Added logging of conversation data. All 5 `decideGate` unit tests pass, ESLint passes, and Next.js build succeeds.
 
 ### 4.1 Refactor Hook Implementation
 
@@ -426,77 +452,31 @@ const fetchWelcomeData = useCallback(async () => {
 
 ---
 
-## Step 5: Mark Conversation Complete on Intake Finish
+## Step 5: Mark Conversation Complete on Intake Finish ✅ COMPLETED
 
-### 5.1 Create PATCH Endpoint for Conversation
+**Summary:** Created PATCH endpoint at `app/api/conversations/[conversationId]/route.ts` to update `intakeCompleted` field. Updated `showFinalMessage` in `hooks/use-conversational-intake.ts` to call the PATCH endpoint when intake finishes. Next.js build succeeds with new endpoint included.
 
-**File:** `app/api/conversations/[conversationId]/route.ts`
+### 5.1 Create PATCH Endpoint for Conversation ✅
 
-**Add PATCH handler (or create file if it doesn't exist):**
+**File:** `app/api/conversations/[conversationId]/route.ts` (CREATED)
 
-```typescript
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import prisma from '@/lib/prisma';
+The endpoint:
+- Accepts PATCH requests with `{ intakeCompleted: boolean }` body
+- Uses async params pattern (`Promise<{ conversationId: string }>`) per Next.js 15
+- Validates conversation exists and user has access (owns it or it's anonymous)
+- Sets `intakeCompletedAt` timestamp when `intakeCompleted` is true
+- Returns updated conversation data
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { conversationId: string } }
-) {
-  try {
-    const { userId } = await auth();
-    const { conversationId } = params;
-    const body = await request.json();
-
-    // Validate conversation exists and belongs to user
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: { userId: true },
-    });
-
-    if (!conversation) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
-    }
-
-    // Allow update if user owns conversation or conversation is anonymous
-    if (conversation.userId && conversation.userId !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    // Only allow updating intakeCompleted
-    const updateData: { intakeCompleted?: boolean; intakeCompletedAt?: Date } = {};
-
-    if (typeof body.intakeCompleted === 'boolean') {
-      updateData.intakeCompleted = body.intakeCompleted;
-      if (body.intakeCompleted) {
-        updateData.intakeCompletedAt = new Date();
-      }
-    }
-
-    const updated = await prisma.conversation.update({
-      where: { id: conversationId },
-      data: updateData,
-    });
-
-    return NextResponse.json({ conversation: updated });
-  } catch (error) {
-    console.error('[PATCH conversation] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-```
-
-### 5.2 Call PATCH on Intake Completion
+### 5.2 Call PATCH on Intake Completion ✅
 
 **File:** `hooks/use-conversational-intake.ts`
-**Location:** Lines 187-211 (`showFinalMessage` function)
+**Function:** `showFinalMessage` (lines 186-222)
 
-**Add after the final message is shown (around line 200):**
-
+Updated to call PATCH endpoint after setting `currentQuestionIndex(-2)`:
 ```typescript
-// Mark conversation as intake complete
-if (conversationIdRef.current) {
-  fetch(`/api/conversations/${conversationIdRef.current}`, {
+// Mark conversation as intake complete in database
+if (convId) {
+  fetch(`/api/conversations/${convId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ intakeCompleted: true }),
@@ -506,72 +486,42 @@ if (conversationIdRef.current) {
 }
 ```
 
-**Full updated showFinalMessage:**
-
-```typescript
-const showFinalMessage = useCallback(async () => {
-  const finalText = "When our conversation is finished, leave me a rating and feedback using the thumbs up or thumbs down. This helps me improve!";
-
-  const finalMessage: IntakeMessage = {
-    id: `final-${Date.now()}`,
-    role: 'assistant',
-    content: finalText,
-    timestamp: new Date(),
-    isIntakeMessage: true,
-    isFinalIntakeMessage: true,
-  };
-
-  addMessage(finalMessage);
-  setCurrentQuestionIndex(-2); // Special marker for "intake complete"
-
-  // Mark conversation as intake complete in database
-  if (conversationIdRef.current) {
-    fetch(`/api/conversations/${conversationIdRef.current}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ intakeCompleted: true }),
-    }).catch(err => {
-      console.error('[useConversationalIntake] Failed to mark intake complete:', err);
-    });
-  }
-
-  // Fetch suggestion pills
-  try {
-    const pillsResponse = await fetch(`/api/pills?chatbotId=${chatbotId}`);
-    if (pillsResponse.ok) {
-      const pillsData = await pillsResponse.json();
-      setSuggestionPills(pillsData.pills || []);
-    }
-  } catch (err) {
-    console.error('[useConversationalIntake] Failed to fetch pills:', err);
-  }
-
-  // Trigger completion callback after delay
-  setTimeout(() => {
-    if (conversationIdRef.current) {
-      onComplete(conversationIdRef.current);
-    }
-  }, 1000);
-}, [chatbotId, addMessage, onComplete]);
-```
+**Verification:**
+- ✅ All 5 `decideGate` unit tests pass
+- ✅ Next.js build succeeds
+- ✅ New endpoint `/api/conversations/[conversationId]` visible in build output
 
 ---
 
-## Step 6: Verification Checklist
+## Step 6: Verification Checklist ✅ COMPLETED
+
+**Summary:** Created comprehensive unit tests for `decideGate()` function (23 tests across 2 files) and integration tests for welcome API conversation data (5 tests) and conversation PATCH endpoint (7 tests). All 44 tests pass.
 
 ### Unit Tests
-- [ ] `decideGate()` returns 'chat' when `intakeCompletedForConversation` is true
-- [ ] `decideGate()` returns 'chat' when conversation has messages
-- [ ] `decideGate()` returns 'chat' when chatbot has no questions
-- [ ] `decideGate()` returns 'intake' when user hasn't answered all questions
-- [ ] `decideGate()` returns 'chat' when user has answered all questions
+- [x] `decideGate()` returns 'chat' when `intakeCompletedForConversation` is true
+- [x] `decideGate()` returns 'chat' when conversation has messages
+- [x] `decideGate()` returns 'chat' when chatbot has no questions
+- [x] `decideGate()` returns 'intake' when user hasn't answered all questions
+- [x] `decideGate()` returns 'chat' when user has answered all questions
 
-### Integration Tests
-- [ ] New conversation → shows intake if questions exist
-- [ ] New conversation → skips intake if no questions
-- [ ] Click existing conversation with messages → shows chat (not intake)
-- [ ] Complete intake → clicking same conversation shows chat
-- [ ] Complete intake → new conversation shows chat (user already completed)
+### Integration Tests ✅
+- [x] New conversation → shows intake if questions exist
+- [x] New conversation → skips intake if no questions
+- [x] Click existing conversation with messages → shows chat (not intake)
+- [x] Complete intake → clicking same conversation shows chat
+- [x] Complete intake → new conversation shows chat (user already completed)
+
+### Test Files Created/Updated
+| File | Tests | Description |
+|------|-------|-------------|
+| `__tests__/lib/intake-gate/index.test.ts` | 18 | Comprehensive unit tests for `decideGate()` with edge cases and priority order |
+| `lib/intake-gate/__tests__/index.test.ts` | 5 | Basic unit tests (from Step 2) |
+| `__tests__/api/chatbots/[chatbotId]/welcome/route.test.ts` | +5 | Added conversation data integration tests |
+| `__tests__/api/conversations/[conversationId]/route.test.ts` | 7 | New PATCH endpoint integration tests |
+
+### Verification
+- ✅ All 44 tests pass
+- ✅ `npm test -- --testPathPattern="intake-gate|conversations/\[conversationId\]/route|welcome/route"` succeeds
 
 ### Manual Testing Flow
 1. Delete all conversations (fresh start)
@@ -610,11 +560,16 @@ Once verified working, these can be simplified:
 | 1 | `prisma/schema.prisma` | Add `intakeCompleted`, `intakeCompletedAt` to Conversation |
 | 2 | `lib/intake-gate/types.ts` | Create new file with types |
 | 2 | `lib/intake-gate/index.ts` | Create new file with `decideGate()` function |
+| 2 | `lib/intake-gate/__tests__/index.test.ts` | Create basic unit tests (5 tests) |
 | 3 | `app/api/chatbots/[chatbotId]/welcome/route.ts` | Add conversation data to response |
-| 4 | `hooks/use-intake-gate.ts` | Use `decideGate()` for decision logic |
-| 5 | `app/api/conversations/[conversationId]/route.ts` | Add PATCH endpoint |
-| 5 | `hooks/use-conversational-intake.ts` | Mark conversation complete on finish |
+| 4 | `hooks/use-intake-gate.ts` | Update `WelcomeData` interface, use `decideGate()` for decision logic |
+| 5 | `app/api/conversations/[conversationId]/route.ts` | Add PATCH endpoint (create new file) |
+| 5 | `hooks/use-conversational-intake.ts` | Mark conversation complete on finish (uses `convId` param) |
+| 6 | `__tests__/lib/intake-gate/index.test.ts` | Create comprehensive unit tests (18 tests) |
+| 6 | `__tests__/api/chatbots/[chatbotId]/welcome/route.test.ts` | Add conversation data integration tests (+5 tests) |
+| 6 | `__tests__/api/conversations/[conversationId]/route.test.ts` | Create PATCH endpoint integration tests (7 tests) |
 
-**Total files modified:** 4
-**Total files created:** 3
+**Total files modified:** 5
+**Total files created:** 5
+**Total tests added:** 35
 **Database migration:** Yes (add 2 fields to Conversation)

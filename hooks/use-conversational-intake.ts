@@ -187,9 +187,21 @@ export function useConversationalIntake(
   const showFinalMessage = useCallback(async (convId: string) => {
     const finalMessage = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
     await addMessage('assistant', finalMessage, convId);
-    
-    setCurrentQuestionIndex(-2);
-    
+
+    setCurrentQuestionIndex(-2); // Special marker for "intake complete"
+
+    // Mark conversation as intake complete in database
+    if (convId) {
+      fetch(`/api/conversations/${convId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intakeCompleted: true }),
+      }).catch(err => {
+        console.error('[useConversationalIntake] Failed to mark intake complete:', err);
+      });
+    }
+
+    // Fetch suggestion pills
     try {
       const pillsResponse = await fetch(`/api/pills?chatbotId=${chatbotId}`);
       if (pillsResponse.ok) {
@@ -197,13 +209,13 @@ export function useConversationalIntake(
         const suggestedPills = pills.filter((p: PillType) => p.pillType === 'suggested');
         setSuggestionPills(suggestedPills);
         setShowPills(true);
-        
+
         setTimeout(() => {
           onComplete(convId);
         }, 1000);
       }
     } catch (err) {
-      console.error('Error loading suggestion pills:', err);
+      console.error('[useConversationalIntake] Failed to fetch pills:', err);
       setTimeout(() => {
         onComplete(convId);
       }, 500);

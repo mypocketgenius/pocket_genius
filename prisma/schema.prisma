@@ -257,6 +257,8 @@ model Conversation {
   user             User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   status           String          @default("active") // 'active' | 'completed'
   messageCount     Int             @default(0)
+  intakeCompleted  Boolean         @default(false)
+  intakeCompletedAt DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
