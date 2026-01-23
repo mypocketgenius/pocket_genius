@@ -203,6 +203,132 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * DELETE /api/intake/responses
+ *
+ * Deletes an intake response and removes the corresponding User_Context entry.
+ * Requires authentication.
+ *
+ * Request Body:
+ * {
+ *   chatbotId: string;      // Chatbot ID (empty string for global User_Context)
+ *   questionSlug: string;   // The question slug (key)
+ * }
+ *
+ * Note: When User_Context.chatbotId is null (global), the corresponding
+ * Intake_Response has reusableAcrossFrameworks=true but stores the actual
+ * chatbotId it was created under. We handle this mismatch by looking up
+ * based on the reusableAcrossFrameworks flag.
+ */
+export async function DELETE(request: Request) {
+  try {
+    // 1. Authenticate user
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // 2. Get database user
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // 3. Parse request body
+    const body = await request.json();
+    const { chatbotId, questionSlug } = body;
+
+    if (!questionSlug) {
+      return NextResponse.json(
+        { error: 'Missing required field: questionSlug' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Find the intake question by slug
+    const question = await prisma.intake_Question.findUnique({
+      where: { slug: questionSlug },
+      select: { id: true },
+    });
+
+    if (!question) {
+      return NextResponse.json(
+        { error: 'Intake question not found' },
+        { status: 404 }
+      );
+    }
+
+    // 5. Determine if this is a global context (User_Context.chatbotId is null)
+    const isGlobalContext = chatbotId === '' || chatbotId === null || chatbotId === undefined;
+
+    // 6. Find the intake response
+    // If global context: look for response with reusableAcrossFrameworks=true
+    // If chatbot-specific: look for response with that chatbotId
+    let response;
+    if (isGlobalContext) {
+      // Global User_Context means the Intake_Response has reusableAcrossFrameworks=true
+      response = await prisma.intake_Response.findFirst({
+        where: {
+          userId: user.id,
+          intakeQuestionId: question.id,
+          reusableAcrossFrameworks: true,
+        },
+      });
+    } else {
+      // Chatbot-specific User_Context
+      response = await prisma.intake_Response.findFirst({
+        where: {
+          userId: user.id,
+          intakeQuestionId: question.id,
+          chatbotId: chatbotId,
+          reusableAcrossFrameworks: false,
+        },
+      });
+    }
+
+    if (!response) {
+      return NextResponse.json(
+        { error: 'Intake response not found' },
+        { status: 404 }
+      );
+    }
+
+    // 7. Delete both records in a transaction for consistency
+    const targetUserContextChatbotId = isGlobalContext ? null : chatbotId;
+
+    await prisma.$transaction([
+      prisma.intake_Response.delete({
+        where: { id: response.id },
+      }),
+      prisma.user_Context.deleteMany({
+        where: {
+          userId: user.id,
+          chatbotId: targetUserContextChatbotId,
+          key: questionSlug,
+        },
+      }),
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting intake response:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete intake response' },
+      { status: 500 }
+    );
+  }
+}
+
 
 
 

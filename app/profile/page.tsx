@@ -90,9 +90,8 @@ export default async function ProfilePage() {
           Manage your user context information. This information helps personalize
           chatbot responses to better match your needs and preferences.
         </p>
-        <UserContextEditor 
-          contexts={userContexts} 
-          userId={user.id}
+        <UserContextEditor
+          contexts={userContexts}
           questionMap={questionMap}
         />
       </div>

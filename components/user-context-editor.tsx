@@ -41,7 +41,6 @@ interface IntakeQuestion {
 
 interface UserContextEditorProps {
   contexts: UserContext[];
-  userId: string;
   questionMap: Map<string, IntakeQuestion>;
   onDelete?: () => void; // Optional callback to refetch contexts after deletion
 }
@@ -59,7 +58,7 @@ interface UserContextEditorProps {
  * - Shows source badge (INTAKE_FORM, USER_PROVIDED, etc.)
  * - Only allows editing if isEditable is true
  */
-export function UserContextEditor({ contexts, userId, questionMap, onDelete }: UserContextEditorProps) {
+export function UserContextEditor({ contexts, questionMap, onDelete }: UserContextEditorProps) {
   const router = useRouter();
   const theme = useTheme();
   const [localContexts, setLocalContexts] = useState<UserContext[]>(contexts);
@@ -150,8 +149,7 @@ export function UserContextEditor({ contexts, userId, questionMap, onDelete }: U
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
-          chatbotId: context.chatbotId || '',
+          chatbotId: context.chatbotId ?? '',
           questionSlug: context.key,
         }),
       });

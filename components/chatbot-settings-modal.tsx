@@ -321,7 +321,6 @@ export function ChatbotSettingsModal({
               {/* Render UserContextEditor with all data */}
               <UserContextEditor
                 contexts={contexts}
-                userId={userId!}
                 questionMap={questionMap}
                 onDelete={async () => {
                   // Refetch contexts after deletion

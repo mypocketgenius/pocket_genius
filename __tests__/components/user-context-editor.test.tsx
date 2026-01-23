@@ -100,14 +100,14 @@ describe('UserContextEditor', () => {
 
   describe('rendering', () => {
     it('should render empty state when no contexts provided', () => {
-      render(<UserContextEditor contexts={[]} userId="user1" />);
+      render(<UserContextEditor contexts={[]} questionMap={new Map()} />);
       
       expect(screen.getByText(/No user context found/i)).toBeInTheDocument();
     });
 
     it('should render global contexts section', () => {
       const globalContexts = mockContexts.filter(c => !c.chatbotId);
-      render(<UserContextEditor contexts={globalContexts} userId="user1" />);
+      render(<UserContextEditor contexts={globalContexts} questionMap={new Map()} />);
       
       expect(screen.getByText('Global Context')).toBeInTheDocument();
       expect(screen.getByText(/applies to all chatbots/i)).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('UserContextEditor', () => {
 
     it('should render chatbot-specific contexts section', () => {
       const chatbotContexts = mockContexts.filter(c => c.chatbotId);
-      render(<UserContextEditor contexts={chatbotContexts} userId="user1" />);
+      render(<UserContextEditor contexts={chatbotContexts} questionMap={new Map()} />);
       
       expect(screen.getByText(/Tech Mentor.*Context/i)).toBeInTheDocument();
       expect(screen.getByText(/applies only to this specific chatbot/i)).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('UserContextEditor', () => {
     });
 
     it('should display context values correctly', () => {
-      render(<UserContextEditor contexts={mockContexts} userId="user1" />);
+      render(<UserContextEditor contexts={mockContexts} questionMap={new Map()} />);
       
       // String values
       expect(screen.getByText('Technology')).toBeInTheDocument();
@@ -140,14 +140,14 @@ describe('UserContextEditor', () => {
     });
 
     it('should display source badges', () => {
-      render(<UserContextEditor contexts={mockContexts} userId="user1" />);
+      render(<UserContextEditor contexts={mockContexts} questionMap={new Map()} />);
       
       expect(screen.getAllByText(/intake form/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/user provided/i).length).toBeGreaterThan(0);
     });
 
     it('should only show Edit button for editable contexts', () => {
-      render(<UserContextEditor contexts={mockContexts} userId="user1" />);
+      render(<UserContextEditor contexts={mockContexts} questionMap={new Map()} />);
       
       const editButtons = screen.getAllByText('Edit');
       // Should have 3 edit buttons (for editable contexts)
@@ -174,7 +174,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
 
@@ -189,7 +189,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       expect(screen.getByText('30')).toBeInTheDocument();
     });
 
@@ -204,7 +204,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       expect(screen.getByText('true')).toBeInTheDocument();
     });
 
@@ -219,7 +219,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       expect(screen.getByText(/React/i)).toBeInTheDocument();
       expect(screen.getByText(/TypeScript/i)).toBeInTheDocument();
     });
@@ -235,7 +235,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       expect(screen.getByText(/theme/i)).toBeInTheDocument();
       expect(screen.getByText(/dark/i)).toBeInTheDocument();
     });
@@ -253,7 +253,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       const editButton = screen.getByText('Edit');
       fireEvent.click(editButton);
@@ -278,7 +278,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -297,7 +297,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -320,7 +320,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       expect(screen.getByDisplayValue('John Doe')).toBeInTheDocument();
@@ -343,7 +343,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -383,7 +383,7 @@ describe('UserContextEditor', () => {
         }),
       });
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -433,7 +433,7 @@ describe('UserContextEditor', () => {
         }),
       });
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       fireEvent.click(screen.getByText('Save'));
@@ -470,7 +470,7 @@ describe('UserContextEditor', () => {
         }),
       });
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -522,7 +522,7 @@ describe('UserContextEditor', () => {
         }),
       });
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       fireEvent.click(screen.getByText('Edit'));
       
@@ -567,7 +567,7 @@ describe('UserContextEditor', () => {
         },
       ];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       expect(screen.getByText('Global Context')).toBeInTheDocument();
       expect(screen.getByText('industry')).toBeInTheDocument();
@@ -605,7 +605,7 @@ describe('UserContextEditor', () => {
         },
       ];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       expect(screen.getByText(/Tech Mentor.*Context/i)).toBeInTheDocument();
       expect(screen.getByText(/Design Helper.*Context/i)).toBeInTheDocument();
@@ -627,7 +627,7 @@ describe('UserContextEditor', () => {
         isEditable: true,
       }];
       
-      render(<UserContextEditor contexts={contexts} userId="user1" />);
+      render(<UserContextEditor contexts={contexts} questionMap={new Map()} />);
       
       // Key should be displayed with spaces instead of underscores
       expect(screen.getByText('company size')).toBeInTheDocument();
