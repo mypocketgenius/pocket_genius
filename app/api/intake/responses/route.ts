@@ -1,6 +1,6 @@
 // app/api/intake/responses/route.ts
 // Phase 3.10: User Intake Forms - API Routes
-// POST: Create an intake response and sync to User_Context
+// POST: Create or update an intake response and sync to User_Context
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
@@ -8,8 +8,9 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/intake/responses
- * 
- * Creates an intake response for a user and syncs it to User_Context.
+ *
+ * Creates or updates an intake response for a user and syncs it to User_Context.
+ * Uses upsert to handle both new responses and modifications to existing ones.
  * Requires authentication.
  * 
  * Request Body:
@@ -144,14 +145,26 @@ export async function POST(request: Request) {
 
     const finalChatbotId = chatbotId;
 
-    // 10. Create intake response
-    const response = await prisma.intake_Response.create({
-      data: {
+    // 10. Create or update intake response (upsert to handle modifications)
+    const response = await prisma.intake_Response.upsert({
+      where: {
+        userId_intakeQuestionId_chatbotId: {
+          userId: dbUserId,
+          intakeQuestionId,
+          chatbotId: finalChatbotId,
+        },
+      },
+      create: {
         userId: dbUserId,
         intakeQuestionId,
         chatbotId: finalChatbotId,
         value,
         reusableAcrossFrameworks,
+      },
+      update: {
+        value,
+        reusableAcrossFrameworks,
+        updatedAt: new Date(),
       },
     });
 
@@ -186,9 +199,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ response });
   } catch (error) {
-    console.error('Error creating intake response:', error);
+    console.error('Error saving intake response:', error);
 
-    // Handle unique constraint violation
+    // Handle unique constraint violation (safety net - should not occur with upsert)
     if (error instanceof Error && error.message.includes('Unique constraint')) {
       return NextResponse.json(
         { error: 'A response for this question already exists' },
@@ -197,7 +210,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to create intake response' },
+      { error: 'Failed to save intake response' },
       { status: 500 }
     );
   }
