@@ -2,13 +2,23 @@ import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/monitoring/logger';
+
+// Health check endpoint for monitoring
+export async function GET() {
+  return Response.json({ status: 'ok', timestamp: new Date().toISOString() });
+}
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
     if (!WEBHOOK_SECRET) {
-      console.error('Missing CLERK_WEBHOOK_SECRET');
+      logger.error('Clerk webhook secret not configured', new Error('Missing CLERK_WEBHOOK_SECRET'), {
+        route: '/api/webhooks/clerk',
+      });
       return Response.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
 
@@ -19,6 +29,7 @@ export async function POST(req: Request) {
     const svix_signature = headerPayload.get('svix-signature');
 
     if (!svix_id || !svix_timestamp || !svix_signature) {
+      logger.warn('Clerk webhook missing svix headers', { svix_id, svix_timestamp, hasSignature: !!svix_signature });
       return Response.json({ error: 'Missing svix headers' }, { status: 400 });
     }
 
@@ -33,7 +44,10 @@ export async function POST(req: Request) {
         'svix-signature': svix_signature,
       }) as WebhookEvent;
     } catch (err) {
-      console.error('Webhook verification failed:', err);
+      logger.error('Clerk webhook signature verification failed', err instanceof Error ? err : new Error(String(err)), {
+        route: '/api/webhooks/clerk',
+        svix_id,
+      });
       return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
@@ -42,7 +56,9 @@ export async function POST(req: Request) {
       const { id: clerkId, email_addresses, first_name, last_name } = evt.data;
 
       if (!clerkId) {
-        console.error('Missing clerkId in webhook payload');
+        logger.error('Clerk webhook missing clerkId in payload', new Error('Missing clerkId'), {
+          eventType: evt.type,
+        });
         return Response.json({ error: 'Invalid payload' }, { status: 400 });
       }
 
@@ -66,7 +82,7 @@ export async function POST(req: Request) {
         },
       });
 
-      console.log(`User created/updated: ${clerkId}`);
+      logger.info('Clerk webhook: user created/updated', { clerkId, email: primaryEmail });
     }
 
     // Handle user.updated event
@@ -76,7 +92,9 @@ export async function POST(req: Request) {
       const { id: clerkId, email_addresses, first_name, last_name } = evt.data;
 
       if (!clerkId) {
-        console.error('Missing clerkId in webhook payload');
+        logger.error('Clerk webhook missing clerkId in payload', new Error('Missing clerkId'), {
+          eventType: evt.type,
+        });
         return Response.json({ error: 'Invalid payload' }, { status: 400 });
       }
 
@@ -99,7 +117,7 @@ export async function POST(req: Request) {
         },
       });
 
-      console.log(`User updated: ${clerkId}`);
+      logger.info('Clerk webhook: user updated', { clerkId, email: primaryEmail });
     }
 
     // Handle user.deleted event
@@ -109,7 +127,9 @@ export async function POST(req: Request) {
       const { id: clerkId } = evt.data;
 
       if (!clerkId) {
-        console.error('Missing clerkId in webhook payload');
+        logger.error('Clerk webhook missing clerkId in payload', new Error('Missing clerkId'), {
+          eventType: evt.type,
+        });
         return Response.json({ error: 'Invalid payload' }, { status: 400 });
       }
 
@@ -120,15 +140,20 @@ export async function POST(req: Request) {
       });
 
       if (result.count > 0) {
-        console.log(`User deleted: ${clerkId}`);
+        logger.info('Clerk webhook: user deleted', { clerkId });
       } else {
-        console.log(`User not found (already deleted or never synced): ${clerkId}`);
+        logger.info('Clerk webhook: user not found (already deleted or never synced)', { clerkId });
       }
     }
 
+    const duration = Date.now() - startTime;
+    logger.performance('/api/webhooks/clerk', duration, { eventType: evt.type });
+
     return Response.json({ success: true, type: evt.type });
   } catch (error) {
-    console.error('Webhook handler error:', error);
+    logger.error('Clerk webhook handler error', error instanceof Error ? error : new Error(String(error)), {
+      route: '/api/webhooks/clerk',
+    });
     return Response.json(
       { error: 'Internal server error' },
       { status: 500 }

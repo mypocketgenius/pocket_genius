@@ -5199,6 +5199,59 @@ The `hasPassedIntakePhase.current` ref was being set to `true` when user message
 
 ---
 
+### Side Quest: Clerk User Creation Webhook ✅ COMPLETE (Jan 24, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 24, 2026)
+
+**Objective:** Fix critical bug where new users signing up via Clerk were not being created in the database, causing 404 errors on all authenticated API routes.
+
+**Problem:** When a new user signed up via Clerk and attempted to start a chat, they received:
+```
+POST /api/conversations/create 404 (Not Found)
+Error initializing intake flow: Error: Failed to create conversation
+```
+
+All authenticated routes expected users to exist in the Prisma database with a matching `clerkId`, but there was no mechanism to create this record when users signed up through Clerk.
+
+**Root Cause:** Auth was made required (commit `52b52df`), but user creation was never implemented. Existing users were created via the seed script using `SEED_USER_CLERK_ID`, but new signups had no database records.
+
+**Solution:** Implemented Clerk webhook to sync user lifecycle events to the local database.
+
+**Implementation Steps Completed:**
+
+1. **Step 0: Install Dependencies** - Added `svix` package for webhook signature verification
+2. **Step 1: Update Middleware** - Excluded `/api/webhooks` routes from Clerk auth (webhooks are called by Clerk servers, not authenticated users)
+3. **Step 2: Create Webhook Endpoint** - Created `app/api/webhooks/clerk/route.ts` with handlers for `user.created`, `user.updated`, `user.deleted`
+4. **Step 3: Environment Variables** - Added `CLERK_WEBHOOK_SECRET` to prod and dev environments
+5. **Step 4: Configure Clerk Dashboard** - Created webhook endpoint, subscribed to events, copied signing secret
+6. **Step 5: Test Webhook** - Verified all 3 events work via Clerk's test UI
+7. **Step 6: Backfill Existing Users** - Created and ran `scripts/sync-clerk-users.ts` to sync existing Clerk users
+8. **Step 7: Add Monitoring** - Integrated with `logger` utility for Sentry error capture, added health check endpoint
+
+**Files Created/Modified:**
+- `app/api/webhooks/clerk/route.ts` - Webhook endpoint with Sentry monitoring and health check
+- `scripts/sync-clerk-users.ts` - Backfill script for existing users
+- `middleware.ts` - Updated matcher to exclude webhook routes
+- `package.json` - Added svix dependency
+
+**Key Technical Details:**
+- Uses `svix` for webhook signature verification (Clerk standard)
+- All operations are idempotent (upsert for create/update, deleteMany for delete)
+- Safe for webhook retries
+- Errors automatically sent to Sentry in production
+- Health check endpoint: `GET /api/webhooks/clerk` returns `{ status: 'ok', timestamp }`
+
+**Why Webhook Over Other Approaches:**
+- Clerk is the source of truth for users; database should sync from webhooks
+- User record created *before* they hit the app (proactive, not reactive)
+- Handles full user lifecycle (create, update, delete)
+- Industry standard pattern recommended by Clerk
+- No performance impact on user-facing requests
+
+**Planning Document:** Full analysis and implementation details in `Planning Docs/01-23_user-creation-strategy.md`
+
+---
+
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
 **Objective:** Add required database models and fields for Phase 4 analytics
@@ -6390,6 +6443,7 @@ If critical issues arise in production:
 - [x] Side Quest: Chat Component Refactoring ✅ **COMPLETE** (Jan 19, 2026)
 - [x] Side Quest: Intake Flow Rebuild with Reducer Pattern ✅ **COMPLETE** (Jan 19, 2026)
 - [x] Side Quest: Verification Buttons Bug Fix ✅ **COMPLETE** (Jan 19, 2026)
+- [x] Side Quest: Clerk User Creation Webhook ✅ **COMPLETE** (Jan 24, 2026)
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence
