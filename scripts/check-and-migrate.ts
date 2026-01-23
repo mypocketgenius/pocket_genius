@@ -26,6 +26,22 @@ try {
     stdio: 'pipe',
   });
 
+  // Check for failed migrations and resolve them
+  if (statusOutput.includes('failed')) {
+    console.log('⚠️  Found failed migration(s). Attempting to resolve...');
+    // Extract failed migration name from status output
+    const failedMatch = statusOutput.match(/The `(\d+_\w+)` migration.*failed/);
+    if (failedMatch) {
+      const failedMigration = failedMatch[1];
+      console.log(`🔧 Marking migration "${failedMigration}" as rolled back...`);
+      execSync(`npx prisma migrate resolve --rolled-back "${failedMigration}"`, {
+        encoding: 'utf-8',
+        stdio: 'inherit',
+      });
+      console.log('✅ Failed migration resolved.');
+    }
+  }
+
   // If migrations are up to date, skip deploy
   if (statusOutput.includes('Database schema is up to date')) {
     console.log('✅ Database schema is up to date. Skipping migrate deploy.');
