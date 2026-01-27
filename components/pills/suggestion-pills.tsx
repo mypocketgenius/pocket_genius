@@ -12,7 +12,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Pill as PillType, Pill } from './pill';
 import { useTheme } from '@/lib/theme/theme-context';
 
-const MAX_VISIBLE_PILLS = 4;
+const MAX_VISIBLE_PILLS = 3;
 
 interface SuggestionPillsProps {
   pills: PillType[];

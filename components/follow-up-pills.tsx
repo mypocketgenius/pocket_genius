@@ -23,7 +23,7 @@ import { getPillColors } from '@/lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '@/lib/theme/pill-styles';
 import { getCurrentPeriod } from '@/lib/theme/config';
 
-const MAX_VISIBLE_PILLS = 4;
+const MAX_VISIBLE_PILLS = 3;
 
 interface FollowUpPillsProps {
   pills: string[];
