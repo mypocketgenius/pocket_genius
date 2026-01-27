@@ -13,6 +13,7 @@ import { ChatbotSettingsModal } from './chatbot-settings-modal';
 import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDown, GitBranch, Menu, Pencil } from 'lucide-react';
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
+import { SuggestionPills } from './pills/suggestion-pills';
 import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
@@ -1236,16 +1237,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 
                 {/* Suggestion Pills Beneath Button */}
                 {initialSuggestionPills.length > 0 && (
-                  <div className="mt-4 w-full flex flex-wrap gap-2 justify-center">
-                    {initialSuggestionPills.map((pill) => (
-                      <Pill
-                        key={pill.id}
-                        pill={pill}
-                        isSelected={false}
-                        onClick={() => handlePillClick(pill)}
-                      />
-                    ))}
-                  </div>
+                  <SuggestionPills
+                    pills={initialSuggestionPills}
+                    onPillClick={handlePillClick}
+                    className="mt-4 w-full"
+                  />
                 )}
               </div>
             )}
@@ -1323,16 +1319,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             <div key={message.id}>
               {/* Render pills above first user message */}
               {isFirstUserMessage && initialSuggestionPills.length > 0 && (
-                <div className="mb-4 w-full flex flex-wrap gap-2 justify-center">
-                  {initialSuggestionPills.map((pill) => (
-                    <Pill
-                      key={pill.id}
-                      pill={pill}
-                      isSelected={false}
-                      onClick={() => handlePillClick(pill)}
-                    />
-                  ))}
-                </div>
+                <SuggestionPills
+                  pills={initialSuggestionPills}
+                  onPillClick={handlePillClick}
+                  className="mb-4 w-full"
+                />
               )}
               
               <div
@@ -1448,19 +1439,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                   })()}
                   
                   {/* Suggestion pills after final intake message */}
-                  {message.role === 'assistant' && 
+                  {message.role === 'assistant' &&
                    message.content?.includes("When our conversation is finished") &&
                    intakeSuggestionPills.length > 0 && (
-                    <div className="mt-4 w-full flex flex-wrap gap-2 justify-center">
-                      {intakeSuggestionPills.map((pill) => (
-                        <Pill
-                          key={pill.id}
-                          pill={pill}
-                          isSelected={false}
-                          onClick={() => handlePillClick(pill)}
-                        />
-                      ))}
-                    </div>
+                    <SuggestionPills
+                      pills={intakeSuggestionPills}
+                      onPillClick={handlePillClick}
+                      className="mt-4 w-full"
+                    />
                   )}
                   
                   {/* Phase 4: Source attribution - inside message bubble at the end */}
