@@ -58,6 +58,7 @@ export interface UseConversationalIntakeReturn {
  * Handles conversation creation, message management, and question flow
  *
  * @param existingConversationId - Optional existing conversation ID to resume intake for
+ * @param welcomeMessage - Optional custom welcome message from chatbot (shown after intake)
  */
 export function useConversationalIntake(
   chatbotId: string,
@@ -67,7 +68,8 @@ export function useConversationalIntake(
   existingResponses: Record<string, any>,
   onMessageAdded: (message: IntakeMessage) => void,
   onComplete: (conversationId: string) => void,
-  existingConversationId?: string | null
+  existingConversationId?: string | null,
+  welcomeMessage?: string
 ): UseConversationalIntakeReturn {
   const { userId: clerkUserId } = useAuth();
 
@@ -185,42 +187,55 @@ export function useConversationalIntake(
 
   // Show final intro message and pills
   const showFinalMessage = useCallback(async (convId: string) => {
-    const finalMessage = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
+    // Build welcome message: use chatbot's custom welcome message or default
+    const baseWelcome = welcomeMessage || "Let's get started! Feel free to ask any questions.";
+    const ratingCTA = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
+    const finalMessage = `${baseWelcome}\n\n${ratingCTA}`;
+
     await addMessage('assistant', finalMessage, convId);
 
     setCurrentQuestionIndex(-2); // Special marker for "intake complete"
 
-    // Mark conversation as intake complete in database
+    // Mark conversation as intake complete and get AI-generated suggestion pills
     if (convId) {
-      fetch(`/api/conversations/${convId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intakeCompleted: true }),
-      }).catch(err => {
-        console.error('[useConversationalIntake] Failed to mark intake complete:', err);
-      });
-    }
+      try {
+        const response = await fetch(`/api/conversations/${convId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ intakeCompleted: true }),
+        });
 
-    // Fetch suggestion pills
-    try {
-      const pillsResponse = await fetch(`/api/pills?chatbotId=${chatbotId}`);
-      if (pillsResponse.ok) {
-        const pills = await pillsResponse.json();
-        const suggestedPills = pills.filter((p: PillType) => p.pillType === 'suggested');
-        setSuggestionPills(suggestedPills);
-        setShowPills(true);
+        if (response.ok) {
+          const data = await response.json();
 
-        setTimeout(() => {
-          onComplete(convId);
-        }, 1000);
+          // Backend returns AI-generated pills or fallbacks
+          if (data.suggestionPills?.length > 0) {
+            const mappedPills: PillType[] = data.suggestionPills.map(
+              (text: string, index: number) => ({
+                id: `suggestion-${index}`,
+                pillType: 'suggested' as const,
+                label: text,
+                prefillText: text,
+                displayOrder: index,
+                isActive: true,
+              })
+            );
+            setSuggestionPills(mappedPills);
+            setShowPills(true);
+          }
+        } else {
+          console.error('[useConversationalIntake] Failed to mark intake complete:', response.status);
+        }
+      } catch (err) {
+        console.error('[useConversationalIntake] Failed to complete intake:', err);
       }
-    } catch (err) {
-      console.error('[useConversationalIntake] Failed to fetch pills:', err);
-      setTimeout(() => {
-        onComplete(convId);
-      }, 500);
     }
-  }, [chatbotId, addMessage, onComplete]);
+
+    // Transition to chat after 1 second
+    setTimeout(() => {
+      onComplete(convId);
+    }, 1000);
+  }, [welcomeMessage, addMessage, onComplete]);
 
   // Single function to process a question - handles all question flow logic
   const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {

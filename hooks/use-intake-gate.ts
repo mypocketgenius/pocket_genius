@@ -23,6 +23,10 @@ export interface WelcomeData {
     intakeCompleted: boolean;
     hasMessages: boolean;
   } | null;
+  // AI Suggestion Pills data (Phase: AI Suggestion Pills)
+  welcomeMessage?: string;
+  fallbackSuggestionPills?: string[];
+  cachedSuggestionPills?: string[];
 }
 
 /**

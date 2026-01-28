@@ -1,15 +1,22 @@
 // app/api/conversations/[conversationId]/route.ts
 // PATCH endpoint to update conversation fields (e.g., intakeCompleted)
+// Generates AI suggestion pills when intake is completed
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { generateSuggestionPills } from '@/lib/pills/generate-suggestion-pills';
+import { ChatbotType } from '@/lib/types/chatbot';
 
 /**
  * PATCH /api/conversations/[conversationId]
  *
  * Updates conversation fields. Currently supports:
  * - intakeCompleted: boolean - marks intake as complete for this conversation
+ *
+ * When intakeCompleted is set to true, generates AI-powered personalized
+ * suggestion pills based on the chatbot context and user's intake responses.
+ * Falls back to chatbot's fallback pills if AI generation fails.
  *
  * Authentication: Optional - allows update if:
  * - User owns the conversation, OR
@@ -27,6 +34,7 @@ import { prisma } from '@/lib/prisma';
  *     intakeCompleted: boolean;
  *     intakeCompletedAt: string | null;
  *   };
+ *   suggestionPills?: string[]; // AI-generated or fallback pills (when intakeCompleted=true)
  * }
  */
 export async function PATCH(
@@ -48,10 +56,10 @@ export async function PATCH(
       dbUserId = user?.id || null;
     }
 
-    // Validate conversation exists
+    // Validate conversation exists and get chatbotId for pill generation
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      select: { userId: true },
+      select: { userId: true, chatbotId: true },
     });
 
     if (!conversation) {
@@ -97,12 +105,114 @@ export async function PATCH(
       },
     });
 
+    // Generate AI suggestion pills when intake is completed
+    let suggestionPills: string[] | undefined;
+    if (body.intakeCompleted === true && dbUserId) {
+      try {
+        // Fetch chatbot context for pill generation
+        const chatbot = await prisma.chatbot.findUnique({
+          where: { id: conversation.chatbotId },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            type: true,
+            configJson: true,
+            fallbackSuggestionPills: true,
+            creator: { select: { name: true } },
+            sources: { select: { title: true } },
+          },
+        });
+
+        if (chatbot) {
+          // Fetch intake responses for this user and chatbot
+          const intakeResponses = await prisma.intake_Response.findMany({
+            where: {
+              userId: dbUserId,
+              chatbotId: conversation.chatbotId,
+            },
+            include: {
+              intakeQuestion: {
+                select: { id: true, questionText: true },
+              },
+            },
+          });
+
+          // Build intake context
+          const intakeContext = {
+            responses: Object.fromEntries(
+              intakeResponses.map((r) => [
+                r.intakeQuestionId,
+                typeof r.value === 'string' ? r.value : JSON.stringify(r.value),
+              ])
+            ),
+            questions: intakeResponses.map((r) => ({
+              id: r.intakeQuestion.id,
+              questionText: r.intakeQuestion.questionText,
+            })),
+          };
+
+          // Get custom prompt from configJson if available
+          const configJson = chatbot.configJson as Record<string, unknown> | null;
+          const customPrompt = configJson?.suggestionPillsPrompt as string | undefined;
+
+          // Generate personalized pills
+          const { pills, generationTimeMs, error } = await generateSuggestionPills({
+            chatbot: {
+              id: chatbot.id,
+              title: chatbot.title,
+              description: chatbot.description,
+              type: chatbot.type as ChatbotType | null,
+              creator: chatbot.creator,
+              sources: chatbot.sources,
+            },
+            intake: intakeContext,
+            customPrompt,
+          });
+
+          // Determine which pills to return
+          if (pills.length > 0) {
+            suggestionPills = pills;
+            console.log(
+              `[suggestion-pills] Generated ${pills.length} pills in ${generationTimeMs}ms for conversation ${conversationId}`
+            );
+
+            // Cache pills on conversation (fire-and-forget)
+            prisma.conversation
+              .update({
+                where: { id: conversationId },
+                data: {
+                  suggestionPillsCache: pills,
+                  suggestionPillsCachedAt: new Date(),
+                },
+              })
+              .catch((err) =>
+                console.error('[suggestion-pills] Cache update failed:', err)
+              );
+          } else {
+            // Use fallback pills if AI generation failed or returned empty
+            suggestionPills = (chatbot.fallbackSuggestionPills as string[]) || undefined;
+            if (error) {
+              console.error(
+                `[suggestion-pills] Generation failed for conversation ${conversationId}, using fallbacks:`,
+                error
+              );
+            }
+          }
+        }
+      } catch (pillError) {
+        console.error('[suggestion-pills] Error during pill generation:', pillError);
+        // Don't fail the whole request if pill generation fails
+      }
+    }
+
     return NextResponse.json({
       conversation: {
         id: updated.id,
         intakeCompleted: updated.intakeCompleted,
         intakeCompletedAt: updated.intakeCompletedAt?.toISOString() || null,
       },
+      ...(suggestionPills && { suggestionPills }),
     });
   } catch (error) {
     console.error('[PATCH conversation] Error:', error);

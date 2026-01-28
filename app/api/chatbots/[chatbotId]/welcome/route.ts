@@ -7,18 +7,24 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { generatePurposeText } from '@/lib/chatbot/generate-purpose';
 
+// Cache TTL for suggestion pills (7 days)
+const SUGGESTION_PILLS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * GET /api/chatbots/[chatbotId]/welcome
- * 
+ *
  * Returns chatbot welcome data for conversational intake flow:
  * - Chatbot name
  * - Chatbot purpose (generated)
  * - Whether intake is completed
  * - Intake questions (if not completed)
  * - Existing responses (if any)
- * 
+ * - Welcome message (for post-intake display)
+ * - Fallback suggestion pills (if AI generation fails)
+ * - Cached suggestion pills (for returning users)
+ *
  * Authentication: Optional (allows anonymous users)
- * 
+ *
  * Response Format:
  * {
  *   chatbotName: string;
@@ -39,6 +45,9 @@ import { generatePurposeText } from '@/lib/chatbot/generate-purpose';
  *     intakeCompleted: boolean; // Per-conversation intake completion status
  *     hasMessages: boolean; // Whether conversation has any messages
  *   } | null;
+ *   welcomeMessage?: string; // Chatbot-specific welcome message for post-intake
+ *   fallbackSuggestionPills?: string[]; // Fallback pills if AI generation fails
+ *   cachedSuggestionPills?: string[]; // Cached AI-generated pills for returning users
  * }
  */
 export async function GET(
@@ -71,7 +80,12 @@ export async function GET(
     // 2. Fetch conversation data if conversationId provided
     const url = new URL(request.url);
     const conversationId = url.searchParams.get('conversationId');
-    let conversationData: { intakeCompleted: boolean; messageCount: number } | null = null;
+    let conversationData: {
+      intakeCompleted: boolean;
+      messageCount: number;
+      suggestionPillsCache: unknown;
+      suggestionPillsCachedAt: Date | null;
+    } | null = null;
 
     if (conversationId) {
       const conversation = await prisma.conversation.findUnique({
@@ -79,6 +93,8 @@ export async function GET(
         select: {
           intakeCompleted: true,
           messageCount: true,
+          suggestionPillsCache: true,
+          suggestionPillsCachedAt: true,
         },
       });
       if (conversation) {
@@ -93,6 +109,8 @@ export async function GET(
         id: true,
         title: true,
         type: true,
+        welcomeMessage: true,
+        fallbackSuggestionPills: true,
         creator: {
           select: {
             name: true,
@@ -189,6 +207,18 @@ export async function GET(
         }))
       : undefined;
 
+    // 8. Check for cached suggestion pills on the conversation (for returning users)
+    let cachedSuggestionPills: string[] | undefined = undefined;
+    if (conversationData?.suggestionPillsCache) {
+      const cacheAge = conversationData.suggestionPillsCachedAt
+        ? Date.now() - new Date(conversationData.suggestionPillsCachedAt).getTime()
+        : Infinity;
+
+      if (cacheAge < SUGGESTION_PILLS_CACHE_TTL) {
+        cachedSuggestionPills = conversationData.suggestionPillsCache as string[];
+      }
+    }
+
     // Set cache headers to prevent caching of intake completion status
     // This ensures fresh data when responses are deleted or updated
     return NextResponse.json(
@@ -209,6 +239,12 @@ export async function GET(
           intakeCompleted: conversationData.intakeCompleted,
           hasMessages: conversationData.messageCount > 0,
         } : null,
+        // AI Suggestion Pills data
+        welcomeMessage: chatbot.welcomeMessage ?? undefined,
+        fallbackSuggestionPills: chatbot.fallbackSuggestionPills
+          ? (chatbot.fallbackSuggestionPills as string[])
+          : undefined,
+        cachedSuggestionPills,
       },
       {
         headers: {

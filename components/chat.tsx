@@ -92,9 +92,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const [bookmarkedMessages, setBookmarkedMessages] = useState<Set<string>>(new Set());
   const [pillsVisible, setPillsVisible] = useState<boolean>(true); // Toggle state for pills visibility
   
-  // Store initial suggestion pills for persistence above first message
-  const [initialSuggestionPills, setInitialSuggestionPills] = useState<PillType[]>([]);
-  // Store suggestion pills from intake flow for persistence after final intake message
+  // Store suggestion pills for display (unified source for all suggestion pills)
+  // Populated from: fresh intake completion (PATCH response) OR cached pills (returning users)
   const [intakeSuggestionPills, setIntakeSuggestionPills] = useState<PillType[]>([]);
   
   // Use intake gate hook - single source of truth for intake vs chat decision
@@ -387,6 +386,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   }, []);
 
   // Phase 4: Load pills on mount (only if not showing intake)
+  // Note: Only loads feedback + expansion pills. Suggestion pills come from:
+  // - Fresh intake completion → AI-generated pills via PATCH response (use-conversational-intake.ts)
+  // - Returning users → cachedSuggestionPills from welcome data (step 10)
   useEffect(() => {
     // Don't load pills if intake is active or checking - wait for gate state
     if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
@@ -398,11 +400,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         const response = await fetch(`/api/pills?chatbotId=${chatbotId}`);
         if (response.ok) {
           const loadedPills = await response.json();
-          setPills(loadedPills);
-          
-          // Extract suggestion pills for persistence above first message
-          const suggestedPills = loadedPills.filter((p: PillType) => p.pillType === 'suggested');
-          setInitialSuggestionPills(suggestedPills);
+          // Only store feedback + expansion pills; suggestion pills come from AI generation
+          const systemPills = loadedPills.filter((p: PillType) => p.pillType !== 'suggested');
+          setPills(systemPills);
         }
       } catch (error) {
         console.error('Error loading pills:', error);
@@ -1061,9 +1061,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       // Update URL without causing full navigation (preserves state)
       router.replace(`/chat/${chatbotId}?conversationId=${convId}`, { scroll: false });
     },
-  // Pass existing conversationId when resuming intake for an existing conversation
-  intakeGate.gateState === 'intake' ? conversationId : null
-);
+    // Pass existing conversationId when resuming intake for an existing conversation
+    intakeGate.gateState === 'intake' ? conversationId : null,
+    // Pass welcome message for post-intake display (AI Suggestion Pills feature)
+    intakeGate.gateState === 'intake' && intakeGate.welcomeData
+      ? intakeGate.welcomeData.welcomeMessage
+      : undefined
+  );
 
   // Sync intake hook suggestion pills to component state for persistence
   useEffect(() => {
@@ -1071,6 +1075,29 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       setIntakeSuggestionPills(intakeHook.suggestionPills);
     }
   }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
+
+  // Load cached suggestion pills for returning users (Step 10)
+  // When a user returns to a conversation where intake was already completed,
+  // load their cached AI-generated pills from welcomeData instead of old DB pills
+  useEffect(() => {
+    if (
+      intakeGate.gateState === 'chat' &&
+      intakeGate.welcomeData?.cachedSuggestionPills &&
+      intakeGate.welcomeData.cachedSuggestionPills.length > 0 &&
+      intakeSuggestionPills.length === 0 // Don't override if already set (e.g., from fresh intake)
+    ) {
+      const cachedPills = intakeGate.welcomeData.cachedSuggestionPills;
+      const mappedPills: PillType[] = cachedPills.map((text: string, index: number) => ({
+        id: `suggestion-${index}`,
+        pillType: 'suggested' as const,
+        label: text,
+        prefillText: text,
+        displayOrder: index,
+        isActive: true,
+      }));
+      setIntakeSuggestionPills(mappedPills);
+    }
+  }, [intakeGate.gateState, intakeGate.welcomeData?.cachedSuggestionPills, intakeSuggestionPills.length]);
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {
@@ -1236,9 +1263,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 })()}
                 
                 {/* Suggestion Pills Beneath Button */}
-                {initialSuggestionPills.length > 0 && (
+                {intakeSuggestionPills.length > 0 && (
                   <SuggestionPills
-                    pills={initialSuggestionPills}
+                    pills={intakeSuggestionPills}
                     onPillClick={handlePillClick}
                     className="mt-4 w-full"
                   />
@@ -1318,9 +1345,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           return (
             <div key={message.id}>
               {/* Render pills above first user message */}
-              {isFirstUserMessage && initialSuggestionPills.length > 0 && (
+              {isFirstUserMessage && intakeSuggestionPills.length > 0 && (
                 <SuggestionPills
-                  pills={initialSuggestionPills}
+                  pills={intakeSuggestionPills}
                   onPillClick={handlePillClick}
                   className="mb-4 w-full"
                 />
