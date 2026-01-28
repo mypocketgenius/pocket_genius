@@ -1089,6 +1089,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       const cachedPills = intakeGate.welcomeData.cachedSuggestionPills;
       const mappedPills: PillType[] = cachedPills.map((text: string, index: number) => ({
         id: `suggestion-${index}`,
+        chatbotId: chatbotId, // Required by Pill interface
         pillType: 'suggested' as const,
         label: text,
         prefillText: text,
@@ -1097,7 +1098,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       }));
       setIntakeSuggestionPills(mappedPills);
     }
-  }, [intakeGate.gateState, intakeGate.welcomeData?.cachedSuggestionPills, intakeSuggestionPills.length]);
+  }, [intakeGate.gateState, intakeGate.welcomeData?.cachedSuggestionPills, intakeSuggestionPills.length, chatbotId]);
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {

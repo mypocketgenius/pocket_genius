@@ -213,6 +213,7 @@ export function useConversationalIntake(
             const mappedPills: PillType[] = data.suggestionPills.map(
               (text: string, index: number) => ({
                 id: `suggestion-${index}`,
+                chatbotId: chatbotId, // Required by Pill interface
                 pillType: 'suggested' as const,
                 label: text,
                 prefillText: text,
@@ -235,7 +236,7 @@ export function useConversationalIntake(
     setTimeout(() => {
       onComplete(convId);
     }, 1000);
-  }, [welcomeMessage, addMessage, onComplete]);
+  }, [welcomeMessage, addMessage, onComplete, chatbotId]);
 
   // Single function to process a question - handles all question flow logic
   const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
