@@ -8,7 +8,7 @@ import { env } from '@/lib/env';
 // Shared configuration for pill generation
 const MODEL = 'gpt-4o-mini'; // Cost-effective, sufficient for pill generation
 const TEMPERATURE = 0.7; // Balanced: personalized but focused
-export const PILL_COUNT = 9; // Generate 9 pills (first 3 visible, rest via "Show More")
+export const PILL_COUNT = 7; // Generate 7 pills (first 3 visible, rest via "Show More")
 
 // Initialize OpenAI client with type-safe API key
 const openai = new OpenAI({
