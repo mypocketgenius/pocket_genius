@@ -435,14 +435,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     // For returning users starting a new conversation, add welcome message to state first
     const shouldAddWelcomeMessage = !conversationId &&
       messages.length === 0 &&
-      intakeGate.welcomeData?.intakeCompleted &&
-      intakeGate.welcomeData?.welcomeMessage;
+      intakeGate.welcomeData?.intakeCompleted;
 
     if (shouldAddWelcomeMessage) {
+      const welcomeContent = intakeGate.welcomeData?.welcomeMessage
+        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+        : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`;
       const welcomeMsg: Message = {
         id: `welcome-${Date.now()}`,
         role: 'assistant',
-        content: `${intakeGate.welcomeData!.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`,
+        content: welcomeContent,
       };
       setMessages([welcomeMsg, userMessage]);
     } else {
@@ -489,10 +491,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
       // For returning users (intake completed) starting a new conversation,
       // include welcome message to be saved as first assistant message
-      const welcomeMessageContent = (!conversationId &&
-        intakeGate.welcomeData?.intakeCompleted &&
-        intakeGate.welcomeData?.welcomeMessage)
-        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+      const welcomeMessageContent = (!conversationId && intakeGate.welcomeData?.intakeCompleted)
+        ? (intakeGate.welcomeData?.welcomeMessage
+            ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+            : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`)
         : null;
 
       // Call chat API
@@ -1100,29 +1102,37 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     }
   }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
 
-  // Load cached suggestion pills for returning users (Step 10)
-  // When a user returns to a conversation where intake was already completed,
-  // load their cached AI-generated pills from welcomeData instead of old DB pills
+  // Load suggestion pills for returning users (Step 10)
+  // Priority: cachedSuggestionPills (from existing conversation) > fallbackSuggestionPills (from chatbot)
+  // This handles both:
+  // - Returning to existing conversation: use cached AI-generated pills
+  // - Starting new conversation (intake already complete): use fallback pills
   useEffect(() => {
     if (
       intakeGate.gateState === 'chat' &&
-      intakeGate.welcomeData?.cachedSuggestionPills &&
-      intakeGate.welcomeData.cachedSuggestionPills.length > 0 &&
+      intakeGate.welcomeData?.intakeCompleted &&
       intakeSuggestionPills.length === 0 // Don't override if already set (e.g., from fresh intake)
     ) {
-      const cachedPills = intakeGate.welcomeData.cachedSuggestionPills;
-      const mappedPills: PillType[] = cachedPills.map((text: string, index: number) => ({
-        id: `suggestion-${index}`,
-        chatbotId: chatbotId, // Required by Pill interface
-        pillType: 'suggested' as const,
-        label: text,
-        prefillText: text,
-        displayOrder: index,
-        isActive: true,
-      }));
-      setIntakeSuggestionPills(mappedPills);
+      // Try cached pills first (from existing conversation), then fallback pills (from chatbot)
+      const pillsToUse =
+        (intakeGate.welcomeData.cachedSuggestionPills && intakeGate.welcomeData.cachedSuggestionPills.length > 0)
+          ? intakeGate.welcomeData.cachedSuggestionPills
+          : intakeGate.welcomeData.fallbackSuggestionPills;
+
+      if (pillsToUse && pillsToUse.length > 0) {
+        const mappedPills: PillType[] = pillsToUse.map((text: string, index: number) => ({
+          id: `suggestion-${index}`,
+          chatbotId: chatbotId, // Required by Pill interface
+          pillType: 'suggested' as const,
+          label: text,
+          prefillText: text,
+          displayOrder: index,
+          isActive: true,
+        }));
+        setIntakeSuggestionPills(mappedPills);
+      }
     }
-  }, [intakeGate.gateState, intakeGate.welcomeData?.cachedSuggestionPills, intakeSuggestionPills.length, chatbotId]);
+  }, [intakeGate.gateState, intakeGate.welcomeData?.intakeCompleted, intakeGate.welcomeData?.cachedSuggestionPills, intakeGate.welcomeData?.fallbackSuggestionPills, intakeSuggestionPills.length, chatbotId]);
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {
@@ -1245,7 +1255,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         {intakeGate.gateState === 'chat' && !isLoadingMessages && messages.length === 0 && (
           <>
             {/* Returning user with completed intake - show welcome message as first message */}
-            {intakeGate.welcomeData?.intakeCompleted && intakeGate.welcomeData?.welcomeMessage ? (
+            {intakeGate.welcomeData?.intakeCompleted ? (
               <div className="flex justify-start">
                 <div className="w-full space-y-2">
                   <div
@@ -1256,7 +1266,10 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     }}
                   >
                     <MarkdownRenderer
-                      content={`${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`}
+                      content={intakeGate.welcomeData?.welcomeMessage
+                        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+                        : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+                      }
                       textColor={currentBubbleStyle.text}
                     />
                   </div>
@@ -1272,7 +1285,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 </div>
               </div>
             ) : (
-              /* New user or no welcome message - show default empty state */
+              /* New user - show default empty state (no pills yet) */
               <div
                 className="text-center mt-8 opacity-80"
                 style={{ color: currentBubbleStyle.text }}
