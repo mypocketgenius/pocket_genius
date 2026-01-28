@@ -85,8 +85,14 @@ npx tsx scripts/seed-art-of-war-intake-questions.ts\
 \
 \
 export DATABASE_URL="postgresql://neondb_owner:npg_Vdr3KNPGuT5p@ep-twilight-wind-ad5du7ka-pooler.c-2.us-east-1.aws.neon.tech/pocket_genius_prod?sslmode=require&channel_binding=require"   \
-  npx tsx prisma/seed-suggested-pills.ts\
+  npx prisma db push\
 \
+\
+\
+\
+DATABASE_URL="your-production-db-url" npx prisma db push\
+\
+create an array of all unique verbs used in the source material The Art of War\
 \
 \
 Prisma checksums are based on exact file content, including whitespace. Checksums break when:\

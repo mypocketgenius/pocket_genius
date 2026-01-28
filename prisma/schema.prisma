@@ -138,6 +138,10 @@ model Chatbot {
 
   createdAt DateTime @default(now())
 
+  // AI-generated suggestion pills (Phase: AI Suggestion Pills)
+  welcomeMessage           String?   // Welcome message shown after intake completion
+  fallbackSuggestionPills  Json?     // Array of 3 fallback pill strings if AI generation fails
+
   // Relations
   conversations              Conversation[]
   sources                    Source[]
@@ -261,6 +265,10 @@ model Conversation {
   intakeCompletedAt DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+
+  // AI-generated suggestion pills cache (Phase: AI Suggestion Pills)
+  suggestionPillsCache     Json?      // Cached array of personalized pill strings
+  suggestionPillsCachedAt  DateTime?  // When pills were last generated
 
   // Relations
   messages             Message[]
