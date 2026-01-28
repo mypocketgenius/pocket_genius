@@ -534,22 +534,27 @@ if (convId) {
 
 ---
 
-## Step 7: Cleanup (After Verification)
+## Step 7: Cleanup (After Verification) ✅ COMPLETED
+
+**Summary:** Reviewed all files for cleanup. Added deprecation comments to `intakeCompleted` field in welcome API. Updated response format documentation. Verified `hasPassedIntakePhase` ref in chat.tsx is still needed for UX transition handling (showing suggestion pills after intake before regular feedback pills).
 
 ### Remove Redundant Logic
-Once verified working, these can be simplified:
+Cleanup completed:
 
-**File:** `hooks/use-intake-gate.ts`
-- Remove any duplicate gate state calculations
-- Remove `hasPassedIntakePhase` ref if no longer needed in chat.tsx
+**File:** `hooks/use-intake-gate.ts` ✅
+- No duplicate gate state calculations found - already uses `decideGate()` as single source of truth
+- `hasPassedIntakePhase` ref is defined in chat.tsx, not here
 
-**File:** `app/api/chatbots/[chatbotId]/welcome/route.ts`
-- Keep `intakeCompleted` in response for backward compatibility
-- Add deprecation comment if planning to remove later
+**File:** `app/api/chatbots/[chatbotId]/welcome/route.ts` ✅
+- Added deprecation comment to `intakeCompleted` field (kept for backward compatibility)
+- Updated response format documentation to include `conversation` field
 
-**File:** `components/chat.tsx`
-- Verify no duplicate intake phase tracking
-- Clean up any redundant effects
+**File:** `components/chat.tsx` ✅
+- Verified no duplicate intake phase tracking
+- `hasPassedIntakePhase` ref is still needed - handles UX transition from intake to chat:
+  - Controls when to show regular feedback/expansion pills (only after user sends first chat message post-intake)
+  - Prevents showing regular pills immediately after intake completion while suggestion pills are displayed
+  - No redundant effects found
 
 ---
 

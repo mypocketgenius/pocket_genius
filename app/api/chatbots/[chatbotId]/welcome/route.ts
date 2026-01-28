@@ -23,7 +23,7 @@ import { generatePurposeText } from '@/lib/chatbot/generate-purpose';
  * {
  *   chatbotName: string;
  *   chatbotPurpose: string; // Generated purpose text
- *   intakeCompleted: boolean;
+ *   intakeCompleted: boolean; // @deprecated Use conversation.intakeCompleted for per-conversation state
  *   hasQuestions: boolean;
  *   existingResponses?: Record<string, any>; // Map of questionId -> saved value
  *   questions?: Array<{
@@ -35,6 +35,10 @@ import { generatePurposeText } from '@/lib/chatbot/generate-purpose';
  *     isRequired: boolean;
  *     options?: string[] | null; // For SELECT/MULTI_SELECT
  *   }>;
+ *   conversation?: { // Present when conversationId query param is provided
+ *     intakeCompleted: boolean; // Per-conversation intake completion status
+ *     hasMessages: boolean; // Whether conversation has any messages
+ *   } | null;
  * }
  */
 export async function GET(
@@ -191,6 +195,9 @@ export async function GET(
       {
         chatbotName: chatbot.title,
         chatbotPurpose,
+        // @deprecated - Use conversation.intakeCompleted for per-conversation state.
+        // This field indicates if the USER has answered all questions for this chatbot (across all conversations).
+        // Kept for backward compatibility.
         intakeCompleted,
         hasQuestions,
         existingResponses: existingResponses && Object.keys(existingResponses).length > 0

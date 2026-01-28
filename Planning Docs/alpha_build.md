@@ -6444,6 +6444,13 @@ If critical issues arise in production:
 - [x] Side Quest: Intake Flow Rebuild with Reducer Pattern ✅ **COMPLETE** (Jan 19, 2026)
 - [x] Side Quest: Verification Buttons Bug Fix ✅ **COMPLETE** (Jan 19, 2026)
 - [x] Side Quest: Clerk User Creation Webhook ✅ **COMPLETE** (Jan 24, 2026)
+- [x] Side Quest: Intake Gate Refactor ✅ **COMPLETE** (Jan 28, 2026)
+  - Added `intakeCompleted` and `intakeCompletedAt` fields to Conversation model
+  - Created pure `decideGate()` function with 5-rule decision tree (`lib/intake-gate/`)
+  - Updated welcome API with conversation-scoped completion data
+  - Refactored `useIntakeGate` hook to use pure decision function
+  - Created PATCH endpoint for marking conversations as intake complete
+  - Added 35 unit/integration tests; cleanup completed
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence
