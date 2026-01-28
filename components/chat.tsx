@@ -432,8 +432,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       content: input.trim(),
     };
 
-    // Add user message immediately
-    setMessages((prev) => [...prev, userMessage]);
+    // For returning users starting a new conversation, add welcome message to state first
+    const shouldAddWelcomeMessage = !conversationId &&
+      messages.length === 0 &&
+      intakeGate.welcomeData?.intakeCompleted &&
+      intakeGate.welcomeData?.welcomeMessage;
+
+    if (shouldAddWelcomeMessage) {
+      const welcomeMsg: Message = {
+        id: `welcome-${Date.now()}`,
+        role: 'assistant',
+        content: `${intakeGate.welcomeData!.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`,
+      };
+      setMessages([welcomeMsg, userMessage]);
+    } else {
+      // Add user message immediately
+      setMessages((prev) => [...prev, userMessage]);
+    }
     setInput('');
     initialInputValueRef.current = '';
     pillClickedRef.current = false; // Reset pill click tracking
@@ -472,6 +487,14 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         wasModified,
       } : null;
 
+      // For returning users (intake completed) starting a new conversation,
+      // include welcome message to be saved as first assistant message
+      const welcomeMessageContent = (!conversationId &&
+        intakeGate.welcomeData?.intakeCompleted &&
+        intakeGate.welcomeData?.welcomeMessage)
+        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+        : null;
+
       // Call chat API
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -483,6 +506,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           chatbotId,
           ...(conversationId && { conversationId }),
           ...(pillMetadata && { pillMetadata }),
+          ...(welcomeMessageContent && { welcomeMessageContent }),
         }),
       });
 
@@ -1219,61 +1243,45 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           </div>
         )}
         {intakeGate.gateState === 'chat' && !isLoadingMessages && messages.length === 0 && (
-          <div 
-            className="text-center mt-8 opacity-80"
-            style={{ color: currentBubbleStyle.text }}
-          >
-            <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
-            {intakeGate.welcomeData?.intakeCompleted && (
-              <div className="mt-4 space-y-3">
-                <p className="text-sm opacity-90">
-                  We&apos;ve received your responses. Your answers help us apply the author&apos;s wisdom to your specific context.
-                </p>
-                {(() => {
-                  // Get pill styling for subtle button that matches pills
-                  const now = new Date();
-                  const period = getCurrentPeriod(now.getHours());
-                  const pillColors = getPillColors(theme.gradient, theme.textColor, period, theme.theme);
-                  const pillStyles = getSuggestionPillStyles(pillColors, false, false, theme.theme, period);
-                  
-                  // Make it more subtle by reducing opacity
-                  const subtleStyles: React.CSSProperties = {
-                    ...pillStyles,
-                    opacity: 0.7,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.375rem',
-                    transition: 'all 0.2s',
-                    padding: '6px 14px', // Reduced height with smaller vertical padding
-                    minHeight: 'unset', // Remove minHeight constraint
-                  };
-                  
-                  return (
-                    <button
-                      onClick={() => window.open('/profile', '_blank', 'noopener,noreferrer')}
-                      style={subtleStyles}
-                      className="hover:opacity-100 active:scale-95"
-                    >
-                      <Pencil className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                      <span>Edit Your Context</span>
-                    </button>
-                  );
-                })()}
-                
-                {/* Suggestion Pills Beneath Button */}
-                {intakeSuggestionPills.length > 0 && (
-                  <SuggestionPills
-                    pills={intakeSuggestionPills}
-                    onPillClick={handlePillClick}
-                    className="mt-4 w-full"
-                  />
-                )}
+          <>
+            {/* Returning user with completed intake - show welcome message as first message */}
+            {intakeGate.welcomeData?.intakeCompleted && intakeGate.welcomeData?.welcomeMessage ? (
+              <div className="flex justify-start">
+                <div className="w-full space-y-2">
+                  <div
+                    className="px-4 py-2 font-normal"
+                    style={{
+                      background: 'transparent',
+                      color: currentBubbleStyle.text,
+                    }}
+                  >
+                    <MarkdownRenderer
+                      content={`${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`}
+                      textColor={currentBubbleStyle.text}
+                    />
+                  </div>
+
+                  {/* Suggestion Pills after welcome message */}
+                  {intakeSuggestionPills.length > 0 && (
+                    <SuggestionPills
+                      pills={intakeSuggestionPills}
+                      onPillClick={handlePillClick}
+                      className="mt-4 w-full"
+                    />
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* New user or no welcome message - show default empty state */
+              <div
+                className="text-center mt-8 opacity-80"
+                style={{ color: currentBubbleStyle.text }}
+              >
+                <p className="text-lg mb-2">Start a conversation</p>
+                <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
               </div>
             )}
-          </div>
+          </>
         )}
 
         {(() => {

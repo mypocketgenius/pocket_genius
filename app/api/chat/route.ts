@@ -76,12 +76,14 @@ export async function POST(req: Request) {
 
     // 2. Parse request body
     const body = await req.json();
-    const { 
-      messages, 
-      conversationId: providedConversationId, 
+    const {
+      messages,
+      conversationId: providedConversationId,
       chatbotId,
       // Phase 4, Task 8: Pill metadata for server-side logging
       pillMetadata,
+      // AI Suggestion Pills: Welcome message for returning users starting new conversation
+      welcomeMessageContent,
     } = body;
 
     // Validate required fields
@@ -220,9 +222,33 @@ export async function POST(req: Request) {
           userId: dbUserId, // Always present
           status: 'active',
           messageCount: 0,
+          // Mark intake as complete if welcome message is provided (returning user)
+          intakeCompleted: welcomeMessageContent ? true : false,
         },
       });
       conversationId = conversation.id;
+
+      // For returning users: save welcome message as first assistant message
+      if (welcomeMessageContent) {
+        try {
+          await prisma.message.create({
+            data: {
+              conversationId,
+              userId: dbUserId,
+              role: 'assistant',
+              content: welcomeMessageContent,
+            },
+          });
+          // Increment message count for welcome message
+          await prisma.conversation.update({
+            where: { id: conversationId },
+            data: { messageCount: { increment: 1 } },
+          });
+        } catch (error) {
+          console.error('Error saving welcome message:', error);
+          // Continue even if welcome message fails - non-critical
+        }
+      }
     } else {
       // Verify conversation exists and belongs to user (if authenticated)
       const conversation = await prisma.conversation.findUnique({
