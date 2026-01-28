@@ -1103,21 +1103,24 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
 
   // Load suggestion pills for returning users (Step 10)
-  // Priority: cachedSuggestionPills (from existing conversation) > fallbackSuggestionPills (from chatbot)
-  // This handles both:
+  // Priority: cachedSuggestionPills > generatedSuggestionPills > fallbackSuggestionPills
+  // This handles:
   // - Returning to existing conversation: use cached AI-generated pills
-  // - Starting new conversation (intake already complete): use fallback pills
+  // - Starting new conversation (intake complete): use freshly generated pills
+  // - Fallback: use chatbot's fallback pills if generation failed
   useEffect(() => {
     if (
       intakeGate.gateState === 'chat' &&
       intakeGate.welcomeData?.intakeCompleted &&
       intakeSuggestionPills.length === 0 // Don't override if already set (e.g., from fresh intake)
     ) {
-      // Try cached pills first (from existing conversation), then fallback pills (from chatbot)
+      // Priority: cached > generated > fallback
       const pillsToUse =
         (intakeGate.welcomeData.cachedSuggestionPills && intakeGate.welcomeData.cachedSuggestionPills.length > 0)
           ? intakeGate.welcomeData.cachedSuggestionPills
-          : intakeGate.welcomeData.fallbackSuggestionPills;
+          : (intakeGate.welcomeData.generatedSuggestionPills && intakeGate.welcomeData.generatedSuggestionPills.length > 0)
+            ? intakeGate.welcomeData.generatedSuggestionPills
+            : intakeGate.welcomeData.fallbackSuggestionPills;
 
       if (pillsToUse && pillsToUse.length > 0) {
         const mappedPills: PillType[] = pillsToUse.map((text: string, index: number) => ({
@@ -1132,7 +1135,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         setIntakeSuggestionPills(mappedPills);
       }
     }
-  }, [intakeGate.gateState, intakeGate.welcomeData?.intakeCompleted, intakeGate.welcomeData?.cachedSuggestionPills, intakeGate.welcomeData?.fallbackSuggestionPills, intakeSuggestionPills.length, chatbotId]);
+  }, [intakeGate.gateState, intakeGate.welcomeData?.intakeCompleted, intakeGate.welcomeData?.cachedSuggestionPills, intakeGate.welcomeData?.generatedSuggestionPills, intakeGate.welcomeData?.fallbackSuggestionPills, intakeSuggestionPills.length, chatbotId]);
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {

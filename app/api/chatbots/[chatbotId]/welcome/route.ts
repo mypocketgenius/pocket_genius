@@ -219,6 +219,89 @@ export async function GET(
       }
     }
 
+    // 9. Generate AI pills for returning users starting a new conversation
+    // This happens when: intake is complete, no cached pills, and user is authenticated
+    let generatedSuggestionPills: string[] | undefined = undefined;
+    if (intakeCompleted && !cachedSuggestionPills && dbUserId) {
+      try {
+        const { generateSuggestionPills } = await import('@/lib/pills/generate-suggestion-pills');
+        type ChatbotType = 'BODY_OF_WORK' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+
+        // Fetch full chatbot data for pill generation
+        const chatbotForPills = await prisma.chatbot.findUnique({
+          where: { id: chatbotId },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            type: true,
+            configJson: true,
+            creator: { select: { name: true } },
+            sources: { select: { title: true } },
+          },
+        });
+
+        if (chatbotForPills) {
+          // Fetch intake responses for pill generation
+          const intakeResponses = await prisma.intake_Response.findMany({
+            where: {
+              userId: dbUserId,
+              chatbotId,
+            },
+            include: {
+              intakeQuestion: {
+                select: { id: true, questionText: true },
+              },
+            },
+          });
+
+          // Build intake context
+          const intakeContext = {
+            responses: Object.fromEntries(
+              intakeResponses.map((r) => [
+                r.intakeQuestionId,
+                typeof r.value === 'string' ? r.value : JSON.stringify(r.value),
+              ])
+            ),
+            questions: intakeResponses.map((r) => ({
+              id: r.intakeQuestion.id,
+              questionText: r.intakeQuestion.questionText,
+            })),
+          };
+
+          // Get custom prompt from configJson if available
+          const configJson = chatbotForPills.configJson as Record<string, unknown> | null;
+          const customPrompt = configJson?.suggestionPillsPrompt as string | undefined;
+
+          // Generate personalized pills
+          const { pills, generationTimeMs, error } = await generateSuggestionPills({
+            chatbot: {
+              id: chatbotForPills.id,
+              title: chatbotForPills.title,
+              description: chatbotForPills.description,
+              type: chatbotForPills.type as ChatbotType | null,
+              creator: chatbotForPills.creator,
+              sources: chatbotForPills.sources,
+            },
+            intake: intakeContext,
+            customPrompt,
+          });
+
+          if (pills.length > 0) {
+            generatedSuggestionPills = pills;
+            console.log(
+              `[welcome] Generated ${pills.length} pills in ${generationTimeMs}ms for returning user (chatbot: ${chatbotId})`
+            );
+          } else if (error) {
+            console.error(`[welcome] Pill generation failed for chatbot ${chatbotId}:`, error);
+          }
+        }
+      } catch (pillError) {
+        console.error('[welcome] Error during pill generation:', pillError);
+        // Don't fail the whole request if pill generation fails - fallback pills will be used
+      }
+    }
+
     // Set cache headers to prevent caching of intake completion status
     // This ensures fresh data when responses are deleted or updated
     return NextResponse.json(
@@ -245,6 +328,8 @@ export async function GET(
           ? (chatbot.fallbackSuggestionPills as string[])
           : undefined,
         cachedSuggestionPills,
+        // Generated pills for returning users starting new conversation (no cached pills)
+        generatedSuggestionPills,
       },
       {
         headers: {

@@ -27,6 +27,7 @@ export interface WelcomeData {
   welcomeMessage?: string;
   fallbackSuggestionPills?: string[];
   cachedSuggestionPills?: string[];
+  generatedSuggestionPills?: string[]; // AI-generated pills for returning users starting new conversation
 }
 
 /**
