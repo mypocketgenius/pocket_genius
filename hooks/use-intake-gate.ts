@@ -27,7 +27,8 @@ export interface WelcomeData {
   welcomeMessage?: string;
   fallbackSuggestionPills?: string[];
   cachedSuggestionPills?: string[];
-  generatedSuggestionPills?: string[]; // AI-generated pills for returning users starting new conversation
+  // Note: generatedSuggestionPills has been removed - pills are now fetched async
+  // from /api/chatbots/[chatbotId]/suggestion-pills after the screen loads
 }
 
 /**

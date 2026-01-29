@@ -14,6 +14,7 @@ import { Copy, Bookmark, BookmarkCheck, ArrowUp, ArrowLeft, ChevronUp, ChevronDo
 import { Pill as PillType, Pill } from './pills/pill';
 import { PillRow } from './pills/pill-row';
 import { SuggestionPills } from './pills/suggestion-pills';
+import { SuggestionPillsSkeleton } from './pills/suggestion-pills-skeleton';
 import { StarRating } from './star-rating';
 import { SourceAttribution } from './source-attribution';
 import { Prisma } from '@prisma/client';
@@ -95,7 +96,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Store suggestion pills for display (unified source for all suggestion pills)
   // Populated from: fresh intake completion (PATCH response) OR cached pills (returning users)
   const [intakeSuggestionPills, setIntakeSuggestionPills] = useState<PillType[]>([]);
-  
+
+  // Async pill loading state (Step 17)
+  const [isPillsLoading, setIsPillsLoading] = useState(false);
+  const isPillsFetchingRef = useRef(false); // Guard against duplicate fetches
+  const prevConversationIdRef = useRef<string | null>(null); // Track conversation changes
+
   // Use intake gate hook - single source of truth for intake vs chat decision
   const intakeGate = useIntakeGate(chatbotId, conversationId, isSignedIn, isLoaded);
   
@@ -116,6 +122,19 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const chromeColors = theme.chrome;
   const currentBubbleStyle = theme.bubbleStyles[timeTheme];
   const chromeTextColor = theme.textColor;
+
+  // Helper to map pill strings to PillType objects (Step 17)
+  // Takes chatbotId as parameter to avoid stale closure issues
+  const mapPillStrings = (pills: string[], targetChatbotId: string): PillType[] =>
+    pills.map((text, index) => ({
+      id: `suggestion-${index}`,
+      chatbotId: targetChatbotId,
+      pillType: 'suggested' as const,
+      label: text,
+      prefillText: text,
+      displayOrder: index,
+      isActive: true,
+    }));
 
   // Check auth and open modal if needed
   useEffect(() => {
@@ -439,7 +458,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
     if (shouldAddWelcomeMessage) {
       const welcomeContent = intakeGate.welcomeData?.welcomeMessage
-        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+        ? `${intakeGate.welcomeData.welcomeMessage.replace(/\\n/g, '\n')}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
         : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`;
       const welcomeMsg: Message = {
         id: `welcome-${Date.now()}`,
@@ -493,7 +512,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       // include welcome message to be saved as first assistant message
       const welcomeMessageContent = (!conversationId && intakeGate.welcomeData?.intakeCompleted)
         ? (intakeGate.welcomeData?.welcomeMessage
-            ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+            ? `${intakeGate.welcomeData.welcomeMessage.replace(/\\n/g, '\n')}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
             : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`)
         : null;
 
@@ -1097,45 +1116,167 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Sync intake hook suggestion pills to component state for persistence
   useEffect(() => {
+    console.log('[Pills Debug] Sync effect running:', {
+      showPills: intakeHook?.showPills,
+      suggestionPillsLength: intakeHook?.suggestionPills?.length,
+      currentIntakeSuggestionPillsLength: intakeSuggestionPills.length,
+    });
     if (intakeHook?.showPills && intakeHook?.suggestionPills && intakeHook.suggestionPills.length > 0) {
+      console.log('[Pills Debug] Syncing pills from intake hook:', intakeHook.suggestionPills.length, 'pills');
       setIntakeSuggestionPills(intakeHook.suggestionPills);
     }
   }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
 
-  // Load suggestion pills for returning users (Step 10)
-  // Priority: cachedSuggestionPills > generatedSuggestionPills > fallbackSuggestionPills
-  // This handles:
-  // - Returning to existing conversation: use cached AI-generated pills
-  // - Starting new conversation (intake complete): use freshly generated pills
-  // - Fallback: use chatbot's fallback pills if generation failed
+  // Consolidated pill loading for returning users (Step 17 - REPLACES Step 10)
+  // Handles three scenarios:
+  // 1. Fresh intake completion → pills come from intakeHook (unchanged)
+  // 2. Returning user with cached pills → use cached pills (fast path, no fetch)
+  // 3. Returning user without cached pills → async fetch from endpoint (slow path)
   useEffect(() => {
-    if (
-      intakeGate.gateState === 'chat' &&
-      intakeGate.welcomeData?.intakeCompleted &&
-      intakeSuggestionPills.length === 0 // Don't override if already set (e.g., from fresh intake)
-    ) {
-      // Priority: cached > generated > fallback
-      const pillsToUse =
-        (intakeGate.welcomeData.cachedSuggestionPills && intakeGate.welcomeData.cachedSuggestionPills.length > 0)
-          ? intakeGate.welcomeData.cachedSuggestionPills
-          : (intakeGate.welcomeData.generatedSuggestionPills && intakeGate.welcomeData.generatedSuggestionPills.length > 0)
-            ? intakeGate.welcomeData.generatedSuggestionPills
-            : intakeGate.welcomeData.fallbackSuggestionPills;
+    console.log('[Pills Debug] Consolidated effect running:', {
+      gateState: intakeGate.gateState,
+      conversationId,
+      prevConversationId: prevConversationIdRef.current,
+      intakeSuggestionPillsLength: intakeSuggestionPills.length,
+      isPillsFetching: isPillsFetchingRef.current,
+      userIntakeCompleted: intakeGate.welcomeData?.intakeCompleted,
+      conversationIntakeCompleted: intakeGate.welcomeData?.conversation?.intakeCompleted,
+      cachedPillsLength: intakeGate.welcomeData?.cachedSuggestionPills?.length,
+      fallbackPillsLength: intakeGate.welcomeData?.fallbackSuggestionPills?.length,
+    });
 
-      if (pillsToUse && pillsToUse.length > 0) {
-        const mappedPills: PillType[] = pillsToUse.map((text: string, index: number) => ({
-          id: `suggestion-${index}`,
-          chatbotId: chatbotId, // Required by Pill interface
-          pillType: 'suggested' as const,
-          label: text,
-          prefillText: text,
-          displayOrder: index,
-          isActive: true,
-        }));
-        setIntakeSuggestionPills(mappedPills);
+    // Clear pills when conversation changes (user switched conversations)
+    if (conversationId !== prevConversationIdRef.current) {
+      prevConversationIdRef.current = conversationId;
+      // Only clear if switching TO a different conversation (not initial load)
+      if (prevConversationIdRef.current !== null && intakeSuggestionPills.length > 0) {
+        console.log('[Pills Debug] Clearing pills - conversation changed');
+        setIntakeSuggestionPills([]);
       }
     }
-  }, [intakeGate.gateState, intakeGate.welcomeData?.intakeCompleted, intakeGate.welcomeData?.cachedSuggestionPills, intakeGate.welcomeData?.generatedSuggestionPills, intakeGate.welcomeData?.fallbackSuggestionPills, intakeSuggestionPills.length, chatbotId]);
+
+    // Skip if pills already loaded (from fresh intake or previous load)
+    if (intakeSuggestionPills.length > 0) {
+      console.log('[Pills Debug] Skipping - pills already loaded:', intakeSuggestionPills.length);
+      return;
+    }
+
+    // Skip if not in chat mode
+    if (intakeGate.gateState !== 'chat') {
+      console.log('[Pills Debug] Skipping - not in chat mode:', intakeGate.gateState);
+      return;
+    }
+
+    // Skip if already fetching - but let the existing fetch complete
+    // The results will be used when it finishes
+    if (isPillsFetchingRef.current) {
+      console.log('[Pills Debug] Skipping - already fetching (will use those results)');
+      return;
+    }
+
+    // Check intake completion status from multiple sources
+    // - welcomeData.intakeCompleted: user-level (answered all questions for this chatbot)
+    // - welcomeData.conversation?.intakeCompleted: conversation-level (marked complete via PATCH)
+    // Note: welcomeData may be stale after fresh intake completion, so we also check conversation-level
+    const userIntakeCompleted = intakeGate.welcomeData?.intakeCompleted;
+    const conversationIntakeCompleted = intakeGate.welcomeData?.conversation?.intakeCompleted;
+
+    // Skip if intake is definitely not completed (both flags false/undefined)
+    // But proceed if either flag is true, OR if we have a conversationId (indicates we might have just completed)
+    if (!userIntakeCompleted && !conversationIntakeCompleted && !conversationId) {
+      console.log('[Pills Debug] Skipping - intake not completed and no conversationId');
+      return;
+    }
+
+    // FAST PATH: Cached pills available from welcome data
+    const cachedPills = intakeGate.welcomeData?.cachedSuggestionPills;
+    if (cachedPills && cachedPills.length > 0) {
+      console.log('[Pills Debug] FAST PATH - using cached pills:', cachedPills.length);
+      setIntakeSuggestionPills(mapPillStrings(cachedPills, chatbotId));
+      return;
+    }
+
+    console.log('[Pills Debug] SLOW PATH - fetching from endpoint');
+
+    // SLOW PATH: No cached pills - fetch from dedicated endpoint
+    // Note: We do NOT use cleanup/abort because the effect may re-run due to
+    // dependency changes (like welcomeData refetch), and we want the fetch to complete.
+
+    const fetchPillsAsync = async () => {
+      isPillsFetchingRef.current = true;
+      setIsPillsLoading(true);
+      console.log('[Pills Debug] Starting async fetch, isPillsLoading set to true');
+
+      try {
+        const url = conversationId
+          ? `/api/chatbots/${chatbotId}/suggestion-pills?conversationId=${conversationId}`
+          : `/api/chatbots/${chatbotId}/suggestion-pills`;
+
+        console.log('[Pills Debug] Fetching from:', url);
+        const response = await fetch(url);
+        console.log('[Pills Debug] Fetch response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Pills Debug] Fetch response data:', {
+            pillsLength: data.pills?.length,
+            source: data.source,
+            generationTimeMs: data.generationTimeMs,
+          });
+          if (data.pills?.length > 0) {
+            console.log('[Pills Debug] Setting pills from fetch:', data.pills.length);
+            setIntakeSuggestionPills(mapPillStrings(data.pills, chatbotId));
+            return;
+          }
+        }
+
+        // Fetch failed or empty - try fallbacks
+        const fallbackPills = intakeGate.welcomeData?.fallbackSuggestionPills;
+        console.log('[Pills Debug] Fetch empty/failed, trying fallbacks:', fallbackPills?.length);
+        if (fallbackPills && fallbackPills.length > 0) {
+          setIntakeSuggestionPills(mapPillStrings(fallbackPills, chatbotId));
+        }
+      } catch (error) {
+        console.error('[Pills Debug] Failed to fetch suggestion pills:', error);
+        // Use fallback pills on error
+        const errorFallbackPills = intakeGate.welcomeData?.fallbackSuggestionPills;
+        if (errorFallbackPills && errorFallbackPills.length > 0) {
+          setIntakeSuggestionPills(mapPillStrings(errorFallbackPills, chatbotId));
+        }
+      } finally {
+        isPillsFetchingRef.current = false;
+        setIsPillsLoading(false);
+        console.log('[Pills Debug] Fetch complete, isPillsLoading set to false');
+      }
+    };
+
+    fetchPillsAsync();
+
+    // No cleanup needed - let fetch complete and use results
+  }, [
+    intakeGate.gateState,
+    intakeGate.welcomeData?.intakeCompleted,
+    intakeGate.welcomeData?.conversation?.intakeCompleted,
+    intakeGate.welcomeData?.cachedSuggestionPills,
+    intakeGate.welcomeData?.fallbackSuggestionPills,
+    intakeSuggestionPills.length,
+    chatbotId,
+    conversationId,
+    // Note: isPillsLoading removed from deps - using ref instead to prevent re-trigger loops
+  ]);
+
+  // Debug log on each render
+  console.log('[Pills Debug] Render state:', {
+    gateState: intakeGate.gateState,
+    messagesLength: messages.length,
+    intakeSuggestionPillsLength: intakeSuggestionPills.length,
+    isPillsLoading,
+    conversationId,
+    intakeHookShowPills: intakeHook?.showPills,
+    intakeHookPillsLength: intakeHook?.suggestionPills?.length,
+    welcomeDataIntakeCompleted: intakeGate.welcomeData?.intakeCompleted,
+    hasFinalIntakeMessage: messages.some(m => m.content?.includes("When our conversation is finished")),
+  });
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {
@@ -1270,21 +1411,23 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                   >
                     <MarkdownRenderer
                       content={intakeGate.welcomeData?.welcomeMessage
-                        ? `${intakeGate.welcomeData.welcomeMessage}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
+                        ? `${intakeGate.welcomeData.welcomeMessage.replace(/\\n/g, '\n')}\n\nWhen our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
                         : `Welcome back! When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...`
                       }
                       textColor={currentBubbleStyle.text}
                     />
                   </div>
 
-                  {/* Suggestion Pills after welcome message */}
-                  {intakeSuggestionPills.length > 0 && (
+                  {/* Suggestion Pills after welcome message - show skeleton while loading (Step 17) */}
+                  {isPillsLoading ? (
+                    <SuggestionPillsSkeleton count={3} className="mt-4 w-full" />
+                  ) : intakeSuggestionPills.length > 0 ? (
                     <SuggestionPills
                       pills={intakeSuggestionPills}
                       onPillClick={handlePillClick}
                       className="mt-4 w-full"
                     />
-                  )}
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1293,8 +1436,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 className="text-center mt-8 opacity-80"
                 style={{ color: currentBubbleStyle.text }}
               >
-                <p className="text-lg mb-2">Start a conversation</p>
-                <p className="text-sm mb-4">Ask a question about {chatbotTitle}</p>
+                <p className="text-lg mb-2">Connecting to {chatbotTitle}...</p>
               </div>
             )}
           </>

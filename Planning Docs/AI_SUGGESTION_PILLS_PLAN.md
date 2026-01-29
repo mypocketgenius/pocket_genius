@@ -869,3 +869,677 @@ return NextResponse.json({
 - [ ] `initialSuggestionPills` state is no longer populated with old DB pills
 - [ ] No suggestion pills from `Pill` database table are displayed anywhere
 - [ ] All suggestion pill displays use `intakeSuggestionPills` state
+
+---
+
+## Phase 2: Async Pill Loading with Skeleton UI
+
+### Problem Statement
+
+The current implementation blocks the entire chat screen while AI-generated suggestion pills are loading. When a returning user (intake completed, no cached pills) visits the chat page:
+
+1. `useIntakeGate` fetches `/api/chatbots/[chatbotId]/welcome`
+2. **Welcome API blocks waiting for AI pill generation** (lines 222-303 in `welcome/route.ts`)
+3. User sees loading spinner until pills are ready
+4. Only then does the chat screen appear
+
+This creates a poor user experience - the main content is delayed for a secondary feature.
+
+### Solution: Separate Pill Loading with Skeleton UI
+
+Decouple pill loading from the welcome API so the screen appears immediately, with a skeleton placeholder for pills that populates when ready.
+
+**User Experience (After):**
+1. User navigates to chat
+2. Screen appears immediately with welcome message
+3. Skeleton pills animate **after the welcome message** (only location)
+4. Pills fade in when loaded (typically 1-2 seconds)
+
+**Key Design Decision:** Skeleton only appears in ONE location - after the welcome message. The other pill display locations (empty state, above first user message) don't show skeletons because:
+- They only render when `intakeSuggestionPills.length > 0`
+- By the time these render, pills are already loaded
+- This prevents skeleton flicker in multiple places
+
+---
+
+### Implementation Steps
+
+#### Step 14: Remove Blocking Pill Generation from Welcome API ✅ COMPLETED
+
+**File:** `app/api/chatbots/[chatbotId]/welcome/route.ts`
+
+**Changes:**
+1. Remove the entire blocking pill generation block (lines 222-303)
+2. Keep returning `cachedSuggestionPills` if available (this is already fast - just a DB read)
+3. Keep returning `fallbackSuggestionPills` (also just a DB read)
+4. Remove `generatedSuggestionPills` from response - this will come from the new endpoint
+
+**Before:**
+```typescript
+// Step 9: Generate AI pills for returning users (BLOCKING - 1-3 seconds)
+let generatedSuggestionPills: string[] | undefined = undefined;
+if (intakeCompleted && !cachedSuggestionPills && dbUserId) {
+  // ... 80 lines of blocking AI generation ...
+}
+```
+
+**After:**
+```typescript
+// Removed: AI pill generation moved to dedicated async endpoint
+// Pills are now fetched separately after screen loads
+```
+
+**Also remove from response object (line ~332):**
+```typescript
+// DELETE this line:
+generatedSuggestionPills,
+```
+
+**Implemented:** Removed the entire blocking pill generation block (~80 lines) from welcome/route.ts. The API no longer blocks on AI pill generation - it only returns fast DB reads (`cachedSuggestionPills`, `fallbackSuggestionPills`). AI pill generation will be handled by a dedicated async endpoint in Step 15.
+
+---
+
+#### Step 14.5: Update WelcomeData Interface ✅ COMPLETED
+
+**File:** `hooks/use-intake-gate.ts`
+
+**Changes:** Remove `generatedSuggestionPills` from the interface since it's no longer returned by the welcome API.
+
+```typescript
+export interface WelcomeData {
+  chatbotName: string;
+  chatbotPurpose: string;
+  intakeCompleted: boolean;
+  hasQuestions: boolean;
+  existingResponses?: Record<string, any>;
+  questions?: IntakeQuestion[];
+  conversation?: { intakeCompleted: boolean; hasMessages: boolean } | null;
+  welcomeMessage?: string;
+  fallbackSuggestionPills?: string[];
+  cachedSuggestionPills?: string[];
+  // REMOVED: generatedSuggestionPills - now fetched async from dedicated endpoint
+}
+```
+
+**Implemented:** Removed `generatedSuggestionPills` from WelcomeData interface in use-intake-gate.ts. Also updated the Step 10 useEffect in chat.tsx to remove references to `generatedSuggestionPills`, simplifying the priority logic from `cached > generated > fallback` to `cached > fallback`. Added explanatory comments noting that async pill generation will be implemented in Steps 15-17.
+
+---
+
+#### Step 15: Create Suggestion Pills API Endpoint ✅ COMPLETED
+
+**File:** `app/api/chatbots/[chatbotId]/suggestion-pills/route.ts` (NEW)
+
+**Purpose:** Dedicated endpoint for fetching/generating suggestion pills. Called after screen loads.
+
+**Behavior:**
+1. Check for cached pills on conversation → return immediately if valid
+2. If no cache, generate pills using `generateSuggestionPills()`
+3. Cache result on conversation (fire-and-forget)
+4. Return pills (or fallbacks on error)
+
+```typescript
+// app/api/chatbots/[chatbotId]/suggestion-pills/route.ts
+
+import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
+import { generateSuggestionPills } from '@/lib/pills/generate-suggestion-pills';
+
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * GET /api/chatbots/[chatbotId]/suggestion-pills
+ *
+ * Query params:
+ * - conversationId (optional): Check cache on this conversation
+ *
+ * Returns:
+ * - pills: string[] - AI-generated or fallback pills
+ * - source: 'cached' | 'generated' | 'fallback'
+ * - generationTimeMs?: number - Only present if source is 'generated'
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ chatbotId: string }> }
+) {
+  try {
+    const { chatbotId } = await params;
+    const url = new URL(request.url);
+    const conversationId = url.searchParams.get('conversationId');
+
+    // 1. Authenticate
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // 2. Check for cached pills on conversation
+    if (conversationId) {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: {
+          suggestionPillsCache: true,
+          suggestionPillsCachedAt: true,
+        },
+      });
+
+      if (conversation?.suggestionPillsCache) {
+        const cacheAge = conversation.suggestionPillsCachedAt
+          ? Date.now() - new Date(conversation.suggestionPillsCachedAt).getTime()
+          : Infinity;
+
+        if (cacheAge < CACHE_TTL) {
+          return NextResponse.json({
+            pills: conversation.suggestionPillsCache as string[],
+            source: 'cached',
+          });
+        }
+      }
+    }
+
+    // 3. Fetch chatbot for generation
+    const chatbot = await prisma.chatbot.findUnique({
+      where: { id: chatbotId },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        type: true,
+        configJson: true,
+        fallbackSuggestionPills: true,
+        creator: { select: { name: true } },
+        sources: { select: { title: true } },
+      },
+    });
+
+    if (!chatbot) {
+      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+    }
+
+    // 4. Fetch intake responses
+    const intakeResponses = await prisma.intake_Response.findMany({
+      where: {
+        userId: user.id,
+        chatbotId,
+      },
+      include: {
+        intakeQuestion: {
+          select: { id: true, questionText: true },
+        },
+      },
+    });
+
+    // 5. Generate pills
+    type ChatbotType = 'BODY_OF_WORK' | 'FRAMEWORK' | 'DEEP_DIVE' | 'ADVISOR_BOARD';
+
+    const intakeContext = {
+      responses: Object.fromEntries(
+        intakeResponses.map((r) => [
+          r.intakeQuestionId,
+          typeof r.value === 'string' ? r.value : JSON.stringify(r.value),
+        ])
+      ),
+      questions: intakeResponses.map((r) => ({
+        id: r.intakeQuestion.id,
+        questionText: r.intakeQuestion.questionText,
+      })),
+    };
+
+    const configJson = chatbot.configJson as Record<string, unknown> | null;
+    const customPrompt = configJson?.suggestionPillsPrompt as string | undefined;
+
+    const { pills, generationTimeMs, error } = await generateSuggestionPills({
+      chatbot: {
+        id: chatbot.id,
+        title: chatbot.title,
+        description: chatbot.description,
+        type: chatbot.type as ChatbotType | null,
+        creator: chatbot.creator,
+        sources: chatbot.sources,
+      },
+      intake: intakeContext,
+      customPrompt,
+    });
+
+    // 6. Handle result
+    if (pills.length > 0) {
+      // Cache pills (fire-and-forget)
+      if (conversationId) {
+        prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            suggestionPillsCache: pills,
+            suggestionPillsCachedAt: new Date(),
+          },
+        }).catch((err) => console.error('[suggestion-pills] Cache update failed:', err));
+      }
+
+      console.log(`[suggestion-pills] Generated ${pills.length} pills in ${generationTimeMs}ms`);
+
+      return NextResponse.json({
+        pills,
+        source: 'generated',
+        generationTimeMs,
+      });
+    }
+
+    // 7. Fallback
+    if (error) {
+      console.error(`[suggestion-pills] Generation failed:`, error);
+    }
+
+    const fallbackPills = (chatbot.fallbackSuggestionPills as string[]) || [];
+    return NextResponse.json({
+      pills: fallbackPills,
+      source: 'fallback',
+    });
+
+  } catch (error) {
+    console.error('[suggestion-pills] Endpoint error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch suggestion pills' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Implemented:** Created `app/api/chatbots/[chatbotId]/suggestion-pills/route.ts` with:
+- GET endpoint that accepts optional `conversationId` query parameter
+- Authentication check using Clerk's `auth()` function
+- 7-day cache TTL check on conversation's `suggestionPillsCache`
+- Returns cached pills immediately if valid cache exists (source: 'cached')
+- Fetches chatbot context (title, description, type, creator, sources, configJson, fallbackSuggestionPills)
+- Fetches user's intake responses with question text
+- Calls `generateSuggestionPills()` with chatbot and intake context
+- Supports custom prompt override from `configJson.suggestionPillsPrompt`
+- On successful generation: returns pills (source: 'generated'), logs timing, and fire-and-forget caches to conversation
+- On failure/empty pills: returns `fallbackSuggestionPills` (source: 'fallback')
+- Response includes `pills` (string[]), `source` ('cached' | 'generated' | 'fallback'), and optional `generationTimeMs`
+- Full error handling with appropriate HTTP status codes (401, 404, 500)
+
+---
+
+#### Step 16: Create Skeleton Pills Component ✅ COMPLETED
+
+**File:** `components/pills/suggestion-pills-skeleton.tsx` (NEW)
+
+**Purpose:** Animated placeholder that matches the layout of actual suggestion pills.
+
+**Implemented:** Created `components/pills/suggestion-pills-skeleton.tsx` with:
+- `SuggestionPillsSkeletonProps` interface with optional `count` (default 3) and `className` props
+- Uses `useTheme()` hook to access theme colors (`theme.chrome.border`) for consistent theming
+- Renders flexbox container matching `SuggestionPills` layout (`flex flex-wrap gap-2 justify-center`)
+- Generates pill placeholders with varied Tailwind widths (`w-48`, `w-56`, `w-40`, `w-52`, `w-44`, `w-60`) for natural appearance
+- Each skeleton pill uses `h-10 rounded-full animate-pulse` for pill-like shape and animation
+- Staggered animation delays (`animationDelay: ${index * 100}ms`) for visual interest
+- Background color from `theme.chrome.border` at 50% opacity for subtle appearance
+
+```typescript
+// components/pills/suggestion-pills-skeleton.tsx
+
+'use client';
+
+import { useTheme } from '@/lib/theme/theme-context';
+
+interface SuggestionPillsSkeletonProps {
+  count?: number;
+  className?: string;
+}
+
+/**
+ * Skeleton loader for suggestion pills
+ * Displays animated placeholder pills while actual pills are loading
+ */
+export function SuggestionPillsSkeleton({
+  count = 3,
+  className = ''
+}: SuggestionPillsSkeletonProps) {
+  const theme = useTheme();
+
+  // Generate varied widths for natural appearance
+  const widths = ['w-48', 'w-56', 'w-40', 'w-52', 'w-44', 'w-60'];
+
+  return (
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className={`
+            ${widths[index % widths.length]}
+            h-10
+            rounded-full
+            animate-pulse
+          `}
+          style={{
+            backgroundColor: theme.chrome.border,
+            opacity: 0.5,
+            animationDelay: `${index * 100}ms`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+#### Step 17: Consolidate Pill Loading in Chat Component (REPLACES Step 10) ✅ COMPLETED
+
+**File:** `components/chat.tsx`
+
+**Important:** This step REPLACES the existing Step 10 useEffect (lines 1105-1138). Delete that useEffect and use this consolidated version instead.
+
+**Implemented:**
+- Imported `SuggestionPillsSkeleton` from `./pills/suggestion-pills-skeleton`
+- Added new state and refs for async pill loading:
+  - `isPillsLoading` state for tracking loading status
+  - `isPillsFetchingRef` ref to guard against duplicate fetches
+  - `prevConversationIdRef` ref to track conversation changes
+- Added `mapPillStrings` helper function (takes `chatbotId` as parameter to avoid stale closures)
+- Deleted the old Step 10 useEffect and replaced with consolidated version that handles three scenarios:
+  1. Fresh intake completion → pills come from intakeHook (unchanged)
+  2. Returning user with cached pills → use cached pills immediately (fast path)
+  3. Returning user without cached pills → async fetch from `/api/chatbots/[chatbotId]/suggestion-pills` endpoint (slow path)
+- Uses `AbortController` for proper fetch cleanup on unmount/dependency change
+- Uses refs instead of state in dependency array to prevent re-trigger loops
+- Clears pills when `conversationId` changes via `prevConversationIdRef`
+- Updated pill display location (after welcome message in empty state) to show `SuggestionPillsSkeleton` while `isPillsLoading` is true
+- Skeleton only displays in ONE location (after welcome message) as per design decision
+- Fixed TypeScript errors by extracting optional arrays to local variables before length checks
+
+**Changes:**
+
+1. Add new state and ref for pill loading (near other pill state, around line 97):
+```typescript
+const [isPillsLoading, setIsPillsLoading] = useState(false);
+const isPillsFetchingRef = useRef(false); // Guard against duplicate fetches
+const prevConversationIdRef = useRef<string | null>(null); // Track conversation changes
+```
+
+2. Add helper function for mapping pill strings to PillType (before the useEffects).
+   **Note:** Takes `chatbotId` as parameter to avoid stale closure issues:
+```typescript
+// Helper to map pill strings to PillType objects
+const mapPillStrings = (pills: string[], targetChatbotId: string): PillType[] =>
+  pills.map((text, index) => ({
+    id: `suggestion-${index}`,
+    chatbotId: targetChatbotId,
+    pillType: 'suggested' as const,
+    label: text,
+    prefillText: text,
+    displayOrder: index,
+    isActive: true,
+  }));
+```
+
+3. **DELETE the existing Step 10 useEffect** (lines 1105-1138) and **REPLACE** with this consolidated version:
+```typescript
+// Consolidated pill loading for returning users (REPLACES Step 10)
+// Handles three scenarios:
+// 1. Fresh intake completion → pills come from intakeHook (unchanged)
+// 2. Returning user with cached pills → use cached pills (fast path, no fetch)
+// 3. Returning user without cached pills → async fetch from endpoint (slow path)
+useEffect(() => {
+  // Clear pills when conversation changes (user switched conversations)
+  if (conversationId !== prevConversationIdRef.current) {
+    prevConversationIdRef.current = conversationId;
+    // Only clear if switching TO a different conversation (not initial load)
+    if (prevConversationIdRef.current !== null && intakeSuggestionPills.length > 0) {
+      setIntakeSuggestionPills([]);
+    }
+  }
+
+  // Skip if pills already loaded (from fresh intake or previous load)
+  if (intakeSuggestionPills.length > 0) return;
+
+  // Skip if not in chat mode or intake not completed
+  if (intakeGate.gateState !== 'chat' || !intakeGate.welcomeData?.intakeCompleted) return;
+
+  // Skip if already fetching (use ref to avoid dependency array issues)
+  if (isPillsFetchingRef.current) return;
+
+  // FAST PATH: Cached pills available from welcome data
+  if (intakeGate.welcomeData.cachedSuggestionPills?.length > 0) {
+    setIntakeSuggestionPills(mapPillStrings(intakeGate.welcomeData.cachedSuggestionPills, chatbotId));
+    return;
+  }
+
+  // SLOW PATH: No cached pills - fetch from dedicated endpoint
+  const controller = new AbortController();
+
+  const fetchPillsAsync = async () => {
+    isPillsFetchingRef.current = true;
+    setIsPillsLoading(true);
+
+    try {
+      const url = conversationId
+        ? `/api/chatbots/${chatbotId}/suggestion-pills?conversationId=${conversationId}`
+        : `/api/chatbots/${chatbotId}/suggestion-pills`;
+
+      const response = await fetch(url, { signal: controller.signal });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.pills?.length > 0) {
+          setIntakeSuggestionPills(mapPillStrings(data.pills, chatbotId));
+          return;
+        }
+      }
+
+      // Fetch failed or empty - try fallbacks
+      if (intakeGate.welcomeData?.fallbackSuggestionPills?.length > 0) {
+        setIntakeSuggestionPills(mapPillStrings(intakeGate.welcomeData.fallbackSuggestionPills, chatbotId));
+      }
+    } catch (error) {
+      // Ignore abort errors (expected on cleanup)
+      if (error instanceof Error && error.name === 'AbortError') return;
+
+      console.error('[chat] Failed to fetch suggestion pills:', error);
+      // Use fallback pills on error
+      if (intakeGate.welcomeData?.fallbackSuggestionPills?.length > 0) {
+        setIntakeSuggestionPills(mapPillStrings(intakeGate.welcomeData.fallbackSuggestionPills, chatbotId));
+      }
+    } finally {
+      isPillsFetchingRef.current = false;
+      setIsPillsLoading(false);
+    }
+  };
+
+  fetchPillsAsync();
+
+  // Cleanup: abort fetch if component unmounts or dependencies change
+  return () => {
+    controller.abort();
+  };
+}, [
+  intakeGate.gateState,
+  intakeGate.welcomeData?.intakeCompleted,
+  intakeGate.welcomeData?.cachedSuggestionPills,
+  intakeGate.welcomeData?.fallbackSuggestionPills,
+  intakeSuggestionPills.length,
+  chatbotId,
+  conversationId,
+  // Note: isPillsLoading removed from deps - using ref instead to prevent re-trigger loops
+]);
+```
+
+4. Import the skeleton component (with other pill imports, around line 16):
+```typescript
+import { SuggestionPillsSkeleton } from './pills/suggestion-pills-skeleton';
+```
+
+5. Update the **single** pill display location (after welcome message, around line 1448) to show skeleton while loading:
+```typescript
+{/* Suggestion Pills - shown after welcome message */}
+{isPillsLoading ? (
+  <SuggestionPillsSkeleton count={3} className="mt-4 w-full" />
+) : intakeSuggestionPills.length > 0 ? (
+  <SuggestionPills
+    pills={intakeSuggestionPills}
+    onPillClick={handlePillClick}
+    className="mt-4 w-full"
+  />
+) : null}
+```
+
+**Skeleton Display Location:** Only show skeleton in ONE location - after the welcome message. The other two pill display locations (empty state, above first user message) should NOT show skeletons since they only appear after pills are already loaded.
+
+---
+
+#### Step 18: Code to Remove (Explicit Cleanup) ✅ COMPLETED (as part of Step 17)
+
+**File:** `components/chat.tsx`
+
+**Implemented:** The cleanup was done as part of Step 17 implementation:
+- Deleted the old Step 10 useEffect (the one with `cachedSuggestionPills > generatedSuggestionPills > fallbackSuggestionPills` priority)
+- Replaced with the new consolidated useEffect that handles all three scenarios
+- Added new refs (`isPillsFetchingRef`, `prevConversationIdRef`) as specified
+- `generatedSuggestionPills` was already removed from WelcomeData interface in Step 14.5
+- Verified no remaining TypeScript references to `generatedSuggestionPills` (only comment in use-intake-gate.ts explaining removal)
+
+**Delete the following code (already done):**
+
+1. **Delete the old Step 10 useEffect** (lines 1105-1138):
+```typescript
+// DELETE THIS ENTIRE BLOCK:
+// Load suggestion pills for returning users (Step 10)
+// Priority: cachedSuggestionPills > generatedSuggestionPills > fallbackSuggestionPills
+// This handles:
+// - Returning to existing conversation: use cached AI-generated pills
+// - Starting new conversation (intake complete): use freshly generated pills
+// - Fallback: use chatbot's fallback pills if generation failed
+useEffect(() => {
+  if (
+    intakeGate.gateState === 'chat' &&
+    intakeGate.welcomeData?.intakeCompleted &&
+    intakeSuggestionPills.length === 0
+  ) {
+    const pillsToUse =
+      (intakeGate.welcomeData.cachedSuggestionPills && intakeGate.welcomeData.cachedSuggestionPills.length > 0)
+        ? intakeGate.welcomeData.cachedSuggestionPills
+        : (intakeGate.welcomeData.generatedSuggestionPills && intakeGate.welcomeData.generatedSuggestionPills.length > 0)
+          ? intakeGate.welcomeData.generatedSuggestionPills
+          : intakeGate.welcomeData.fallbackSuggestionPills;
+
+    if (pillsToUse && pillsToUse.length > 0) {
+      const mappedPills: PillType[] = pillsToUse.map((text: string, index: number) => ({
+        id: `suggestion-${index}`,
+        chatbotId: chatbotId,
+        pillType: 'suggested' as const,
+        label: text,
+        prefillText: text,
+        displayOrder: index,
+        isActive: true,
+      }));
+      setIntakeSuggestionPills(mappedPills);
+    }
+  }
+}, [intakeGate.gateState, intakeGate.welcomeData?.intakeCompleted, intakeGate.welcomeData?.cachedSuggestionPills, intakeGate.welcomeData?.generatedSuggestionPills, intakeGate.welcomeData?.fallbackSuggestionPills, intakeSuggestionPills.length, chatbotId]);
+```
+
+2. **Add new refs** (near other refs, around line 108):
+```typescript
+const isPillsFetchingRef = useRef(false);
+const prevConversationIdRef = useRef<string | null>(null);
+```
+
+**File:** `hooks/use-intake-gate.ts`
+
+**Remove from WelcomeData interface** (line 30):
+```typescript
+// DELETE THIS LINE:
+generatedSuggestionPills?: string[]; // AI-generated pills for returning users starting new conversation
+```
+
+**Verification:** After these changes, run TypeScript to ensure no remaining references to `generatedSuggestionPills`:
+```bash
+npx tsc --noEmit
+# or search: grep -r "generatedSuggestionPills" --include="*.ts" --include="*.tsx"
+```
+
+---
+
+### Implementation Sequence (Phase 2)
+
+| Step | File | Description | Status |
+|------|------|-------------|--------|
+| 14 | `welcome/route.ts` | Remove blocking pill generation (lines 222-303) and `generatedSuggestionPills` from response | ✅ |
+| 14.5 | `use-intake-gate.ts` | Remove `generatedSuggestionPills` from WelcomeData interface | ✅ |
+| 15 | `suggestion-pills/route.ts` | Create new dedicated pills endpoint | ✅ |
+| 16 | `suggestion-pills-skeleton.tsx` | Create skeleton component | ✅ |
+| 17 | `chat.tsx` | Add consolidated pill loading with async fetch + skeleton (REPLACES Step 10) | ✅ |
+| 18 | `chat.tsx`, `use-intake-gate.ts` | Delete old useEffect, add refs, remove `generatedSuggestionPills` references | ✅ |
+
+**Recommended implementation order:**
+1. **15 → 16** (can be tested independently, no breaking changes)
+2. **14 + 14.5** (removes blocking, temporarily breaks returning user flow)
+3. **17 + 18 together** (restores functionality with new async pattern)
+
+**Key implementation details in Step 17:**
+- Uses `AbortController` for fetch cleanup on unmount/dependency change
+- Uses `isPillsFetchingRef` (ref) instead of state in dependency array to prevent re-trigger loops
+- Clears pills when `conversationId` changes via `prevConversationIdRef`
+- Passes `chatbotId` explicitly to `mapPillStrings` to avoid stale closures
+
+---
+
+### Verification Checklist (Phase 2)
+
+#### Screen Load Performance
+- [ ] Chat screen appears immediately (no blocking on pills)
+- [ ] Welcome message is visible before pills load
+- [ ] Skeleton pills animate in the pills area (after welcome message only)
+
+#### Skeleton UI
+- [ ] Skeleton appears ONLY after welcome message (not in empty state or above first message)
+- [ ] Skeleton pill count matches expected (3 visible)
+- [ ] Skeleton animates smoothly (pulse effect)
+- [ ] Skeleton respects theme colors
+
+#### Pill Loading Scenarios
+- [ ] **Fresh intake completion:** Pills appear from PATCH response (no skeleton, no fetch)
+- [ ] **Returning user WITH cached pills:** Pills appear instantly from welcome data (no skeleton)
+- [ ] **Returning user WITHOUT cached pills:** Skeleton shows, then pills appear after async fetch
+- [ ] **Generation error:** Fallback pills appear (no error visible to user)
+
+#### Data Flow
+- [ ] Welcome API no longer returns `generatedSuggestionPills`
+- [ ] WelcomeData interface no longer has `generatedSuggestionPills`
+- [ ] Old Step 10 useEffect has been deleted
+- [ ] New consolidated useEffect handles all three scenarios
+
+#### Edge Cases
+- [ ] No duplicate pill fetches (guards: `isPillsFetchingRef`, `intakeSuggestionPills.length > 0`)
+- [ ] Works correctly when navigating between conversations (pills cleared on conversation change)
+- [ ] Works correctly on page refresh
+- [ ] Works correctly when starting new conversation after completing intake
+- [ ] No TypeScript errors from removed `generatedSuggestionPills` references
+- [ ] Fetch is aborted on unmount (no "set state after unmount" warnings)
+- [ ] Fetch is aborted when conversation changes mid-request
+
+---
+
+### Known Limitations & Future Improvements
+
+1. **No loading timeout**: If the async fetch hangs indefinitely, the skeleton will show forever. Consider adding a timeout (e.g., 5 seconds) that falls back to fallback pills:
+   ```typescript
+   const FETCH_TIMEOUT_MS = 5000;
+   const timeoutId = setTimeout(() => {
+     controller.abort();
+     // Use fallback pills
+   }, FETCH_TIMEOUT_MS);
+   // Clear in finally: clearTimeout(timeoutId);
+   ```
+
+2. **Consider SWR/React Query**: For production, a data-fetching library would handle caching, deduplication, and revalidation more robustly than manual `useState` + `useEffect`.
+
+3. **No retry logic**: If the fetch fails once, we immediately fall back. Could add exponential backoff retry for transient errors.

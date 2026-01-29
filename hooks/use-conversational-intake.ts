@@ -187,8 +187,11 @@ export function useConversationalIntake(
 
   // Show final intro message and pills
   const showFinalMessage = useCallback(async (convId: string) => {
+    console.log('[Pills Debug - Intake Hook] showFinalMessage called with convId:', convId);
+
     // Build welcome message: use chatbot's custom welcome message or default
-    const baseWelcome = welcomeMessage || "Let's get started! Feel free to ask any questions.";
+    // Convert literal \n to actual newlines (database may store escaped newlines)
+    const baseWelcome = (welcomeMessage || "Let's get started! Feel free to ask any questions.").replace(/\\n/g, '\n');
     const ratingCTA = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
     const finalMessage = `${baseWelcome}\n\n${ratingCTA}`;
 
@@ -199,17 +202,26 @@ export function useConversationalIntake(
     // Mark conversation as intake complete and get AI-generated suggestion pills
     if (convId) {
       try {
+        console.log('[Pills Debug - Intake Hook] Making PATCH request to mark intake complete');
         const response = await fetch(`/api/conversations/${convId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ intakeCompleted: true }),
         });
 
+        console.log('[Pills Debug - Intake Hook] PATCH response status:', response.status);
+
         if (response.ok) {
           const data = await response.json();
+          console.log('[Pills Debug - Intake Hook] PATCH response data:', {
+            hasSuggestionPills: !!data.suggestionPills,
+            suggestionPillsLength: data.suggestionPills?.length,
+            conversationId: data.conversation?.id,
+          });
 
           // Backend returns AI-generated pills or fallbacks
           if (data.suggestionPills?.length > 0) {
+            console.log('[Pills Debug - Intake Hook] Setting suggestion pills:', data.suggestionPills.length);
             const mappedPills: PillType[] = data.suggestionPills.map(
               (text: string, index: number) => ({
                 id: `suggestion-${index}`,
@@ -223,17 +235,23 @@ export function useConversationalIntake(
             );
             setSuggestionPills(mappedPills);
             setShowPills(true);
+            console.log('[Pills Debug - Intake Hook] Pills set, showPills set to true');
+          } else {
+            console.log('[Pills Debug - Intake Hook] No suggestion pills in response');
           }
         } else {
-          console.error('[useConversationalIntake] Failed to mark intake complete:', response.status);
+          const errorText = await response.text();
+          console.error('[Pills Debug - Intake Hook] Failed to mark intake complete:', response.status, errorText);
         }
       } catch (err) {
-        console.error('[useConversationalIntake] Failed to complete intake:', err);
+        console.error('[Pills Debug - Intake Hook] Failed to complete intake:', err);
       }
     }
 
     // Transition to chat after 1 second
+    console.log('[Pills Debug - Intake Hook] Setting timeout for onComplete (1 second)');
     setTimeout(() => {
+      console.log('[Pills Debug - Intake Hook] Calling onComplete');
       onComplete(convId);
     }, 1000);
   }, [welcomeMessage, addMessage, onComplete, chatbotId]);

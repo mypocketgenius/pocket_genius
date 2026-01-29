@@ -107,7 +107,13 @@ export async function PATCH(
 
     // Generate AI suggestion pills when intake is completed
     let suggestionPills: string[] | undefined;
+    console.log('[Pills Debug - PATCH] Checking pill generation conditions:', {
+      intakeCompleted: body.intakeCompleted,
+      dbUserId,
+      conversationId,
+    });
     if (body.intakeCompleted === true && dbUserId) {
+      console.log('[Pills Debug - PATCH] Starting pill generation');
       try {
         // Fetch chatbot context for pill generation
         const chatbot = await prisma.chatbot.findUnique({
@@ -124,6 +130,11 @@ export async function PATCH(
           },
         });
 
+        console.log('[Pills Debug - PATCH] Chatbot found:', {
+          chatbotId: chatbot?.id,
+          title: chatbot?.title,
+          hasFallbackPills: !!(chatbot?.fallbackSuggestionPills as string[])?.length,
+        });
         if (chatbot) {
           // Fetch intake responses for this user and chatbot
           const intakeResponses = await prisma.intake_Response.findMany({
@@ -137,6 +148,8 @@ export async function PATCH(
               },
             },
           });
+
+          console.log('[Pills Debug - PATCH] Intake responses found:', intakeResponses.length);
 
           // Build intake context
           const intakeContext = {
@@ -156,6 +169,7 @@ export async function PATCH(
           const configJson = chatbot.configJson as Record<string, unknown> | null;
           const customPrompt = configJson?.suggestionPillsPrompt as string | undefined;
 
+          console.log('[Pills Debug - PATCH] Calling generateSuggestionPills');
           // Generate personalized pills
           const { pills, generationTimeMs, error } = await generateSuggestionPills({
             chatbot: {
@@ -168,6 +182,12 @@ export async function PATCH(
             },
             intake: intakeContext,
             customPrompt,
+          });
+
+          console.log('[Pills Debug - PATCH] Generation result:', {
+            pillsLength: pills.length,
+            generationTimeMs,
+            error,
           });
 
           // Determine which pills to return
@@ -192,6 +212,7 @@ export async function PATCH(
           } else {
             // Use fallback pills if AI generation failed or returned empty
             suggestionPills = (chatbot.fallbackSuggestionPills as string[]) || undefined;
+            console.log('[Pills Debug - PATCH] Using fallback pills:', suggestionPills?.length);
             if (error) {
               console.error(
                 `[suggestion-pills] Generation failed for conversation ${conversationId}, using fallbacks:`,
@@ -201,10 +222,12 @@ export async function PATCH(
           }
         }
       } catch (pillError) {
-        console.error('[suggestion-pills] Error during pill generation:', pillError);
+        console.error('[Pills Debug - PATCH] Error during pill generation:', pillError);
         // Don't fail the whole request if pill generation fails
       }
     }
+
+    console.log('[Pills Debug - PATCH] Final suggestionPills to return:', suggestionPills?.length);
 
     return NextResponse.json({
       conversation: {
