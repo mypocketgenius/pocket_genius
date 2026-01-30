@@ -1495,27 +1495,27 @@ npx tsc --noEmit
 ### Verification Checklist (Phase 2)
 
 #### Screen Load Performance
-- [ ] Chat screen appears immediately (no blocking on pills)
-- [ ] Welcome message is visible before pills load
-- [ ] Skeleton pills animate in the pills area (after welcome message only)
+- [x] Chat screen appears immediately (no blocking on pills)
+- [x] Welcome message is visible before pills load
+- [x] Skeleton pills animate in the pills area (after welcome message only)
 
 #### Skeleton UI
-- [ ] Skeleton appears ONLY after welcome message (not in empty state or above first message)
-- [ ] Skeleton pill count matches expected (3 visible)
-- [ ] Skeleton animates smoothly (pulse effect)
-- [ ] Skeleton respects theme colors
+- [x] Skeleton appears ONLY after welcome message (not in empty state or above first message)
+- [x] Skeleton pill count matches expected (3 visible)
+- [x] Skeleton animates smoothly (pulse effect)
+- [x] Skeleton respects theme colors
 
 #### Pill Loading Scenarios
-- [ ] **Fresh intake completion:** Pills appear from PATCH response (no skeleton, no fetch)
-- [ ] **Returning user WITH cached pills:** Pills appear instantly from welcome data (no skeleton)
-- [ ] **Returning user WITHOUT cached pills:** Skeleton shows, then pills appear after async fetch
-- [ ] **Generation error:** Fallback pills appear (no error visible to user)
+- [x] **Fresh intake completion:** Pills appear from PATCH response (no skeleton, no fetch)
+- [x] **Returning user WITH cached pills:** Pills appear instantly from welcome data (no skeleton)
+- [known limitation - skeletons dont show if intake messages are there. ] **Returning user WITHOUT cached pills:** Skeleton shows, then pills appear after async fetch
+- [x] **Generation error:** Fallback pills appear (no error visible to user)
 
 #### Data Flow
-- [ ] Welcome API no longer returns `generatedSuggestionPills`
-- [ ] WelcomeData interface no longer has `generatedSuggestionPills`
-- [ ] Old Step 10 useEffect has been deleted
-- [ ] New consolidated useEffect handles all three scenarios
+- [x] Welcome API no longer returns `generatedSuggestionPills`
+- [x] WelcomeData interface no longer has `generatedSuggestionPills`
+- [x] Old Step 10 useEffect has been deleted
+- [x] New consolidated useEffect handles all three scenarios
 
 #### Edge Cases
 - [ ] No duplicate pill fetches (guards: `isPillsFetchingRef`, `intakeSuggestionPills.length > 0`)

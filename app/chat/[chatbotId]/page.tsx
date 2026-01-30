@@ -11,6 +11,10 @@ interface ChatPageProps {
   params: Promise<{
     chatbotId: string;
   }>;
+  searchParams: Promise<{
+    conversationId?: string;
+    new?: string;
+  }>;
 }
 
 /**
@@ -60,8 +64,9 @@ async function retryDatabaseQuery<T>(
  * Supports conversationId query parameter for loading existing conversations
  * Example: /chat/chatbot_art_of_war?conversationId=conv_123
  */
-export default async function ChatPage({ params }: ChatPageProps) {
+export default async function ChatPage({ params, searchParams }: ChatPageProps) {
   const { chatbotId } = await params;
+  const { conversationId, new: isNew } = await searchParams;
   
   try {
     // Fetch chatbot title for display in header with retry logic
@@ -79,8 +84,13 @@ export default async function ChatPage({ params }: ChatPageProps) {
     
     return (
       <div className="h-dvh bg-gray-50 overflow-hidden">
+        {/* Key forces remount when URL params change - fixes Next.js App Router navigation issue */}
         <Suspense fallback={<div className="flex items-center justify-center h-dvh">Loading chat...</div>}>
-          <Chat chatbotId={chatbotId} chatbotTitle={chatbot.title} />
+          <Chat
+            key={`${chatbotId}-${conversationId ?? 'new'}-${isNew ?? ''}`}
+            chatbotId={chatbotId}
+            chatbotTitle={chatbot.title}
+          />
         </Suspense>
       </div>
     );

@@ -160,11 +160,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Welcome data fetch and gate decision is now handled by useIntakeGate hook
 
+  // Extract URL params outside useEffect so they can be used in dependency array
+  // This ensures the effect re-runs when URL params change (fixes Next.js App Router navigation issue)
+  const urlConversationId = searchParams?.get('conversationId');
+  const isNewConversation = searchParams?.get('new') === 'true';
+
   // Get conversationId from URL params - URL is source of truth
   useEffect(() => {
-    const urlConversationId = searchParams?.get('conversationId');
-    const isNewConversation = searchParams?.get('new') === 'true';
-    
     console.log('[Chat] URL params effect running', {
       urlConversationId,
       isNewConversation,
@@ -221,7 +223,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     setConversationStatus(null);
     hasLoadedMessages.current = false;
     hasPassedIntakePhase.current = false; // Reset intake phase tracking
-  }, [chatbotId, searchParams, intakeGate.gateState, conversationId, messages.length]);
+  // Note: Watch specific param values (urlConversationId, isNewConversation) instead of searchParams object
+  // because searchParams object reference may not change on client-side navigation in Next.js App Router
+  }, [chatbotId, urlConversationId, isNewConversation, intakeGate.gateState, conversationId, messages.length]);
 
   // Load existing messages when conversationId is available
   useEffect(() => {
