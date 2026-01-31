@@ -8,6 +8,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   DIRECT_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().min(1),
+  AI_GATEWAY_API_KEY: z.string().min(1).optional(), // Vercel AI Gateway (optional, uses OPENAI_API_KEY if not set)
   PINECONE_API_KEY: z.string().min(1),
   PINECONE_INDEX: z.string().min(1),
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),

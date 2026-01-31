@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { extractTextFromUrl } from '@/lib/extraction/text';
 import { chunkText } from '@/lib/chunking/text';
-import { generateEmbeddings } from '@/lib/embeddings/openai';
+import { generateEmbeddings } from '@/lib/embeddings';
 import { upsertWithRetry, type PineconeVector } from '@/lib/pinecone';
 import { NextResponse } from 'next/server';
 

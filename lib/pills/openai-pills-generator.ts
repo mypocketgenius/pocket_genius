@@ -1,22 +1,16 @@
 // lib/pills/openai-pills-generator.ts
-// Shared utility for OpenAI JSON-mode pill generation
+// Shared utility for AI-powered pill generation using Vercel AI SDK
 // Used by both follow-up pills and suggestion pills generators
 
-import OpenAI from 'openai';
-import { env } from '@/lib/env';
+import { generateObject } from 'ai';
+import { z } from 'zod';
+import { DEFAULT_MINI_MODEL, PILL_TEMPERATURE } from '@/lib/ai/gateway';
 
 // Shared configuration for pill generation
-const MODEL = 'gpt-4o-mini'; // Cost-effective, sufficient for pill generation
-const TEMPERATURE = 0.7; // Balanced: personalized but focused
 export const PILL_COUNT = 7; // Generate 7 pills (first 3 visible, rest via "Show More")
 
-// Initialize OpenAI client with type-safe API key
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
-
 /**
- * Options for generating pills with OpenAI
+ * Options for generating pills with AI
  */
 export interface GeneratePillsOptions {
   /** System prompt defining the assistant's role */
@@ -42,11 +36,10 @@ export interface GeneratePillsResult {
 }
 
 /**
- * Generates pills using OpenAI with JSON mode
+ * Generates pills using Vercel AI SDK with JSON mode
  *
  * This shared utility handles:
- * - OpenAI client initialization
- * - JSON-mode API call with consistent model/temperature
+ * - AI SDK call with consistent model/temperature
  * - Response parsing with the provided responseKey
  * - Timing measurement
  * - Error handling and logging
@@ -73,38 +66,42 @@ export interface GeneratePillsResult {
  * });
  * ```
  */
+// Separate schemas for each pill type (OpenAI structured outputs requires all properties to be required)
+const followUpsSchema = z.object({
+  followUps: z.array(z.string()),
+});
+
+const suggestionsSchema = z.object({
+  suggestions: z.array(z.string()),
+});
+
 export async function generatePillsWithOpenAI(
   options: GeneratePillsOptions
 ): Promise<GeneratePillsResult> {
   const { systemPrompt, userPrompt, contextMessage, responseKey } = options;
   const startTime = Date.now();
 
+  // Select the appropriate schema based on responseKey
+  const schema = responseKey === 'followUps' ? followUpsSchema : suggestionsSchema;
+
   try {
-    const response = await openai.chat.completions.create({
-      model: MODEL,
+    const { object } = await generateObject({
+      model: DEFAULT_MINI_MODEL,
+      schema,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'assistant', content: contextMessage },
         { role: 'user', content: userPrompt },
       ],
-      response_format: { type: 'json_object' },
-      temperature: TEMPERATURE,
+      temperature: PILL_TEMPERATURE,
     });
 
     const generationTimeMs = Date.now() - startTime;
-    const content = response.choices[0]?.message?.content;
 
-    if (!content) {
-      console.error('[openai-pills] Empty response from OpenAI');
-      return {
-        pills: [],
-        generationTimeMs,
-        error: 'Empty response from OpenAI',
-      };
-    }
-
-    const parsedData = JSON.parse(content);
-    const pills = Array.isArray(parsedData[responseKey]) ? parsedData[responseKey] : [];
+    // Extract pills from the appropriate key
+    const pills = responseKey === 'followUps'
+      ? (object as { followUps: string[] }).followUps
+      : (object as { suggestions: string[] }).suggestions;
 
     console.log(`[openai-pills] Generated ${pills.length} pills in ${generationTimeMs}ms`);
 

@@ -6330,6 +6330,37 @@ All authenticated routes expected users to exist in the Prisma database with a m
 - ✅ Uptime monitoring configured
 - ✅ Optional: AI Gateway/Helicone integration
 
+**Implementation Summary (Jan 31, 2026):**
+
+Implemented Vercel AI Gateway integration for unified AI provider access:
+
+**Packages Installed:**
+- `ai` (Vercel AI SDK core)
+- `@ai-sdk/openai` (OpenAI provider)
+
+**Files Created:**
+- `/lib/ai/gateway.ts` - Gateway configuration with model constants (`GPT4O`, `GPT4O_MINI`, `EMBEDDING_MODEL`, defaults)
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `package.json` | Added `ai` and `@ai-sdk/openai` packages |
+| `/lib/env.ts` | Added optional `AI_GATEWAY_API_KEY` to Zod schema |
+| `/lib/embeddings/index.ts` | Replaced `openai.ts`, uses Vercel AI SDK `embed`/`embedMany` |
+| `/lib/pills/openai-pills-generator.ts` | Refactored to use `generateText` from Vercel AI SDK |
+| `/app/api/chat/route.ts` | Replaced OpenAI SDK streaming with `streamText` |
+| `/lib/rag/query.ts` | Updated import path, removed OpenAI-specific error handling |
+| `/app/api/ingestion/trigger/route.ts` | Updated import path for new embeddings module |
+
+**Files Deleted:**
+- `/lib/embeddings/openai.ts` (replaced by `/lib/embeddings/index.ts`)
+
+**Benefits:**
+- Single API key management (uses `AI_GATEWAY_API_KEY` or falls back to `OPENAI_API_KEY`)
+- Easy provider switching by changing model constants in `/lib/ai/gateway.ts`
+- Unified API across all AI calls (chat, embeddings, pill generation)
+- Vercel dashboard observability when using AI Gateway
+
 **Testing:**
 - [ ] Unit tests pass
 - [ ] Integration tests pass
@@ -6426,7 +6457,7 @@ All authenticated routes expected users to exist in the Prisma database with a m
 - [ ] `SENTRY_DSN` (if using Sentry)
 
 **Optional (for Phase 7.1):**
-- [ ] `HELICONE_API_KEY` or Vercel AI Gateway config
+- [ ] `AI_GATEWAY_API_KEY` - Vercel AI Gateway key (falls back to `OPENAI_API_KEY` if not set)
 
 ---
 

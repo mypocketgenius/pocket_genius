@@ -5,19 +5,14 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { streamText } from 'ai';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { env } from '@/lib/env';
 import { queryRAG, type RetrievedChunk } from '@/lib/rag/query';
 import { checkRateLimit, getRemainingMessages, RATE_LIMIT } from '@/lib/rate-limit';
 import { logPillUsage } from '@/lib/pills/log-usage';
 import { generateFollowUpPills } from '@/lib/follow-up-pills/generate-pills';
-
-// Initialize OpenAI client with type-safe API key
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
+import { DEFAULT_CHAT_MODEL, CHAT_TEMPERATURE } from '@/lib/ai/gateway';
 
 /**
  * POST /api/chat
@@ -344,33 +339,7 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       console.error('RAG query failed:', error);
-      
-      // Handle OpenAI API errors (including quota errors)
-      if (error instanceof OpenAI.APIError) {
-        // Quota exceeded (429) or payment required (402)
-        if (error.status === 429 || error.status === 402) {
-          return NextResponse.json(
-            { error: 'OpenAI service quota exceeded. Please check your billing or try again later.' },
-            { status: 503 }
-          );
-        }
-        
-        // Authentication/authorization errors
-        if (error.status === 401 || error.status === 403) {
-          console.error('OpenAI API key issue:', error.message);
-          return NextResponse.json(
-            { error: 'Service configuration error. Please contact support.' },
-            { status: 500 }
-          );
-        }
-        
-        // Other OpenAI API errors
-        return NextResponse.json(
-          { error: 'Service temporarily unavailable. Please try again shortly.' },
-          { status: 503 }
-        );
-      }
-      
+
       // Handle Pinecone connection errors
       if (error instanceof Error) {
         if (error.message.includes('Pinecone') || error.message.includes('connection')) {
@@ -379,24 +348,16 @@ export async function POST(req: Request) {
             { status: 503 } // Service Unavailable
           );
         }
-        
-        // Handle embedding generation errors (OpenAI API issues) - check message for quota errors
-        if (error.message.includes('OpenAI') || error.message.includes('embedding')) {
-          // Check for quota-related messages
-          if (error.message.includes('quota') || error.message.includes('429') || error.message.includes('exceeded')) {
-            return NextResponse.json(
-              { error: 'OpenAI service quota exceeded. Please check your billing or try again later.' },
-              { status: 503 }
-            );
-          }
-          
+
+        // Handle embedding generation errors - check message for quota errors
+        if (error.message.includes('embedding') || error.message.includes('quota') || error.message.includes('429') || error.message.includes('exceeded')) {
           return NextResponse.json(
-            { error: 'Service temporarily unavailable. Please try again shortly.' },
+            { error: 'Service quota exceeded. Please check your billing or try again later.' },
             { status: 503 }
           );
         }
       }
-      
+
       // For other RAG errors, continue without context (fallback to general knowledge)
       console.warn('RAG query failed, continuing without context:', error);
       retrievedChunks = [];
@@ -471,80 +432,25 @@ ${context}
 If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.${userContextString}`
       : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.${userContextString}`;
 
-    let stream;
-    try {
-      stream = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
-        temperature: 0.7,
-      });
-    } catch (error) {
-      console.error('OpenAI API error:', error);
-      
-      // Handle OpenAI API errors specifically
-      if (error instanceof OpenAI.APIError) {
-        // Rate limit errors
-        if (error.status === 429) {
-          return NextResponse.json(
-            { error: 'OpenAI service is busy. Please try again in a moment.' },
-            { status: 503 }
-          );
-        }
-        
-        // Authentication/authorization errors
-        if (error.status === 401 || error.status === 403) {
-          console.error('OpenAI API key issue:', error.message);
-          return NextResponse.json(
-            { error: 'Service configuration error. Please contact support.' },
-            { status: 500 }
-          );
-        }
-        
-        // Quota exceeded
-        if (error.status === 402) {
-          return NextResponse.json(
-            { error: 'Service temporarily unavailable. Please try again later.' },
-            { status: 503 }
-          );
-        }
-        
-        // Other API errors
-        return NextResponse.json(
-          { error: 'Unable to generate response. Please try again.' },
-          { status: 500 }
-        );
-      }
-      
-      // Network or other errors
-      if (error instanceof Error) {
-        if (error.message.includes('timeout') || error.message.includes('network')) {
-          return NextResponse.json(
-            { error: 'Connection timeout. Please try again.' },
-            { status: 504 } // Gateway Timeout
-          );
-        }
-      }
-      
-      // Re-throw unknown errors to be caught by outer catch
-      throw error;
-    }
+    // 13. Create streaming response with Vercel AI SDK
+    const result = streamText({
+      model: DEFAULT_CHAT_MODEL,
+      system: systemPrompt,
+      messages,
+      temperature: CHAT_TEMPERATURE,
+    });
 
-    // 13. Create a readable stream for the response
+    // Create a readable stream for the response with custom post-processing
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
         let fullResponse = '';
 
         try {
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
-              fullResponse += content;
-              controller.enqueue(encoder.encode(content));
+          for await (const chunk of result.textStream) {
+            if (chunk) {
+              fullResponse += chunk;
+              controller.enqueue(encoder.encode(chunk));
             }
           }
 
@@ -749,19 +655,15 @@ If the context doesn't contain relevant information to answer the question, say 
           controller.close();
         } catch (error) {
           console.error('Error during streaming:', error);
-          
+
           // Handle streaming errors gracefully
-          if (error instanceof OpenAI.APIError) {
-            // Send error message to client before closing
-            const errorMessage = 'An error occurred while generating the response.';
-            controller.enqueue(encoder.encode(`\n\n[Error: ${errorMessage}]`));
-          } else if (error instanceof Error) {
+          if (error instanceof Error) {
             const errorMessage = process.env.NODE_ENV === 'development'
               ? `Streaming error: ${error.message}`
               : 'An error occurred while generating the response.';
             controller.enqueue(encoder.encode(`\n\n[Error: ${errorMessage}]`));
           }
-          
+
           controller.close();
         }
       },
@@ -825,21 +727,6 @@ If the context doesn't contain relevant information to answer the question, say 
       return NextResponse.json(
         { error: 'Service temporarily unavailable. Please try again.' },
         { status: 503 }
-      );
-    }
-
-    // Handle OpenAI API errors (if not caught earlier)
-    if (error instanceof OpenAI.APIError) {
-      if (error.status === 429) {
-        return NextResponse.json(
-          { error: 'Service is busy. Please try again in a moment.' },
-          { status: 503 }
-        );
-      }
-      
-      return NextResponse.json(
-        { error: 'Unable to generate response. Please try again.' },
-        { status: 500 }
       );
     }
 

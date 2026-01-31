@@ -2,8 +2,7 @@
 // Phase 3, Task 1: RAG query utility
 // Generates query embedding and retrieves relevant chunks from Pinecone
 
-import OpenAI from 'openai';
-import { generateEmbedding } from '@/lib/embeddings/openai';
+import { generateEmbedding } from '@/lib/embeddings';
 import { getPineconeIndex } from '@/lib/pinecone/client';
 import { env } from '@/lib/env';
 
@@ -90,13 +89,7 @@ export async function queryRAG(params: {
 
     return chunks;
   } catch (error) {
-    // Preserve OpenAI API errors so they can be properly handled upstream
-    if (error instanceof OpenAI.APIError) {
-      // Re-throw OpenAI errors as-is so status codes can be checked
-      throw error;
-    }
-    
-    // Provide helpful error messages for other errors
+    // Provide helpful error messages for errors
     if (error instanceof Error) {
       throw new Error(`RAG query failed: ${error.message}`);
     }

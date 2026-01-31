@@ -1,22 +1,17 @@
-// lib/embeddings/openai.ts
-// Phase 2, Task 6: Generate embeddings using OpenAI text-embedding-3-small
+// lib/embeddings/index.ts
+// Embedding generation using Vercel AI SDK
 // Provides utilities for generating embeddings from text for RAG pipeline
 
-import OpenAI from 'openai';
-import { env } from '@/lib/env';
-
-// Initialize OpenAI client with type-safe API key
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
+import { embed, embedMany } from 'ai';
+import { DEFAULT_EMBEDDING_MODEL } from '@/lib/ai/gateway';
 
 /**
  * Generates embeddings for multiple texts in a single API call
- * Uses OpenAI text-embedding-3-small model (1536 dimensions)
- * 
+ * Uses OpenAI text-embedding-3-small model (1536 dimensions) via Vercel AI SDK
+ *
  * @param texts - Array of text strings to embed
  * @returns Array of embedding vectors (each is an array of numbers)
- * 
+ *
  * @example
  * ```typescript
  * const texts = ['Hello world', 'How are you?'];
@@ -35,31 +30,21 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     throw new Error('At least one non-empty text is required for embedding generation');
   }
 
-  try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: validTexts,
-    });
+  const { embeddings } = await embedMany({
+    model: DEFAULT_EMBEDDING_MODEL,
+    values: validTexts,
+  });
 
-    // Map response data to array of embedding vectors
-    return response.data.map((item) => item.embedding);
-  } catch (error) {
-    // Preserve OpenAI API errors so they can be properly handled upstream
-    // This allows callers to check status codes (e.g., 429 for quota errors)
-    if (error instanceof OpenAI.APIError) {
-      throw error;
-    }
-    throw error;
-  }
+  return embeddings;
 }
 
 /**
  * Generates embedding for a single text string
  * Convenience wrapper around generateEmbeddings for single text
- * 
+ *
  * @param text - Text string to embed
  * @returns Embedding vector (array of numbers)
- * 
+ *
  * @example
  * ```typescript
  * const embedding = await generateEmbedding('Hello world');
@@ -71,6 +56,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     throw new Error('Text cannot be empty');
   }
 
-  const embeddings = await generateEmbeddings([text]);
-  return embeddings[0];
+  const { embedding } = await embed({
+    model: DEFAULT_EMBEDDING_MODEL,
+    value: text,
+  });
+
+  return embedding;
 }
