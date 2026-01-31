@@ -19,8 +19,6 @@ export interface GeneratePillsOptions {
   userPrompt: string;
   /** Content to analyze (assistant response or chatbot+intake context) */
   contextMessage: string;
-  /** Key to extract pills from JSON response ('followUps' or 'suggestions') */
-  responseKey: string;
 }
 
 /**
@@ -49,45 +47,29 @@ export interface GeneratePillsResult {
  *
  * @example
  * ```typescript
- * // For follow-up pills
  * const result = await generatePillsWithOpenAI({
- *   systemPrompt: FOLLOW_UP_SYSTEM_PROMPT,
- *   userPrompt: customPrompt || DEFAULT_PROMPT,
+ *   systemPrompt: SYSTEM_PROMPT,
+ *   userPrompt: 'Generate 5 follow-up questions. Return {"pills": [...]}',
  *   contextMessage: assistantResponse,
- *   responseKey: 'followUps',
  * });
- *
- * // For suggestion pills
- * const result = await generatePillsWithOpenAI({
- *   systemPrompt: SUGGESTION_SYSTEM_PROMPT,
- *   userPrompt: buildUserPrompt(chatbot, intake),
- *   contextMessage: chatbotContext,
- *   responseKey: 'suggestions',
- * });
+ * // Returns: { pills: ["Question 1", "Question 2", ...], generationTimeMs: 500 }
  * ```
  */
-// Separate schemas for each pill type (OpenAI structured outputs requires all properties to be required)
-const followUpsSchema = z.object({
-  followUps: z.array(z.string()),
-});
-
-const suggestionsSchema = z.object({
-  suggestions: z.array(z.string()),
+// Unified schema for all pill types
+const pillsSchema = z.object({
+  pills: z.array(z.string()),
 });
 
 export async function generatePillsWithOpenAI(
   options: GeneratePillsOptions
 ): Promise<GeneratePillsResult> {
-  const { systemPrompt, userPrompt, contextMessage, responseKey } = options;
+  const { systemPrompt, userPrompt, contextMessage } = options;
   const startTime = Date.now();
-
-  // Select the appropriate schema based on responseKey
-  const schema = responseKey === 'followUps' ? followUpsSchema : suggestionsSchema;
 
   try {
     const { object } = await generateObject({
       model: DEFAULT_MINI_MODEL,
-      schema,
+      schema: pillsSchema,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'assistant', content: contextMessage },
@@ -98,15 +80,10 @@ export async function generatePillsWithOpenAI(
 
     const generationTimeMs = Date.now() - startTime;
 
-    // Extract pills from the appropriate key
-    const pills = responseKey === 'followUps'
-      ? (object as { followUps: string[] }).followUps
-      : (object as { suggestions: string[] }).suggestions;
-
-    console.log(`[openai-pills] Generated ${pills.length} pills in ${generationTimeMs}ms`);
+    console.log(`[openai-pills] Generated ${object.pills.length} pills in ${generationTimeMs}ms`);
 
     return {
-      pills,
+      pills: object.pills,
       generationTimeMs,
     };
   } catch (error) {
@@ -115,7 +92,6 @@ export async function generatePillsWithOpenAI(
 
     console.error('[openai-pills] Generation failed:', {
       error: errorMessage,
-      responseKey,
       contextLength: contextMessage.length,
     });
 

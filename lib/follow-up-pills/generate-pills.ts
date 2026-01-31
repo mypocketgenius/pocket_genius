@@ -9,7 +9,7 @@ import {
   PILL_COUNT,
 } from '@/lib/pills/openai-pills-generator';
 
-const DEFAULT_PILLS_PROMPT = `Based on the assistant's response above and the user's intake responses (if provided), generate ${PILL_COUNT} follow-up questions that the USER can ask TO THE AI to continue the conversation. These questions should be phrased as if the user is asking the AI (e.g., "Tell me more about...", "What are examples of...", "How can I..."). Consider the user's intake responses when generating relevant follow-up questions. Do NOT generate questions that ask the user about themselves (e.g., avoid "what do you think..." or "how well do you know..."). Return ONLY a JSON object with this exact structure: {"followUps": ["question 1", "question 2", "question 3"]}. Each question should be 5-15 words, natural and conversational, directly related to the assistant's response and user context, and actionable. Order questions by quality and relevance (best questions first). Note: The first 3 questions are shown initially; remaining questions appear after "Show More" is clicked.`;
+const DEFAULT_PILLS_PROMPT = `Based on the assistant's response above and the user's intake responses (if provided), generate ${PILL_COUNT} follow-up questions that the USER can ask TO THE AI to continue the conversation. These questions should be phrased as if the user is asking the AI (e.g., "Tell me more about...", "What are examples of...", "How can I..."). Consider the user's intake responses when generating relevant follow-up questions. Do NOT generate questions that ask the user about themselves (e.g., avoid "what do you think..." or "how well do you know..."). Return ONLY a JSON object with this exact structure: {"pills": ["question 1", "question 2", "question 3"]}. Each question should be 5-15 words, natural and conversational, directly related to the assistant's response and user context, and actionable. Order questions by quality and relevance (best questions first). Note: The first 3 questions are shown initially; remaining questions appear after "Show More" is clicked.`;
 
 const PILLS_SYSTEM_PROMPT = `You are a helpful assistant that generates follow-up questions that users can ask to continue a conversation. Generate questions phrased as if the USER is asking the AI (e.g., "Tell me more about...", "Explain...", "What are examples of..."). These questions should help users explore the topic further by asking the AI for more information, examples, or explanations. Do NOT generate questions that ask the user about themselves or their knowledge.`;
 
@@ -87,6 +87,5 @@ export async function generateFollowUpPills(
     systemPrompt: PILLS_SYSTEM_PROMPT,
     userPrompt,
     contextMessage,
-    responseKey: 'followUps',
   });
 }

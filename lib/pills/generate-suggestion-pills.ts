@@ -104,7 +104,7 @@ Based on this user's specific situation and interests, generate ${PILL_COUNT} pe
 5. Help the user get immediate value from this chatbot
 6. Be ordered by quality, insight, and relevance to this specific user (best questions first)
 
-Return ONLY a JSON object: {"suggestions": ["question 1", "question 2", ...]}
+Return ONLY a JSON object: {"pills": ["question 1", "question 2", ...]}
 
 Note: The first 3 questions are shown initially; remaining ${PILL_COUNT - 3} appear after "Show More" is clicked.`;
 }
@@ -162,6 +162,5 @@ Sources: ${chatbot.sources.map((s) => s.title).join(', ') || 'None'}`;
     systemPrompt: SUGGESTION_SYSTEM_PROMPT,
     userPrompt,
     contextMessage,
-    responseKey: 'suggestions',
   });
 }
