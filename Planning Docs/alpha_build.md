@@ -4454,12 +4454,6 @@ If the context doesn't contain relevant information to answer the question, say 
 
 **Note:** This side quest provides users with quick access to chatbot-specific context editing directly from the chat interface. The implementation reuses existing components (UserContextEditor) and follows the same patterns as other modals in the application. Server-side filtering ensures optimal performance by reducing data transfer.
 
----
-
-## Phase 4: Analytics & Intelligence (Weeks 8-10)
-
-### **CRITICAL FOR ALPHA**
-
 ### Side Quest: Add messageId FK to Event Table ✅ COMPLETE (Jan 14, 2026)
 
 **Status:** ✅ **COMPLETE** (Jan 14, 2026)
@@ -5251,6 +5245,59 @@ All authenticated routes expected users to exist in the Prisma database with a m
 **Planning Document:** Full analysis and implementation details in `Planning Docs/01-23_user-creation-strategy.md`
 
 ---
+
+### Side Quest: AI-Generated Suggestion Pills ✅ COMPLETE (Jan 30, 2026)
+
+**Status:** ✅ **COMPLETE** (Jan 30, 2026)
+
+**Objective:** Replace static, seeded suggestion pills with dynamically AI-generated pills personalized to each user's intake responses, with async loading and skeleton UI for better UX.
+
+**Problem:** Suggestion pills were static database entries that couldn't adapt to individual user context. The initial implementation also blocked the chat screen while generating pills, causing poor UX.
+
+**Solution:** Two-phase implementation:
+1. **Phase 1:** AI-generated personalized pills using GPT-4o-mini based on chatbot context + user intake responses
+2. **Phase 2:** Async pill loading with skeleton UI so the screen appears immediately
+
+**Key Features Implemented:**
+
+1. **Personalized Pills:** Generate 9 suggestion pills tailored to user's intake responses (3 visible, 6 via "Show More")
+2. **Shared OpenAI Utility:** Created `lib/pills/openai-pills-generator.ts` for consistent pill generation across follow-up and suggestion pills
+3. **Dedicated Async Endpoint:** `GET /api/chatbots/[chatbotId]/suggestion-pills` with 7-day cache TTL
+4. **Three Loading Paths:**
+   - Fresh intake completion → pills from PATCH response (instant)
+   - Returning user with cache → pills from welcome data (instant)
+   - Returning user without cache → async fetch with skeleton UI (~5 seconds)
+5. **Skeleton UI:** `SuggestionPillsSkeleton` component with animated placeholders matching pill layout
+6. **Fallback System:** Per-chatbot fallback pills shown if AI generation fails
+
+**Database Changes:**
+- `Chatbot`: Added `welcomeMessage`, `fallbackSuggestionPills` fields
+- `Conversation`: Added `suggestionPillsCache`, `suggestionPillsCachedAt` fields
+
+**Files Created/Modified:**
+- `lib/pills/openai-pills-generator.ts` - Shared OpenAI utility
+- `lib/pills/generate-suggestion-pills.ts` - Suggestion pill generator
+- `app/api/chatbots/[chatbotId]/suggestion-pills/route.ts` - Async endpoint
+- `components/pills/suggestion-pills-skeleton.tsx` - Skeleton component
+- `app/api/chatbots/[chatbotId]/welcome/route.ts` - Removed blocking generation
+- `app/api/conversations/[conversationId]/route.ts` - Pills on intake completion
+- `hooks/use-intake-gate.ts` - Updated WelcomeData interface
+- `hooks/use-conversational-intake.ts` - Consume pills from PATCH
+- `components/chat.tsx` - Consolidated pill loading with skeleton
+- `app/chat/[chatbotId]/page.tsx` - Added key prop for proper conversation switching
+
+**Key Technical Details:**
+- Uses `gpt-4o-mini` model with temperature 0.7 for balanced personalization
+- Pills ordered by quality/relevance (best first)
+- AbortController for fetch cleanup on unmount
+- Refs (`isPillsFetchingRef`) to prevent duplicate fetches
+- Component remount via key prop handles conversation switching cleanly
+
+**Planning Document:** Full implementation details in `Planning Docs/AI_SUGGESTION_PILLS_PLAN.md`
+
+---
+
+## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
 
@@ -6451,6 +6498,11 @@ If critical issues arise in production:
   - Refactored `useIntakeGate` hook to use pure decision function
   - Created PATCH endpoint for marking conversations as intake complete
   - Added 35 unit/integration tests; cleanup completed
+- [x] Side Quest: AI-Generated Suggestion Pills ✅ **COMPLETE** (Jan 30, 2026)
+  - Replaced static pills with AI-generated pills personalized to user intake responses
+  - Created shared OpenAI utility and dedicated async endpoint with 7-day cache
+  - Added skeleton UI for async loading; three paths: fresh intake, cached, async fetch
+  - Added `welcomeMessage`, `fallbackSuggestionPills` to Chatbot; cache fields to Conversation
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

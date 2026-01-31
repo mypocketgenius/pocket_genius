@@ -100,7 +100,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // Async pill loading state (Step 17)
   const [isPillsLoading, setIsPillsLoading] = useState(false);
   const isPillsFetchingRef = useRef(false); // Guard against duplicate fetches
-  const prevConversationIdRef = useRef<string | null>(null); // Track conversation changes
 
   // Use intake gate hook - single source of truth for intake vs chat decision
   const intakeGate = useIntakeGate(chatbotId, conversationId, isSignedIn, isLoaded);
@@ -1140,7 +1139,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     console.log('[Pills Debug] Consolidated effect running:', {
       gateState: intakeGate.gateState,
       conversationId,
-      prevConversationId: prevConversationIdRef.current,
       intakeSuggestionPillsLength: intakeSuggestionPills.length,
       isPillsFetching: isPillsFetchingRef.current,
       userIntakeCompleted: intakeGate.welcomeData?.intakeCompleted,
@@ -1149,15 +1147,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       fallbackPillsLength: intakeGate.welcomeData?.fallbackSuggestionPills?.length,
     });
 
-    // Clear pills when conversation changes (user switched conversations)
-    if (conversationId !== prevConversationIdRef.current) {
-      prevConversationIdRef.current = conversationId;
-      // Only clear if switching TO a different conversation (not initial load)
-      if (prevConversationIdRef.current !== null && intakeSuggestionPills.length > 0) {
-        console.log('[Pills Debug] Clearing pills - conversation changed');
-        setIntakeSuggestionPills([]);
-      }
-    }
+    // Note: Pills are cleared automatically when switching conversations via component remount
+    // (key prop in page.tsx forces remount on conversationId change)
 
     // Skip if pills already loaded (from fresh intake or previous load)
     if (intakeSuggestionPills.length > 0) {

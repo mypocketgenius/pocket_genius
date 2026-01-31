@@ -1518,11 +1518,12 @@ npx tsc --noEmit
 - [x] New consolidated useEffect handles all three scenarios
 
 #### Edge Cases
-- [ ] No duplicate pill fetches (guards: `isPillsFetchingRef`, `intakeSuggestionPills.length > 0`)
-- [ ] Works correctly when navigating between conversations (pills cleared on conversation change)
-- [ ] Works correctly on page refresh
-- [ ] Works correctly when starting new conversation after completing intake
-- [ ] No TypeScript errors from removed `generatedSuggestionPills` references
+- [x] No duplicate pill fetches (guards: `isPillsFetchingRef`, `intakeSuggestionPills.length > 0`)
+- [x] Works correctly when navigating between conversations (pills cleared on conversation change)
+- [x] Works correctly on page refresh
+- [x] Works correctly when starting new conversation after completing intake
+- [x] No TypeScript errors from removed `generatedSuggestionPills` references
+-NOT TESTED:
 - [ ] Fetch is aborted on unmount (no "set state after unmount" warnings)
 - [ ] Fetch is aborted when conversation changes mid-request
 
