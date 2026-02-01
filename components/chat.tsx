@@ -1141,7 +1141,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         if (response.ok) {
           const data = await response.json();
           if (data.pills?.length > 0) {
-            console.log('[Pills] Fetched:', data.pills.length, 'pills in', data.generationTimeMs, 'ms');
             setIntakeSuggestionPills(mapPillStrings(data.pills, chatbotId));
             return;
           }
@@ -1459,16 +1458,6 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     // Pills are stored in separate followUpPills field (not in RAG context)
                     const pills = message.followUpPills || [];
                     const chunkIds = getChunkIds(message.context);
-
-                    // Debug: Log pills for each assistant message (only once per message)
-                    if (index === messages.length - 1 || pills.length > 0) {
-                      console.log('[FollowUpPills Render]', {
-                        messageId: message.id,
-                        isLastMessage: index === messages.length - 1,
-                        pillsCount: pills.length,
-                        hasFollowUpPills: !!message.followUpPills,
-                      });
-                    }
 
                     if (pills.length === 0) return null;
                     
