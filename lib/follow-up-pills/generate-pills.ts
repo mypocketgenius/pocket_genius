@@ -54,10 +54,13 @@ export type { GeneratePillsResult };
 export async function generateFollowUpPills(
   options: GeneratePillsOptions
 ): Promise<GeneratePillsResult> {
-  const { assistantResponse, configJson, intakeResponses } = options;
+  const { assistantResponse, configJson, chatbotId, conversationId, intakeResponses } = options;
+
+  console.log('[generateFollowUpPills] Called for:', { chatbotId, conversationId });
 
   // Check if feature is disabled (enabled by default)
   if (configJson?.enableFollowUpPills === false) {
+    console.log('[generateFollowUpPills] Feature disabled via configJson.enableFollowUpPills');
     return {
       pills: [],
       generationTimeMs: 0,
@@ -66,12 +69,10 @@ export async function generateFollowUpPills(
 
   // Get chatbot-specific follow-up pills prompt from configJson
   const customPillsPrompt = configJson?.followUpPillsPrompt;
+  const hasCustomPrompt = customPillsPrompt && customPillsPrompt.trim() !== '';
 
   // Use custom prompt if provided, otherwise use default
-  const userPrompt =
-    customPillsPrompt && customPillsPrompt.trim() !== ''
-      ? customPillsPrompt
-      : DEFAULT_PILLS_PROMPT;
+  const userPrompt = hasCustomPrompt ? customPillsPrompt : DEFAULT_PILLS_PROMPT;
 
   // Build context message with intake responses if available
   let contextMessage = assistantResponse;
@@ -82,10 +83,24 @@ export async function generateFollowUpPills(
     contextMessage = `User's Intake Responses:\n${intakeContext}\n\n---\n\nAssistant's Response:\n${assistantResponse}`;
   }
 
+  console.log('[generateFollowUpPills] Generating with:', {
+    hasCustomPrompt,
+    intakeResponsesCount: intakeResponses?.length || 0,
+    contextLength: contextMessage.length,
+  });
+
   // Use shared utility for OpenAI call
-  return generatePillsWithOpenAI({
+  const result = await generatePillsWithOpenAI({
     systemPrompt: PILLS_SYSTEM_PROMPT,
     userPrompt,
     contextMessage,
   });
+
+  console.log('[generateFollowUpPills] Result:', {
+    pillsCount: result.pills.length,
+    generationTimeMs: result.generationTimeMs,
+    error: result.error,
+  });
+
+  return result;
 }

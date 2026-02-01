@@ -456,6 +456,7 @@ If the context doesn't contain relevant information to answer the question, say 
 
           // 15. Generate follow-up pills first, then store message once with complete data
           let followUpPills: string[] = [];
+          console.log('[FollowUpPills API] Starting pill generation for conversation:', conversationId);
           try {
             // Fetch user's intake responses for this chatbot
             let intakeResponses: Array<{ question: string; answer: string }> = [];
@@ -473,7 +474,7 @@ If the context doesn't contain relevant information to answer the question, say 
                   },
                 },
               });
-              
+
               // Format intake responses as question/answer pairs
               intakeResponses = responses.map((response) => {
                 // Extract answer from JSON value
@@ -492,17 +493,18 @@ If the context doesn't contain relevant information to answer the question, say 
                 } else if (typeof response.value === 'string') {
                   answerText = response.value;
                 }
-                
+
                 return {
                   question: response.intakeQuestion.questionText,
                   answer: answerText,
                 };
               });
+              console.log('[FollowUpPills API] Fetched intake responses:', intakeResponses.length);
             } catch (intakeError) {
               // Log but don't fail - intake responses are optional
-              console.warn('Error fetching intake responses for pill generation:', intakeError);
+              console.warn('[FollowUpPills API] Error fetching intake responses:', intakeError);
             }
-            
+
             const pillsResult = await generateFollowUpPills({
               assistantResponse: fullResponse,
               configJson: chatbot.configJson as Record<string, any> | null,
@@ -511,9 +513,14 @@ If the context doesn't contain relevant information to answer the question, say 
               intakeResponses: intakeResponses.length > 0 ? intakeResponses : undefined,
             });
             followUpPills = pillsResult.pills;
+            console.log('[FollowUpPills API] Generated pills:', {
+              count: followUpPills.length,
+              generationTimeMs: pillsResult.generationTimeMs,
+              error: pillsResult.error,
+            });
           } catch (pillError) {
             // Log pill generation errors but don't fail the request (graceful degradation)
-            console.error('Error generating follow-up pills:', pillError);
+            console.error('[FollowUpPills API] Error generating pills:', pillError);
             followUpPills = [];
           }
 
@@ -542,7 +549,13 @@ If the context doesn't contain relevant information to answer the question, say 
                 messageId: assistantMessage.id,
                 pills: followUpPills,
               });
+              console.log('[FollowUpPills API] Sending pills to client:', {
+                messageId: assistantMessage.id,
+                pillsCount: followUpPills.length,
+              });
               controller.enqueue(encoder.encode(`\n\n__PILLS__${pillsDataJson}`));
+            } else {
+              console.log('[FollowUpPills API] No pills to send (empty array)');
             }
 
             // 16. Update conversation messageCount

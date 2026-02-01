@@ -38,25 +38,23 @@ export function SuggestionPills({
     : pills;
 
   return (
-    <div className={`flex flex-col items-center gap-2 ${className}`}>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {visiblePills.map((pill) => (
-          <Pill
-            key={pill.id}
-            pill={pill}
-            isSelected={false}
-            onClick={() => onPillClick(pill)}
-          />
-        ))}
-      </div>
+    <div className={`flex flex-wrap gap-2 justify-center ${className}`}>
+      {visiblePills.map((pill) => (
+        <Pill
+          key={pill.id}
+          pill={pill}
+          isSelected={false}
+          onClick={() => onPillClick(pill)}
+        />
+      ))}
       {hasMorePills && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 flex items-center gap-1 opacity-70 hover:opacity-100"
+          className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 flex items-center gap-1"
           style={{
-            backgroundColor: theme.textColor + '15',
+            backgroundColor: 'rgba(128, 128, 128, 0.15)',
             color: theme.textColor,
-            border: `1px solid ${theme.textColor}30`,
+            border: '1px solid rgba(128, 128, 128, 0.3)',
           }}
           aria-label={isExpanded ? 'Show fewer options' : 'Show more options'}
           aria-expanded={isExpanded}
@@ -68,7 +66,7 @@ export function SuggestionPills({
             </>
           ) : (
             <>
-              <span>Show More</span>
+              <span>Show More ({pills.length - MAX_VISIBLE_PILLS})</span>
               <ChevronDown className="w-4 h-4" aria-hidden="true" />
             </>
           )}

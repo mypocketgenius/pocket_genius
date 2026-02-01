@@ -514,21 +514,27 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       const decoder = new TextDecoder();
       let streamedContent = '';
       const PILLS_PREFIX = '__PILLS__';
+      let receivedPillsEvent = false;
 
       // Read stream chunks
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log('[FollowUpPills] Stream complete, receivedPillsEvent:', receivedPillsEvent);
+            break;
+          }
 
           const chunk = decoder.decode(value, { stream: true });
-          
+
           // Check if chunk contains pills event (structured prefix)
           if (chunk.includes(PILLS_PREFIX)) {
+            receivedPillsEvent = true;
+            console.log('[FollowUpPills] Received __PILLS__ event in stream');
             const pillsIndex = chunk.indexOf(PILLS_PREFIX);
             const contentPart = chunk.substring(0, pillsIndex);
             const pillsPart = chunk.substring(pillsIndex + PILLS_PREFIX.length);
-            
+
             // Append content part normally (if any) - this is the actual message content
             if (contentPart.trim()) {
               streamedContent += contentPart;
@@ -540,12 +546,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                 )
               );
             }
-            
+
             // Parse pills JSON (structured data, no regex needed)
             try {
               const pillsData = JSON.parse(pillsPart);
               const { messageId, pills } = pillsData;
-              
+              console.log('[FollowUpPills] Parsed pills:', { messageId, pillsCount: pills?.length });
+
               if (Array.isArray(pills)) {
                 // Update message with pills using assistantMessageId (temporary ID)
                 // The message will be reloaded with real database ID later, but pills are attached now
@@ -558,10 +565,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       }
                     : msg
                 ));
+                console.log('[FollowUpPills] Attached', pills.length, 'pills to message');
               }
             } catch (parseError) {
-              console.error('Error parsing pills event:', parseError);
-              console.error('Pills part that failed:', pillsPart);
+              console.error('[FollowUpPills] Error parsing pills event:', parseError);
+              console.error('[FollowUpPills] Pills part that failed:', pillsPart);
             }
           } else {
             // Normal content chunk - append to streamed content
@@ -618,7 +626,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       if (newConversationId || conversationId) {
         // Wait a brief moment for database write to complete
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         try {
           const messagesResponse = await fetch(
             `/api/conversations/${newConversationId || conversationId}/messages`
@@ -633,7 +641,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
               context: msg.context || undefined, // Phase 4: Include context for source attribution
               followUpPills: msg.followUpPills || undefined, // Follow-up pills (separate from RAG context)
             }));
-            
+
+            // Debug: Log pills from reloaded messages
+            const assistantMessages = loadedMessages.filter(m => m.role === 'assistant');
+            console.log('[FollowUpPills] Messages reloaded from API:', {
+              totalMessages: loadedMessages.length,
+              assistantMessages: assistantMessages.length,
+              messagesWithPills: assistantMessages.filter(m => m.followUpPills && m.followUpPills.length > 0).length,
+              lastAssistantPills: assistantMessages[assistantMessages.length - 1]?.followUpPills?.length || 0,
+            });
+
             setMessages(loadedMessages);
           }
         } catch (reloadError) {
@@ -1442,7 +1459,17 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                     // Pills are stored in separate followUpPills field (not in RAG context)
                     const pills = message.followUpPills || [];
                     const chunkIds = getChunkIds(message.context);
-                    
+
+                    // Debug: Log pills for each assistant message (only once per message)
+                    if (index === messages.length - 1 || pills.length > 0) {
+                      console.log('[FollowUpPills Render]', {
+                        messageId: message.id,
+                        isLastMessage: index === messages.length - 1,
+                        pillsCount: pills.length,
+                        hasFollowUpPills: !!message.followUpPills,
+                      });
+                    }
+
                     if (pills.length === 0) return null;
                     
                     return (

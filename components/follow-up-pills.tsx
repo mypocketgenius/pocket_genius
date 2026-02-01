@@ -23,7 +23,7 @@ import { getPillColors } from '@/lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '@/lib/theme/pill-styles';
 import { getCurrentPeriod } from '@/lib/theme/config';
 
-const MAX_VISIBLE_PILLS = 3;
+const MAX_VISIBLE_PILLS = 4;
 
 interface FollowUpPillsProps {
   pills: string[];
@@ -60,7 +60,7 @@ export function FollowUpPills({
 
 
   return (
-    <div className="flex flex-wrap gap-2 w-full max-w-full mt-2">
+    <div className="flex flex-wrap gap-2 w-full max-w-full mt-3">
       {visiblePills.map((pillText, index) => {
         // Use suggestion pill styles with isPrimary: true for prominent accent color
         // This matches the styling of suggested pills like "What is the best way to attack?"
@@ -78,33 +78,34 @@ export function FollowUpPills({
             onClick={() => onPillClick(pillText)}
             disabled={disabled}
             style={pillStyles}
-            className="active:scale-95 px-4 rounded-full text-sm font-medium transition-all whitespace-normal break-words"
+            className="active:scale-95 rounded-full text-sm font-medium transition-all whitespace-normal break-words py-2 px-4"
             aria-label={`Follow-up: ${pillText}`}
           >
             {pillText}
           </button>
         );
       })}
+      {/* DEBUG: Log hasMorePills at render */}
+      {console.log('[FollowUpPills] hasMorePills at render:', hasMorePills, 'pills.length:', pills.length)}
       {hasMorePills && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 flex items-center gap-1"
+          className="flex items-center gap-1 text-sm font-semibold transition-all active:scale-95"
           style={{
             backgroundColor: 'transparent',
             color: theme.textColor,
+            border: 'none',
           }}
-          aria-label={isExpanded ? 'Show fewer options' : 'Show more options'}
-          aria-expanded={isExpanded}
         >
           {isExpanded ? (
             <>
-              <span>Show Less</span>
-              <ChevronUp className="w-4 h-4" aria-hidden="true" />
+              Show Less
+              <ChevronUp size={16} />
             </>
           ) : (
             <>
-              <span>Show More</span>
-              <ChevronDown className="w-4 h-4" aria-hidden="true" />
+              Show More ({pills.length - MAX_VISIBLE_PILLS})
+              <ChevronDown size={16} />
             </>
           )}
         </button>
