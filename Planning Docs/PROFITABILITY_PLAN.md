@@ -7,7 +7,7 @@
 
 ## The Opportunity
 
-### The Problem We Solve
+### The Problem We **Solve**
 
 Prominent content experts consistently report that their audiences crave one-on-one help applying concepts to their unique situations. But there are fundamental capacity constraints when it comes to experts personalising what they teach.
 
@@ -80,7 +80,7 @@ With proven results, work up to:
 - Token cost: ~$0.10 per transformation
 - **Net margin per transformation: ~$17.40**
 
-### Path to $1,500 MRR
+### Path to $1,**500** MRR
 
 | Milestone | Transformations/Month | MRR | Target Date |
 |-----------|----------------------|-----|-------------|

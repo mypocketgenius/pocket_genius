@@ -85,8 +85,6 @@ export function FollowUpPills({
           </button>
         );
       })}
-      {/* DEBUG: Log hasMorePills at render */}
-      {console.log('[FollowUpPills] hasMorePills at render:', hasMorePills, 'pills.length:', pills.length)}
       {hasMorePills && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
