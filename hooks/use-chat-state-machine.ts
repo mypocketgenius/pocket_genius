@@ -112,17 +112,29 @@ export function useChatStateMachine({ chatbotId }: ChatStateMachineOptions): Cha
 
     // Priority 2: ?new=true parameter
     if (isNewConversation) {
+      // Detect if this is a FRESH navigation to ?new=true (user clicked + button)
+      // vs a STALE ?new=true (URL hasn't caught up after conversation creation)
+      //
+      // Fresh navigation: previous URL had a conversationId, now we have ?new=true
+      // Stale URL: we're in active state but URL still shows ?new=true from before
+      const isFreshNewConversationRequest = prevUrlConversationIdRef.current !== null;
+
       // Only transition if not already in 'new' or 'creating' state
-      // ALSO skip if we're in 'active' state with a valid conversationId - this means
-      // router.replace() was just called but searchParams hasn't updated yet (stale URL)
-      if (state !== 'new' && state !== 'creating' && !(state === 'active' && conversationId)) {
-        console.log(`[ChatStateMachine] ${state} → new (URL has ?new=true)`);
+      // Exception: if we're in 'active' state, only transition if this is a FRESH request
+      // (user clicked + button, not stale URL)
+      const shouldTransitionToNew =
+        state !== 'new' &&
+        state !== 'creating' &&
+        (!(state === 'active' && conversationId) || isFreshNewConversationRequest);
+
+      if (shouldTransitionToNew) {
+        console.log(`[ChatStateMachine] ${state} → new (URL has ?new=true, fresh=${isFreshNewConversationRequest})`);
         // Trigger state clearing callback
         onStateClearingRef.current();
         setState('new');
         setConversationId(null);
         localStorage.removeItem(`conversationId_${chatbotId}`);
-      } else if (state === 'active' && conversationId) {
+      } else if (state === 'active' && conversationId && !isFreshNewConversationRequest) {
         console.log(`[ChatStateMachine] Ignoring stale ?new=true - already active with conversationId`);
       }
       prevUrlConversationIdRef.current = null;
