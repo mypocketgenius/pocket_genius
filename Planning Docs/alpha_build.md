@@ -5297,6 +5297,51 @@ All authenticated routes expected users to exist in the Prisma database with a m
 
 ---
 
+### Side Quest: Chat State Machine (Race Condition Fix) ✅ COMPLETE (Feb 1, 2026)
+
+**Status:** ✅ **COMPLETE** (Feb 1, 2026)
+
+**Objective:** Fix race condition causing pills to flash skeleton loaders when sending the first message in a new conversation.
+
+**Problem:** When a user sent their first message in a new conversation, the UI would flicker - pills would revert to skeleton loaders, and the page appeared to "refresh". Console logs showed `conversationId` going from a valid ID to `null` and back.
+
+**Root Cause:** Race condition between React state updates and Next.js router URL updates. When `sendMessage` called `router.replace()` to update the URL with the new `conversationId`, the URL params effect would fire with stale `searchParams` (still showing `?new=true`), causing incorrect state transitions.
+
+**Solution:** Implemented a state machine pattern with explicit states and a synchronous transition lock.
+
+**Key Features Implemented:**
+
+1. **State Machine Hook:** Created `useChatStateMachine` with 5 explicit states: `idle`, `loading`, `new`, `creating`, `active`
+2. **Synchronous Lock:** Used `isTransitioningRef` to block effects during async router updates
+3. **Stale URL Guards:** State machine ignores URL params when already in a valid state
+4. **State Clearing Callback:** Hook notifies chat component when to clear messages/pills during transitions
+
+**State Transitions:**
+```
+idle → new       (URL has ?new=true)
+idle → loading   (URL has conversationId)
+new → creating   (sendMessage called)
+creating → active (API returned conversationId)
+loading → active (messages loaded)
+active → new     (user clicks + button)
+active → loading (user switches to different conversation)
+```
+
+**Files Created/Modified:**
+- `hooks/use-chat-state-machine.ts` - NEW: State machine hook (229 lines)
+- `components/chat.tsx` - Integrated state machine, removed complex URL effect
+- `app/chat/[chatbotId]/page.tsx` - Removed key prop (was causing remounts)
+
+**Key Technical Details:**
+- `isTransitioningRef` provides synchronous lock (refs update immediately, unlike state)
+- 50ms timeout after `router.replace()` allows URL to propagate before releasing lock
+- Guards check `state === 'active' && conversationId` to ignore stale URL params
+- Clean console logging for debugging state transitions
+
+**Planning Document:** Full implementation details in `Planning Docs/CHAT_REFRESH_BUG_HANDOVER.md`
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
@@ -6534,6 +6579,10 @@ If critical issues arise in production:
   - Created shared OpenAI utility and dedicated async endpoint with 7-day cache
   - Added skeleton UI for async loading; three paths: fresh intake, cached, async fetch
   - Added `welcomeMessage`, `fallbackSuggestionPills` to Chatbot; cache fields to Conversation
+- [x] Side Quest: Chat State Machine (Race Condition Fix) ✅ **COMPLETE** (Feb 1, 2026)
+  - Fixed race condition causing pill skeleton flash on first message send
+  - Created `useChatStateMachine` hook with 5 explicit states and synchronous transition lock
+  - Removed key prop from chat component; replaced complex URL effect with state machine
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

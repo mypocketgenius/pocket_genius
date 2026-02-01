@@ -203,3 +203,136 @@ After sending the first message in a new conversation:
 - `conversationId` should go from `null` to the new ID (never back to null)
 - No visual "refresh" or flicker
 - Message should appear smoothly
+
+---
+
+## SOLUTION IMPLEMENTED ✅ (Feb 1, 2026)
+
+### The Fix: State Machine Pattern
+
+We implemented **Option B: Use a State Machine** from the suggested approaches above.
+
+### New Hook: `useChatStateMachine`
+
+**File:** `hooks/use-chat-state-machine.ts`
+
+A dedicated state machine hook that manages the chat conversation lifecycle with explicit states and transitions.
+
+#### States
+
+```typescript
+type ChatState = 'idle' | 'loading' | 'new' | 'creating' | 'active';
+```
+
+- **idle** - Initial state, no conversation
+- **loading** - Loading existing conversation from URL
+- **new** - User clicked +, showing welcome screen
+- **creating** - First message sent, waiting for API to return conversationId
+- **active** - Normal chat with valid conversationId
+
+#### Key State Transitions
+
+```
+idle → new       (URL has ?new=true)
+idle → loading   (URL has conversationId)
+new → creating   (sendMessage called)
+creating → active (API returned conversationId)
+loading → active (messages loaded)
+active → new     (user clicks + button)
+active → loading (user switches to different conversation)
+```
+
+#### Critical Implementation Details
+
+**1. Synchronous Lock with `isTransitioningRef`**
+
+The key insight: React's `router.replace()` is async, so `searchParams` doesn't update immediately. We use a ref (synchronous) to block effects during the transition window:
+
+```typescript
+const isTransitioningRef = useRef(false);
+
+// In startCreating:
+isTransitioningRef.current = true; // Lock BEFORE state changes
+
+// In conversationCreated:
+router.replace(`/chat/${chatbotId}?conversationId=${newConversationId}`);
+setTimeout(() => {
+  isTransitioningRef.current = false; // Release AFTER URL propagates
+  setState('active');
+}, 50);
+```
+
+**2. Guard Against Stale URL Params**
+
+The URL effect checks if we're already in a valid state before reacting to "stale" URL params:
+
+```typescript
+// Skip if we're in active state with a valid conversationId - URL hasn't caught up yet
+if (state === 'active' && conversationId) {
+  console.log(`[ChatStateMachine] Ignoring stale ?new=true - already active with conversationId`);
+  return;
+}
+```
+
+**3. State Clearing Callback**
+
+The hook provides a callback mechanism for clearing chat state when switching conversations:
+
+```typescript
+const onStateClearingRef = useRef<() => void>(() => {});
+
+// Called before switching conversations
+onStateClearingRef.current();
+```
+
+### Integration in `chat.tsx`
+
+**Replaced:** The complex URL params useEffect with multiple competing conditions.
+
+**Added:**
+```typescript
+const chatStateMachine = useChatStateMachine({ chatbotId });
+const {
+  state: chatState,
+  conversationId,
+  startNewConversation,
+  startCreating,
+  conversationCreated,
+  messagesLoaded,
+  setOnStateClearing
+} = chatStateMachine;
+```
+
+**In `sendMessage`:**
+```typescript
+// Before API call (if new conversation)
+if (chatState === 'new') {
+  startCreating();
+}
+
+// After API returns conversationId
+if (newConversationId) {
+  conversationCreated(newConversationId);
+}
+```
+
+### Why This Works
+
+1. **Explicit states** - No ambiguity about what the component is doing
+2. **Synchronous lock** - Prevents effects from reacting to intermediate states
+3. **Guards against stale URL** - The state machine knows the "truth" even when URL lags behind
+4. **Single source of truth** - `chatStateMachine.conversationId` is authoritative, not `searchParams`
+
+### Files Modified
+
+1. **`hooks/use-chat-state-machine.ts`** - NEW: State machine hook (229 lines)
+2. **`components/chat.tsx`** - Integrated state machine, removed complex URL effect
+3. **`app/chat/[chatbotId]/page.tsx`** - Removed key prop (was causing remounts)
+
+### Testing Verification
+
+- ✅ Start new conversation → pills stay visible (no skeleton flash)
+- ✅ Send first message → smooth transition to active state
+- ✅ Switch between existing conversations → works correctly
+- ✅ Click + button from active conversation → clears state, shows welcome
+- ✅ Console logs show clean state transitions without flickering
