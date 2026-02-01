@@ -23,6 +23,7 @@ import { ThemedPage } from './themed-page';
 import { ChatHeader } from './chat-header';
 import { useConversationalIntake, IntakeQuestion } from '../hooks/use-conversational-intake';
 import { useIntakeGate } from '../hooks/use-intake-gate';
+import { useChatStateMachine } from '../hooks/use-chat-state-machine';
 import { getPillColors } from '../lib/theme/pill-colors';
 import { getSuggestionPillStyles } from '../lib/theme/pill-styles';
 import { getCurrentPeriod } from '../lib/theme/config';
@@ -71,12 +72,16 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const clerk = useClerk();
+
+  // Chat state machine - single source of truth for conversation state
+  const chatMachine = useChatStateMachine({ chatbotId });
+  const conversationId = chatMachine.conversationId;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationStatus, setConversationStatus] = useState<'active' | 'completed' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
@@ -159,82 +164,28 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Welcome data fetch and gate decision is now handled by useIntakeGate hook
 
-  // Extract URL params outside useEffect so they can be used in dependency array
-  // This ensures the effect re-runs when URL params change (fixes Next.js App Router navigation issue)
-  const urlConversationId = searchParams?.get('conversationId');
-  const isNewConversation = searchParams?.get('new') === 'true';
-
-  // Get conversationId from URL params - URL is source of truth
+  // Set up state clearing callback for the state machine
+  // This is called when switching conversations or starting new conversations
   useEffect(() => {
-    console.log('[Chat] URL params effect running', {
-      urlConversationId,
-      isNewConversation,
-      currentConversationId: conversationId,
-      gateState: intakeGate.gateState,
-      messagesCount: messages.length
-    });
-    
-    // Priority 1: conversationId in URL (highest priority)
-    // Always set conversationId from URL if present - this allows gate to transition to 'chat'
-    if (urlConversationId) {
-      // Only update if different to avoid unnecessary re-renders
-      if (conversationId !== urlConversationId) {
-        console.log('[Chat] Setting conversationId from URL', urlConversationId);
-        setConversationId(urlConversationId);
-        // Store in localStorage for persistence across refreshes
-        localStorage.setItem(`conversationId_${chatbotId}`, urlConversationId);
-        // Reset hasLoadedMessages to allow reloading
-        hasLoadedMessages.current = false;
-      }
-      return;
-    }
-    
-    // Guard: Don't reset messages during active intake or checking (only for clearing conversationId)
-    if (intakeGate.gateState === 'intake' || intakeGate.gateState === 'checking') {
-      console.log('[Chat] Guard preventing conversationId clear - in intake/checking');
-      return;
-    }
-    
-    // Guard: Don't clear messages if we have messages (e.g., transitioning from intake)
-    // This prevents flicker when intake completes and URL updates
-    // Note: conversationId may be null during transition, but messages should be preserved
-    // Explicit message clearing (e.g., ?new=true) is handled by Priority 2 above
-    if (messages.length > 0) {
-      console.log('[Chat] Guard preventing message clear - messages exist');
-      return;
-    }
-    
-    // Priority 2: ?new=true parameter - clear localStorage and start fresh
-    if (isNewConversation) {
-      setConversationId(null);
-      localStorage.removeItem(`conversationId_${chatbotId}`);
+    chatMachine.setOnStateClearing(() => {
       setMessages([]);
+      setBookmarkedMessages(new Set());
+      setIntakeSuggestionPills([]);
       setConversationStatus(null);
       hasLoadedMessages.current = false;
-      hasPassedIntakePhase.current = false; // Reset intake phase tracking
-      return;
-    }
-    
-    // Priority 3: No URL parameters - show empty interface (ready for new conversation)
-    // Don't load from localStorage - URL is source of truth
-    setConversationId(null);
-    setMessages([]);
-    setConversationStatus(null);
-    hasLoadedMessages.current = false;
-    hasPassedIntakePhase.current = false; // Reset intake phase tracking
-  // Note: Watch specific param values (urlConversationId, isNewConversation) instead of searchParams object
-  // because searchParams object reference may not change on client-side navigation in Next.js App Router
-  }, [chatbotId, urlConversationId, isNewConversation, intakeGate.gateState, conversationId, messages.length]);
+      hasPassedIntakePhase.current = false;
+    });
+  }, [chatMachine]);
 
-  // Load existing messages when conversationId is available
+  // Load existing messages when state machine indicates we should
   useEffect(() => {
-    // When resuming intake for an existing conversation, we need to load messages
-    // to show conversation history. The intake hook will manage new messages via onMessageAdded.
-    // Only skip loading if we're in a new intake flow (no conversationId yet).
-    if (!conversationId || hasLoadedMessages.current) return;
+    // Use state machine guard instead of manual checks
+    if (!chatMachine.shouldLoadMessages) return;
+    if (hasLoadedMessages.current) return;
     // If messages already exist (e.g., from intake completion), skip loading to prevent flicker
     if (messages.length > 0) {
       hasLoadedMessages.current = true;
+      chatMachine.messagesLoaded();
       return;
     }
 
@@ -247,55 +198,53 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          
+
           // Handle specific error cases
           if (response.status === 404) {
             // Conversation not found - show error and redirect to new conversation
             const errorMessage = errorData.error || 'Conversation not found';
             setError(errorMessage);
             setToast({ message: errorMessage, type: 'error' });
-            
+
             // Clear invalid conversationId and redirect after showing error
-            setConversationId(null);
             localStorage.removeItem(`conversationId_${chatbotId}`);
-            
+
             // Redirect to new conversation after 3 seconds
             setTimeout(() => {
               router.replace(`/chat/${chatbotId}?new=true`);
             }, 3000);
-            
+
             setIsLoadingMessages(false);
             return;
           }
-          
+
           if (response.status === 403) {
             // User doesn't have access - show error and redirect
             const errorMessage = errorData.error || "You don't have access to this conversation";
             setError(errorMessage);
             setToast({ message: errorMessage, type: 'error' });
-            
+
             // Clear conversationId and redirect after showing error
-            setConversationId(null);
             localStorage.removeItem(`conversationId_${chatbotId}`);
-            
+
             // Redirect to new conversation after 3 seconds
             setTimeout(() => {
               router.replace(`/chat/${chatbotId}?new=true`);
             }, 3000);
-            
+
             setIsLoadingMessages(false);
             return;
           }
-          
+
           // Provide user-friendly error messages for other errors
           let errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
-          
+
           if (response.status === 503) {
             errorMessage = 'Service temporarily unavailable. Please try again.';
           } else if (response.status >= 500) {
             errorMessage = 'Server error. Please refresh the page.';
           }
-          
+
           throw new Error(errorMessage);
         }
 
@@ -314,7 +263,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         if (data.conversationStatus) {
           setConversationStatus(data.conversationStatus as 'active' | 'completed');
         }
-        
+
         // Phase 4: Load bookmarked messages
         try {
           const bookmarksResponse = await fetch(`/api/bookmarks?chatbotId=${chatbotId}`);
@@ -327,11 +276,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
           console.error('Error loading bookmarks:', error);
         }
         hasLoadedMessages.current = true;
+        // Notify state machine that messages are loaded
+        chatMachine.messagesLoaded();
       } catch (err) {
         console.error('Error loading messages:', err);
         setError(err instanceof Error ? err.message : 'Failed to load conversation');
         // Clear invalid conversationId
-        setConversationId(null);
         localStorage.removeItem(`conversationId_${chatbotId}`);
       } finally {
         setIsLoadingMessages(false);
@@ -339,14 +289,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     };
 
     loadMessages();
-  }, [conversationId, chatbotId, intakeGate.gateState, router, messages.length]);
+  }, [chatMachine.shouldLoadMessages, conversationId, chatbotId, router, messages.length, chatMachine]);
 
-  // Persist conversationId to localStorage when it changes
-  useEffect(() => {
-    if (conversationId) {
-      localStorage.setItem(`conversationId_${chatbotId}`, conversationId);
-    }
-  }, [conversationId, chatbotId]);
+  // Note: localStorage persistence is now handled by the state machine
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -489,6 +434,11 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
+      // Start creating state if this is a new conversation
+      if (!conversationId && (chatMachine.state === 'new' || chatMachine.state === 'idle')) {
+        chatMachine.startCreating();
+      }
+
       // Prepare messages array for API (includes conversation history)
       const messagesForAPI = [
         ...messages.map((m) => ({
@@ -644,14 +594,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
         }
       }
 
-      // Store conversation ID from response headers
+      // Store conversation ID from response headers using state machine
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && newConversationId !== conversationId) {
-        setConversationId(newConversationId);
-        // Persist to localStorage for persistence across refreshes
-        localStorage.setItem(`conversationId_${chatbotId}`, newConversationId);
-        // Update URL with conversationId using replace (don't add to history)
-        router.replace(`/chat/${chatbotId}?conversationId=${newConversationId}`);
+        // Use state machine to handle the transition - this sets conversationId,
+        // updates localStorage, updates URL, and manages the isTransitioning lock
+        chatMachine.conversationCreated(newConversationId);
       }
 
       // Phase 4, Task 8: Pill usage is now logged server-side in /api/chat route
@@ -1104,10 +1052,9 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       
       // Mark messages as loaded
       hasLoadedMessages.current = true;
-      setConversationId(convId);
-      localStorage.setItem(`conversationId_${chatbotId}`, convId);
-      // Update URL without causing full navigation (preserves state)
-      router.replace(`/chat/${chatbotId}?conversationId=${convId}`, { scroll: false });
+      // Use state machine to handle the conversation created transition
+      // This sets conversationId, updates localStorage, and updates URL
+      chatMachine.conversationCreated(convId);
     },
     // Pass existing conversationId when resuming intake for an existing conversation
     intakeGate.gateState === 'intake' ? conversationId : null,
@@ -1119,13 +1066,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
   // Sync intake hook suggestion pills to component state for persistence
   useEffect(() => {
-    console.log('[Pills Debug] Sync effect running:', {
-      showPills: intakeHook?.showPills,
-      suggestionPillsLength: intakeHook?.suggestionPills?.length,
-      currentIntakeSuggestionPillsLength: intakeSuggestionPills.length,
-    });
     if (intakeHook?.showPills && intakeHook?.suggestionPills && intakeHook.suggestionPills.length > 0) {
-      console.log('[Pills Debug] Syncing pills from intake hook:', intakeHook.suggestionPills.length, 'pills');
+      console.log('[Pills] Syncing from intake hook:', intakeHook.suggestionPills.length, 'pills');
       setIntakeSuggestionPills(intakeHook.suggestionPills);
     }
   }, [intakeHook?.showPills, intakeHook?.suggestionPills]);
@@ -1136,90 +1078,53 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
   // 2. Returning user with cached pills → use cached pills (fast path, no fetch)
   // 3. Returning user without cached pills → async fetch from endpoint (slow path)
   useEffect(() => {
-    console.log('[Pills Debug] Consolidated effect running:', {
-      gateState: intakeGate.gateState,
-      conversationId,
-      intakeSuggestionPillsLength: intakeSuggestionPills.length,
-      isPillsFetching: isPillsFetchingRef.current,
-      userIntakeCompleted: intakeGate.welcomeData?.intakeCompleted,
-      conversationIntakeCompleted: intakeGate.welcomeData?.conversation?.intakeCompleted,
-      cachedPillsLength: intakeGate.welcomeData?.cachedSuggestionPills?.length,
-      fallbackPillsLength: intakeGate.welcomeData?.fallbackSuggestionPills?.length,
-    });
-
     // Note: Pills are cleared automatically when switching conversations via component remount
     // (key prop in page.tsx forces remount on conversationId change)
 
+    // Skip during state machine transitions to prevent race conditions
+    if (chatMachine.isTransitioning) return;
+
     // Skip if pills already loaded (from fresh intake or previous load)
-    if (intakeSuggestionPills.length > 0) {
-      console.log('[Pills Debug] Skipping - pills already loaded:', intakeSuggestionPills.length);
-      return;
-    }
+    if (intakeSuggestionPills.length > 0) return;
 
     // Skip if not in chat mode
-    if (intakeGate.gateState !== 'chat') {
-      console.log('[Pills Debug] Skipping - not in chat mode:', intakeGate.gateState);
-      return;
-    }
+    if (intakeGate.gateState !== 'chat') return;
 
     // Skip if already fetching - but let the existing fetch complete
-    // The results will be used when it finishes
-    if (isPillsFetchingRef.current) {
-      console.log('[Pills Debug] Skipping - already fetching (will use those results)');
-      return;
-    }
+    if (isPillsFetchingRef.current) return;
 
     // Check intake completion status from multiple sources
-    // - welcomeData.intakeCompleted: user-level (answered all questions for this chatbot)
-    // - welcomeData.conversation?.intakeCompleted: conversation-level (marked complete via PATCH)
-    // Note: welcomeData may be stale after fresh intake completion, so we also check conversation-level
     const userIntakeCompleted = intakeGate.welcomeData?.intakeCompleted;
     const conversationIntakeCompleted = intakeGate.welcomeData?.conversation?.intakeCompleted;
 
-    // Skip if intake is definitely not completed (both flags false/undefined)
-    // But proceed if either flag is true, OR if we have a conversationId (indicates we might have just completed)
-    if (!userIntakeCompleted && !conversationIntakeCompleted && !conversationId) {
-      console.log('[Pills Debug] Skipping - intake not completed and no conversationId');
-      return;
-    }
+    // Skip if intake is definitely not completed and no conversationId
+    if (!userIntakeCompleted && !conversationIntakeCompleted && !conversationId) return;
 
     // FAST PATH: Cached pills available from welcome data
     const cachedPills = intakeGate.welcomeData?.cachedSuggestionPills;
     if (cachedPills && cachedPills.length > 0) {
-      console.log('[Pills Debug] FAST PATH - using cached pills:', cachedPills.length);
+      console.log('[Pills] Using cached pills:', cachedPills.length);
       setIntakeSuggestionPills(mapPillStrings(cachedPills, chatbotId));
       return;
     }
 
-    console.log('[Pills Debug] SLOW PATH - fetching from endpoint');
-
     // SLOW PATH: No cached pills - fetch from dedicated endpoint
-    // Note: We do NOT use cleanup/abort because the effect may re-run due to
-    // dependency changes (like welcomeData refetch), and we want the fetch to complete.
-
     const fetchPillsAsync = async () => {
       isPillsFetchingRef.current = true;
       setIsPillsLoading(true);
-      console.log('[Pills Debug] Starting async fetch, isPillsLoading set to true');
 
       try {
         const url = conversationId
           ? `/api/chatbots/${chatbotId}/suggestion-pills?conversationId=${conversationId}`
           : `/api/chatbots/${chatbotId}/suggestion-pills`;
 
-        console.log('[Pills Debug] Fetching from:', url);
+        console.log('[Pills] Fetching from endpoint...');
         const response = await fetch(url);
-        console.log('[Pills Debug] Fetch response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
-          console.log('[Pills Debug] Fetch response data:', {
-            pillsLength: data.pills?.length,
-            source: data.source,
-            generationTimeMs: data.generationTimeMs,
-          });
           if (data.pills?.length > 0) {
-            console.log('[Pills Debug] Setting pills from fetch:', data.pills.length);
+            console.log('[Pills] Fetched:', data.pills.length, 'pills in', data.generationTimeMs, 'ms');
             setIntakeSuggestionPills(mapPillStrings(data.pills, chatbotId));
             return;
           }
@@ -1227,13 +1132,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
 
         // Fetch failed or empty - try fallbacks
         const fallbackPills = intakeGate.welcomeData?.fallbackSuggestionPills;
-        console.log('[Pills Debug] Fetch empty/failed, trying fallbacks:', fallbackPills?.length);
         if (fallbackPills && fallbackPills.length > 0) {
+          console.log('[Pills] Using fallback pills:', fallbackPills.length);
           setIntakeSuggestionPills(mapPillStrings(fallbackPills, chatbotId));
         }
       } catch (error) {
-        console.error('[Pills Debug] Failed to fetch suggestion pills:', error);
-        // Use fallback pills on error
+        console.error('[Pills] Failed to fetch:', error);
         const errorFallbackPills = intakeGate.welcomeData?.fallbackSuggestionPills;
         if (errorFallbackPills && errorFallbackPills.length > 0) {
           setIntakeSuggestionPills(mapPillStrings(errorFallbackPills, chatbotId));
@@ -1241,14 +1145,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       } finally {
         isPillsFetchingRef.current = false;
         setIsPillsLoading(false);
-        console.log('[Pills Debug] Fetch complete, isPillsLoading set to false');
       }
     };
 
     fetchPillsAsync();
-
-    // No cleanup needed - let fetch complete and use results
   }, [
+    chatMachine.isTransitioning,
     intakeGate.gateState,
     intakeGate.welcomeData?.intakeCompleted,
     intakeGate.welcomeData?.conversation?.intakeCompleted,
@@ -1257,21 +1159,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
     intakeSuggestionPills.length,
     chatbotId,
     conversationId,
-    // Note: isPillsLoading removed from deps - using ref instead to prevent re-trigger loops
   ]);
 
-  // Debug log on each render
-  console.log('[Pills Debug] Render state:', {
-    gateState: intakeGate.gateState,
-    messagesLength: messages.length,
-    intakeSuggestionPillsLength: intakeSuggestionPills.length,
-    isPillsLoading,
-    conversationId,
-    intakeHookShowPills: intakeHook?.showPills,
-    intakeHookPillsLength: intakeHook?.suggestionPills?.length,
-    welcomeDataIntakeCompleted: intakeGate.welcomeData?.intakeCompleted,
-    hasFinalIntakeMessage: messages.some(m => m.content?.includes("When our conversation is finished")),
-  });
 
   // Show loading while checking intake gate
   if (intakeGate.gateState === 'checking') {
@@ -1461,48 +1350,13 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             // Hide copy/save buttons for intake messages and the final intake message with suggestion pills
             // Show buttons for regular chat messages that come AFTER the final intake message
             const isIntakeMessage = (() => {
-            
-            // If no final intake message exists, check if we're in intake mode
-            if (finalIntakeMessageIndex === -1) {
-              // No final intake message - check gateState
-              if (intakeGate.gateState === 'intake') {
-                console.log('[Copy/Save Debug] Message is intake - no final message found, gateState is intake', {
-                  messageId: message.id,
-                  gateState: intakeGate.gateState,
-                  contentPreview: message.content?.substring(0, 50)
-                });
-                return true;
+              // If no final intake message exists, check if we're in intake mode
+              if (finalIntakeMessageIndex === -1) {
+                return intakeGate.gateState === 'intake';
               }
-              // Not in intake and no final message - show buttons
-              console.log('[Copy/Save Debug] Message is NOT intake - no final message, gateState is chat', {
-                messageId: message.id,
-                gateState: intakeGate.gateState,
-                contentPreview: message.content?.substring(0, 50)
-              });
-              return false;
-            }
-            
-            // Final intake message exists - check if this message is before, at, or after it
-            if (index <= finalIntakeMessageIndex) {
-              // This message is part of intake (before or at final intake message)
-              console.log('[Copy/Save Debug] Message is intake - before/at final intake message', {
-                messageId: message.id,
-                index,
-                finalIntakeMessageIndex,
-                contentPreview: message.content?.substring(0, 50)
-              });
-              return true;
-            }
-            
-            // This message comes AFTER the final intake message - it's a regular chat message
-            console.log('[Copy/Save Debug] Message is NOT intake - comes after final intake message', {
-              messageId: message.id,
-              index,
-              finalIntakeMessageIndex,
-              contentPreview: message.content?.substring(0, 50)
-            });
-            return false;
-          })();
+              // Message is intake if it's before or at the final intake message
+              return index <= finalIntakeMessageIndex;
+            })();
 
           return (
             <div key={message.id}>

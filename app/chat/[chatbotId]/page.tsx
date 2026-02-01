@@ -66,7 +66,9 @@ async function retryDatabaseQuery<T>(
  */
 export default async function ChatPage({ params, searchParams }: ChatPageProps) {
   const { chatbotId } = await params;
-  const { conversationId, new: isNew } = await searchParams;
+  // Note: searchParams are awaited but not used directly in this component
+  // The Chat component reads URL params via useSearchParams hook
+  await searchParams;
   
   try {
     // Fetch chatbot title for display in header with retry logic
@@ -84,10 +86,8 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     
     return (
       <div className="h-dvh bg-gray-50 overflow-hidden">
-        {/* Key forces remount when URL params change - fixes Next.js App Router navigation issue */}
         <Suspense fallback={<div className="flex items-center justify-center h-dvh">Loading chat...</div>}>
           <Chat
-            key={`${chatbotId}-${conversationId ?? 'new'}-${isNew ?? ''}`}
             chatbotId={chatbotId}
             chatbotTitle={chatbot.title}
           />

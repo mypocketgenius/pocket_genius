@@ -46,14 +46,6 @@ export function IntakeFlow({
   
   useEffect(() => {
     // Force re-render when state version or key state values change
-    console.log('[IntakeFlow] Force update triggered', {
-      stateVersion: intakeHook.stateVersion,
-      currentQuestionIndex: intakeHook.currentQuestionIndex,
-      mode: intakeHook.mode,
-      verificationMode: intakeHook.verificationMode,
-      verificationQuestionId: intakeHook.verificationQuestionId,
-      currentQuestionId: intakeHook.currentQuestion?.id,
-    });
     forceUpdate();
   }, [
     intakeHook.stateVersion, // Primary trigger - increments on every state change
@@ -64,17 +56,6 @@ export function IntakeFlow({
     intakeHook.verificationMode,
     intakeHook.currentQuestion?.id,
   ]);
-
-  // Debug: Log render with current state
-  console.log('[IntakeFlow] Rendering', {
-    stateVersion: intakeHook.stateVersion,
-    currentQuestionIndex: intakeHook.currentQuestionIndex,
-    mode: intakeHook.mode,
-    verificationMode: intakeHook.verificationMode,
-    verificationQuestionId: intakeHook.verificationQuestionId,
-    currentQuestionId: intakeHook.currentQuestion?.id,
-    shouldShowVerification: intakeHook.verificationMode && intakeHook.verificationQuestionId,
-  });
 
   return (
     <div className="space-y-3">
