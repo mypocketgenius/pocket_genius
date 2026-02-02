@@ -245,6 +245,165 @@ Each chatbot's behavior is defined entirely by its `systemPrompt` field in the d
 5. Citation requirements
 6. Guardrails (what not to do)
 
+### 3.6 Input Strategy: Why JIRA/Git Integration Is Not Required
+
+A common assumption is that Scrum tools need to pull data from project management systems. **This is not true for advisory/generative tools.** The 5 tools we're building generate artifacts (stories, goals, talking points)—they don't track or report on work. Here's how each tool gets the context it needs without integration complexity.
+
+#### Why Integration-Free Works
+
+| Integration Approach | Pros | Cons |
+|---------------------|------|------|
+| **JIRA/Git API integration** | Auto-populated fields, less typing | OAuth complexity, enterprise security reviews, multi-provider support (Jira, Linear, Asana, GitHub, GitLab...), ongoing API maintenance, delayed time-to-market |
+| **Manual intake (our approach)** | Ships fast, works with any workflow, no security friction, user controls what's shared | User must type/paste context |
+
+**The key insight:** Users already have the information in their heads or on their screens. A 30-second intake form is faster than a 3-week integration project—and works for users on any toolchain.
+
+#### Tool-by-Tool Input Analysis
+
+---
+
+**Tool 1: Story Crafter**
+
+| Input Needed | Source Without Integration | Why It Works |
+|--------------|---------------------------|--------------|
+| Product/feature area | User types (persisted in User_Context) | User knows what they're working on—they came to write a story about it |
+| User persona | SELECT + optional text | Common personas are predictable; "Other" handles edge cases |
+| What the user needs to do | User types 1-2 sentences | This IS the story—user must articulate the need regardless of tooling |
+| Why they need it | User types | Forces user to think about value (improves story quality) |
+| Known acceptance criteria | Optional text | User pastes from existing notes/tickets if available |
+| Complexity estimate | SELECT (S/M/L/XL) | Rough sizing doesn't need ticket history |
+| Technical constraints | Optional text | User knows their stack |
+
+**What JIRA integration would add:** Auto-suggest related epics, link to existing tickets.
+**Why we skip it:** Nice-to-have, not must-have. User can reference epics in text. Integration adds weeks of scope for marginal UX improvement.
+
+**Friction mitigation:**
+- Persist `product_goal` and `team_context` in User_Context so repeat users don't re-enter
+- Pre-fill from last session where applicable
+
+---
+
+**Tool 2: Goal Architect**
+
+| Input Needed | Source Without Integration | Why It Works |
+|--------------|---------------------------|--------------|
+| Product Goal | User types (persisted) | Strategic context—user knows this, it rarely changes |
+| Sprint theme | User types 1 sentence | User is in Sprint Planning; they know the theme |
+| 2-4 key planned items | User types bullet points | User has this in their head or on a planning board |
+| Stakeholders | MULTI_SELECT | Predefined options cover 90% of cases |
+| Target metric | Optional text | User knows if there's a specific target |
+| What would make sprint a failure | Optional text | Frames goal negatively to surface risks |
+
+**What JIRA integration would add:** Pull sprint backlog items automatically.
+**Why we skip it:** User can paste 4 bullet points in 20 seconds. Integration requires: OAuth flow, Jira/Linear/Asana support, sprint detection logic, item summarization. Weeks of work for 20 seconds of user effort saved.
+
+**Friction mitigation:**
+- Product Goal persists across sprints (entered once)
+- Sprint theme from previous session shown as placeholder/suggestion
+
+---
+
+**Tool 3: Standup Coach**
+
+| Input Needed | Source Without Integration | Why It Works |
+|--------------|---------------------------|--------------|
+| Current Sprint Goal | User types (persisted for sprint duration) | Entered once per sprint, reused daily |
+| What you worked on yesterday | User types 2-3 sentences | User knows this—it's the point of standup |
+| Blocker status | SELECT (No/Waiting/Technical/Unclear/Other) | Structured selection is faster than parsing Git commits |
+| Blocker description | Conditional text | Only shown if blocked—minimal friction |
+| Today's focus | User types 1-2 sentences | User is planning their day anyway |
+| Collaboration needs | Optional text | Quick mention of names |
+
+**What Git integration would add:** Auto-generate "what I did" from commits.
+**Why we skip it:**
+1. Commits ≠ standup updates (commit messages are technical; standup talking points are Sprint Goal-focused)
+2. Many users don't commit daily or work on non-code tasks
+3. GitHub/GitLab/Bitbucket support triples integration scope
+4. Privacy concerns: some users won't connect their repo
+
+**The reframe:** Our value isn't "auto-fill what you did"—it's "transform your raw update into Sprint Goal-aligned talking points." The transformation is the product, not the data pull.
+
+**Friction mitigation:**
+- Sprint Goal persists for 2 weeks (one-time entry per sprint)
+- Daily use = muscle memory; users get fast at the 60-second input
+- Optional: "Same as yesterday" quick-fill for focus field
+
+---
+
+**Tool 4: Retro Catalyst**
+
+| Input Needed | Source Without Integration | Why It Works |
+|--------------|---------------------------|--------------|
+| Sprint rating | SELECT (1-5 scale) | Quick pulse check |
+| Recent retro formats | MULTI_SELECT | User remembers last 2-3 formats; we persist history |
+| Theme to explore | SELECT (collaboration, technical, process, etc.) | Predefined categories cover common themes |
+| Team energy/morale | SELECT (High/Medium/Low/Mixed) | Facilitator's read on the room |
+| Major sprint events | Optional text | User mentions what stood out |
+| Preferred duration | SELECT (30/45/60/90 min) | Simple constraint |
+
+**What JIRA integration would add:** Pull completed vs. incomplete items, velocity trends.
+**Why we skip it:** Retro questions aren't about metrics—they're about team dynamics, process, and improvement. Knowing "we completed 8 of 10 stories" doesn't generate better retro questions than knowing "the sprint felt challenging."
+
+**Friction mitigation:**
+- `last_retro_formats` auto-tracked per user—no manual entry after first use
+- Format variety is the feature (remembering what you've done), not sprint metrics
+
+---
+
+**Tool 5: Stakeholder Translator**
+
+| Input Needed | Source Without Integration | Why It Works |
+|--------------|---------------------------|--------------|
+| Primary audience | SELECT (executives, sales, customers, etc.) | User knows who they're writing for |
+| What was delivered | User types/pastes bullet points | **This is the main input**—see below |
+| Business value delivered | Optional text | User articulates impact |
+| Metrics to highlight | Optional text | User knows key numbers |
+| What's coming next | Optional text | Teaser for next sprint |
+| What didn't get done | Optional text | Manages expectations |
+| Preferred tone | SELECT (formal, conversational, etc.) | Quick style selection |
+
+**What JIRA integration would add:** Auto-pull completed tickets with descriptions.
+**Why we skip it:**
+1. Ticket titles/descriptions are often technical jargon—need translation anyway
+2. Not all "done" items are stakeholder-relevant (tech debt, bug fixes, refactors)
+3. User must curate what to highlight regardless of integration
+4. PO/SM already has a mental list of "what we shipped that matters"
+
+**The reframe:** The value isn't "list what got done" (user knows this)—it's "translate technical accomplishments into business language stakeholders care about."
+
+**Friction mitigation:**
+- Intake question says "List what was delivered (paste from your sprint board if helpful)"
+- User can literally paste Jira ticket titles and the AI translates them
+- Persistent company context (product_goal, stakeholder preferences) improves output over time
+
+---
+
+#### Summary: Integration Adds Scope, Not Value
+
+| Tool | Integration Would Save | Integration Would Cost | Decision |
+|------|------------------------|------------------------|----------|
+| Story Crafter | Typing product context | OAuth, multi-provider, weeks of dev | Skip—persist context instead |
+| Goal Architect | Typing 4 bullet points | Sprint detection, backlog parsing | Skip—20 sec user effort |
+| Standup Coach | Typing "what I did" | Git provider support, commit→update translation, privacy concerns | Skip—transformation is the value |
+| Retro Catalyst | Nothing meaningful | Velocity parsing for unused data | Skip—not relevant to retro questions |
+| Stakeholder Translator | Copy-pasting ticket list | Completed item detection, relevance filtering | Skip—user curates anyway |
+
+**Bottom line:** For generative/advisory tools, the user's 30-60 seconds of input is not the bottleneck. The bottleneck is producing high-quality, contextual output. Focus engineering effort there, not on integration plumbing that delays launch by months.
+
+#### Future Integration Opportunities (Post-Traction)
+
+Once we have paying users and validated demand, integrations become *output destinations*, not input sources:
+
+| Integration | Value | Priority |
+|-------------|-------|----------|
+| **Jira: Create story from output** | One-click to backlog | High (post-MVP) |
+| **Slack: Post standup/summary** | Share without copy-paste | Medium |
+| **Notion: Export to workspace** | Documentation workflow | Medium |
+| **Linear: Create issue** | Alternative to Jira | Medium |
+| **Calendar: Sprint dates** | Auto-detect sprint boundaries | Low |
+
+These are simpler than input integrations (write-only, no parsing) and directly requested by users ("I love the output, can I send it to Jira?").
+
 ---
 
 ## Part 4: Marketing Positioning Strategy
