@@ -1,5 +1,5 @@
 # Building Viral, Task-Specific Scrum RAG AI Tools
-## A Strategic Implementation Plan for Shareable, Focused Scrum Assistance
+## A Strategic Implementation Plan for Focused Scrum Assistance
 
 ---
 
@@ -9,20 +9,18 @@ Based on viral growth research, products people compulsively share have these tr
 
 1. **They create a shareable artifact** (Loom video, Calendly invite, Typeform survey)
 2. **The recipient experiences value without signing up first** (Zoom meeting, Superhuman email)
-3. **Usage is inherently collaborative** (Slack channel, Figma file)
-4. **They solve a painful, repetitive task exceptionally well** (single-purpose tools)
+3. **They solve a painful, repetitive task exceptionally well** (single-purpose tools)
 
-ChatGPT fails at all of these for Scrum practitioners:
+ChatGPT fails at these for Scrum practitioners:
 - No shareable artifacts
 - Conversations are private
-- Not collaborative
 - Too general (infinite directions = weak feedback loop)
 
 ---
 
 ## THE WINNING ARCHITECTURE: TASK-SPECIFIC SCRUM TOOLS
 
-**Don't build "a Scrum AI."** Build **3-5 discrete, single-purpose Scrum tools** that each do ONE thing exceptionally well, with built-in viral loops.
+**Don't build "a Scrum AI."** Build **3-5 discrete, single-purpose Scrum tools** that each do ONE thing exceptionally well.
 
 ### Why Multiple Narrow Tools > One General AI
 
@@ -53,20 +51,11 @@ Output (shareable artifact):
   • Clear outcome statement
   • Success criteria
   • Scrum Guide citation on why this structure works
-  • "Created with [YourProduct]" watermark
 ```
-
-**The Viral Loop**:
-1. **Scrum Master** uses tool in Sprint Planning
-2. **Shares generated goals** via Slack/Teams/Email for team vote
-3. **Product Owner sees the output**, asks "How did you make this?"
-4. **Non-user clicks watermark** → lands on product page
-5. **New user tries it** → cycle repeats
 
 **Why This Works**:
 - ✅ Creates shareable artifact (the Sprint Goals)
 - ✅ Recipient sees value without signing up (well-crafted goals)
-- ✅ Inherently collaborative (team voting)
 - ✅ Solves painful, repetitive task (every 2 weeks)
 - ✅ Grounded in Scrum Guide (citations build authority)
 
@@ -74,12 +63,11 @@ Output (shareable artifact):
 - Users can thumbs up/down each generated goal
 - You know exactly which goal they selected
 - Constraints: 200 characters max, must include verb, etc.
-- **You can A/B test different goal structures and measure which convert teams**
+- **You can A/B test different goal structures and measure which convert**
 
 **Monetization**:
 - Free: 5 Sprint Goals/month
-- Pro ($19/mo): Unlimited + saves history + team voting feature
-- Team ($99/mo): Shared workspace with goal versioning
+- Pro ($19/mo): Unlimited + saves history
 
 **Content to Vectorize**:
 - Scrum Guide 2020 (Sprint Goal section)
@@ -103,16 +91,7 @@ Input:
 Output (shareable artifact):
 → 10 customized retrospective questions designed to surface insights
 → Each question tied to Scrum values (commitment, courage, focus, openness, respect)
-→ "Created with [YourProduct]" footer
-→ Export to Miro/Mural/Google Slides with one click
 ```
-
-**The Viral Loop**:
-1. **Scrum Master** generates questions
-2. **Exports to Miro board** for retro meeting
-3. **Team sees questions**, Scrum Master shares where they came from
-4. **Other teams' Scrum Masters** notice better engagement, ask how
-5. **Referral link in Miro export** drives signups
 
 **Feedback Loop**:
 - "How engaging was your retro?" rating after each session
@@ -122,7 +101,6 @@ Output (shareable artifact):
 **Monetization**:
 - Free: 3 retro sets/month
 - Pro ($15/mo): Unlimited + retro analytics (track trends over time)
-- Team ($79/mo): Multi-team workspace with aggregated insights
 
 **Content to Vectorize**:
 - Scrum Guide (Sprint Retrospective section, Scrum Values)
@@ -147,15 +125,7 @@ Output (shareable artifact):
   • Acceptance criteria suggestions
   • INVEST criteria analysis (Independent, Negotiable, etc.)
   • Estimation hints (story point complexity indicators)
-  • "Refined with [YourProduct]" attribution
 ```
-
-**The Viral Loop**:
-1. **Product Owner** refines story with tool
-2. **Shares in backlog** (Jira/Azure DevOps/Linear) for dev team review
-3. **Developers see well-structured story**, comment "this is clear!"
-4. **Attribution in story description** links to tool
-5. **Other POs try it** for their stories
 
 **Feedback Loop**:
 - "Did this story need re-refinement?" post-sprint survey
@@ -164,8 +134,7 @@ Output (shareable artifact):
 
 **Monetization**:
 - Free: 10 stories/month
-- Pro ($25/mo): Unlimited + Jira/Azure DevOS integration (auto-refine on paste)
-- Team ($149/mo): Shared story templates + backlog analytics
+- Pro ($25/mo): Unlimited
 
 **Content to Vectorize**:
 - Scrum Guide (Product Backlog section)
@@ -182,7 +151,7 @@ Output (shareable artifact):
 **The Experience**:
 ```
 Input:
-→ What did you complete yesterday? (link to Jira tickets optional)
+→ What did you complete yesterday?
 → Blockers? (yes/no)
 → Sprint Goal: [auto-filled from Tool 1 if they used it]
 
@@ -191,15 +160,7 @@ Output (shareable artifact):
   • Progress toward Sprint Goal (not task list)
   • Help needed (action-oriented)
   • Handoff opportunities (collaborative)
-→ "Prepared with [YourProduct]" in Slack/Teams message
 ```
-
-**The Viral Loop**:
-1. **Team member** generates talking points
-2. **Posts in Slack daily standup thread** with attribution
-3. **Manager sees structured updates**, asks how they're so concise
-4. **Other team members** adopt tool for their updates
-5. **Cross-team spread** as other teams see format
 
 **Feedback Loop**:
 - "Did your daily stay under 15 minutes?" metric
@@ -208,8 +169,7 @@ Output (shareable artifact):
 
 **Monetization**:
 - Free: 3 dailies/week
-- Pro ($9/mo): Unlimited + Jira integration (auto-pull yesterday's work)
-- Team ($59/mo): Slack/Teams bot (generates points automatically)
+- Pro ($9/mo): Unlimited
 
 **Content to Vectorize**:
 - Scrum Guide (Daily Scrum section)
@@ -235,16 +195,7 @@ Output (shareable artifact):
   • Demo order optimized for stakeholder interests
   • Feedback prompts for each increment
   • Decision capture template
-  • "Agenda by [YourProduct]" footer
-→ Export to Google Calendar invite description
 ```
-
-**The Viral Loop**:
-1. **Scrum Master** generates agenda
-2. **Sends calendar invite** to stakeholders with structured agenda
-3. **Stakeholders experience focused meeting**
-4. **Product Owners from other teams** ask for agenda template
-5. **Attribution in invite** drives signups
 
 **Feedback Loop**:
 - "How productive was your Sprint Review?" post-meeting survey
@@ -254,7 +205,6 @@ Output (shareable artifact):
 **Monetization**:
 - Free: 2 reviews/month
 - Pro ($19/mo): Unlimited + stakeholder feedback tracking
-- Team ($99/mo): Multi-team calendar + cross-team insights
 
 **Content to Vectorize**:
 - Scrum Guide (Sprint Review section)
@@ -288,7 +238,7 @@ Output (shareable artifact):
 └─────────────────────────────────────────┘
 ```
 
-**Key Difference from ChatGPT**: 
+**Key Difference from ChatGPT**:
 - ChatGPT: Infinite input → generic output
 - Your tools: **Structured input → shareable artifact**
 
@@ -328,50 +278,8 @@ Output as JSON array with keys: goal, reasoning, scrum_guide_citation
   "selected_option": 2,  # which goal they chose
   "thumbs": "up",
   "sprint_outcome": null,  # filled post-sprint
-  "shared": true,  # tracked via watermark clicks
-  "shared_to": ["slack", "email"]
 }
 ```
-
----
-
-## THE VIRAL MECHANICS
-
-### 1. **Watermark Attribution** (Loom-style)
-
-Every artifact includes:
-```
-────────────────────────────────
-Created with MyPocketGenius.com
-Get your free Sprint Goal →
-────────────────────────────────
-```
-
-**Tracking**:
-- UTM parameters in watermark links
-- Measure conversion: artifact view → signup → paid
-
-### 2. **Export = Distribution**
-
-**One-click export to**:
-- Slack (via slash command)
-- Microsoft Teams (app integration)
-- Jira/Azure DevOps (browser extension)
-- Google Calendar (iCal format)
-- Miro/Mural (embed link)
-
-**Each export includes attribution** → spreads your brand organically
-
-### 3. **Team Collaboration Features** (Freemium Gate)
-
-**Free tier**: Solo use
-**Team tier**: Shared workspace where:
-- Multiple team members contribute to backlog refinement
-- Sprint Goal voting (requires team to all sign up)
-- Retro history visible to all team members
-- Cross-team benchmarking
-
-**This creates network effects**: One team member signs up → invites whole team → team converts to paid
 
 ---
 
@@ -391,8 +299,7 @@ Get your free Sprint Goal →
 **Value Props**:
 1. **Faster**: Tasks that take 30 mins now take 2 mins
 2. **Better**: Grounded in official Scrum Guide, not generic AI
-3. **Shareable**: Team collaboration built-in
-4. **Learning**: Every output cites Scrum Guide sections (educational)
+3. **Learning**: Every output cites Scrum Guide sections (educational)
 
 **Differentiation from ChatGPT**:
 
@@ -400,7 +307,6 @@ Get your free Sprint Goal →
 |---------|---------|------------|
 | Scrum knowledge | Generic | Scrum Guide citations |
 | Output format | Chat messages | Shareable artifacts |
-| Collaboration | None | Team workspaces |
 | Feedback loop | None | Task-specific optimization |
 | Pricing | $20/mo for everything | $9-25/mo per tool (or bundle) |
 
@@ -476,44 +382,32 @@ Metadata: {section: "Sprint Planning", page: 7, type: "event"}
 - Simple web form (not chat interface)
 - 3 input fields: outcome, constraints, context
 - Output: 5 goals in cards with citations
-- Watermark with tracking link
-- Export to Slack, email (text format)
 
 **Week 5-6: Beta Launch**
-- Share in Hands-on Agile Slack (Stefan Wolpers)
+- Share in Hands-on Agile community
 - Collect feedback: "Which goal did you choose? Did it work?"
-- Track: conversion rate (free → paid), sharing rate
+- Track: conversion rate (free → paid)
 
 **Success Metrics**:
 - 50 signups in 2 weeks
 - 20% select at least one generated goal
-- 10% share via Slack/email (watermark clicks)
 
 ### Month 3-4: Add Tool 2 (Retrospective Generator)
 
 **Leverage existing RAG backend**
 - Add "retro-question" prompt template
 - Build retro-specific UI (checkboxes for sprint issues)
-- Export to Miro (create shareable board template)
 
 **Cross-Sell**:
 - Users of Sprint Goal tool get "Try our Retro tool" prompt
 - Bundle pricing: $29/mo for both tools
 
-### Month 5-6: Tools 3-5 + Team Features
+### Month 5-6: Tools 3-5
 
 **Add remaining tools**:
 - Story Refiner
 - Daily Standup Prep
 - Sprint Review Agenda
-
-**Launch Team tier**:
-- Shared workspace across all 5 tools
-- Team voting on Sprint Goals
-- Retro history dashboard
-- $99/mo for teams of 5
-
-**Viral mechanic**: Team features require inviting teammates → built-in invitation loop
 
 ---
 
@@ -572,21 +466,11 @@ Learn:
 
 **Free**:
 - 3-5 uses/month per tool
-- Watermark on all exports
 - Individual use only
 
 **Pro** ($9-25/mo per tool):
 - Unlimited uses
-- Remove watermark (optional)
 - Save history
-- Integrations (Jira, Slack, etc.)
-
-**Team** ($59-149/mo):
-- 5-10 team members
-- Shared workspace
-- Team voting/collaboration
-- Analytics dashboard
-- Priority support
 
 ### Bundle Pricing
 
@@ -594,12 +478,6 @@ Learn:
 - All 5 tools, Pro tier
 - Individual use
 - 40% savings vs. buying separately
-
-**Team Bundle** ($199/mo):
-- All 5 tools, Team tier
-- Up to 10 team members
-- Cross-tool analytics
-- Saved $300/mo vs. separate tools
 
 ---
 
@@ -609,8 +487,7 @@ Learn:
 |-----------|---------|------------------|
 | **Accuracy** | Generic Scrum knowledge | Grounded in official Scrum Guide |
 | **Speed** | Chat back-and-forth | Structured form → instant output |
-| **Shareability** | Copy-paste text | Shareable artifacts with attribution |
-| **Collaboration** | None | Team workspaces, voting, history |
+| **Shareability** | Copy-paste text | Shareable artifacts |
 | **Learning** | Static | Improves via feedback loops |
 | **Trust** | Black box | Citations to Scrum Guide sections |
 | **Price** | $20/mo for everything | $9-49/mo (more focused value) |
@@ -636,7 +513,7 @@ Learn:
 - Maker story: "Watched teams waste hours wordsmithing. Built this."
 
 **Community Seeding**:
-- Hands-on Agile Slack: "Built a Sprint Goal generator, need feedback"
+- Hands-on Agile community: "Built a Sprint Goal generator, need feedback"
 - r/scrum: "Tired of vague Sprint Goals? I made a tool [demo video]"
 - Post-launch: 1 blog post/week with Sprint Goal examples
 
@@ -652,16 +529,11 @@ Learn:
 
 **Target**: 1,000 users, 120 paid = $2,500 MRR
 
-### Phase 3: Full Suite + Team Tier (Months 5-6)
+### Phase 3: Full Suite (Months 5-6)
 
-**Launch all 5 tools + Team features**
+**Launch all 5 tools**
 
-**Team acquisition**:
-- Free team trial (14 days, 5 members)
-- Sales outreach to PSTs (Professional Scrum Trainers)
-- Accelerator partnerships (Techstars, Y Combinator)
-
-**Target**: 2,000 users, 300 paid individuals + 20 teams = $9,500 MRR
+**Target**: 2,000 users, 300 paid individuals = $6,000 MRR
 
 ---
 
@@ -671,8 +543,7 @@ Learn:
 
 ### Why Multiple Tools Win
 
-✅ **Shareable artifacts** (each tool produces different export types)
-✅ **Viral loops** (every export spreads your brand)
+✅ **Shareable artifacts** (each tool produces different output types)
 ✅ **Focused feedback** (know exactly what works for each task)
 ✅ **Pricing flexibility** (à la carte + bundles)
 ✅ **Faster iteration** (A/B test Tool 1 while building Tool 2)
@@ -702,17 +573,7 @@ Learn:
 
 **Why**: Structured inputs → consistent outputs → measurable feedback
 
-### 2. Make Outputs Instantly Shareable
-
-Every tool must export to:
-- Slack/Teams (collaboration tools)
-- Jira/Azure DevOps (where teams work)
-- Google Calendar (for meetings)
-- Miro/Mural (for planning)
-
-**Each export = free marketing** via watermark attribution
-
-### 3. Citations Build Trust
+### 2. Citations Build Trust
 
 Every output includes:
 ```
@@ -722,7 +583,7 @@ Every output includes:
 
 **This beats ChatGPT**: Users trust outputs because they see the source.
 
-### 4. Feedback Must Be Actionable
+### 3. Feedback Must Be Actionable
 
 **Bad feedback**: "Was this helpful?" [thumbs up/down]
 **Good feedback**: "Which Sprint Goal did you choose?" [1/2/3/4/5]
@@ -736,10 +597,9 @@ Every output includes:
 **ChatGPT is a generalist. You're building specialist tools with:**
 
 1. **Scrum Guide grounding** (authoritative source)
-2. **Shareable artifacts** (viral distribution)
+2. **Shareable artifacts** (natural distribution)
 3. **Feedback loops** (continuous improvement)
-4. **Team collaboration** (network effects)
-5. **Task-specific optimization** (better than general AI)
+4. **Task-specific optimization** (better than general AI)
 
 **Result**: People pay for focus, even when free alternatives exist.
 
@@ -747,7 +607,7 @@ Every output includes:
 
 ## NEXT STEPS
 
-**Week 1**: 
+**Week 1**:
 - Decide on Tool 1 (I recommend Sprint Goal Generator)
 - Design the input form (3-5 fields max)
 - Write the Claude prompt with Scrum Guide citations
@@ -758,8 +618,6 @@ Every output includes:
 - Test with 5 real Scrum Masters
 
 **Week 3-4**:
-- Add export to Slack/email
-- Implement watermark tracking
 - Beta launch in one Scrum community
 
 **Month 2**:
@@ -778,58 +636,51 @@ Every output includes:
 **Products with highest viral coefficients (>1.0)**:
 - **Calendly**: Every meeting invite exposes 2+ people to product
 - **Loom**: Every video share = product demo for recipients
-- **Slack**: Team invites create network effects
-- **Zoom**: 100 participants per free call = massive exposure
 - **Figma**: Collaboration requires others to join
 
 **Common viral mechanics**:
 1. **Casual contact loops**: "Sent with Superhuman" email signatures
-2. **Collaboration loops**: Product value increases with more users
-3. **Referral loops**: Incentivized sharing (Dropbox storage)
-4. **Content loops**: User-generated content drives discovery (G2 reviews)
-5. **Embedded loops**: Product artifacts shared externally (Typeform embeds)
+2. **Referral loops**: Incentivized sharing (Dropbox storage)
+3. **Content loops**: User-generated content drives discovery (G2 reviews)
 
 **Conversion insights**:
 - EdTech freemium converts at 2.6% (lowest of all SaaS)
 - 7-day trials convert at 24.8% for EdTech
 - Product-led growth: Users acquired through product usage, not marketing
-- Network effects: Value increases with each additional user
 
 ### Application to Scrum Tools
 
-**Your Sprint Goal Generator has 3 viral loops**:
+**Your Sprint Goal Generator viral potential**:
 
-1. **Casual contact**: Watermark on every shared goal
-2. **Collaboration**: Team voting requires team signup
-3. **Embedded**: Goals pasted into Slack/Jira expose others
+1. **Casual contact**: Well-crafted goals shared with team
+2. **Content**: Goals shared in online communities
 
-**Expected viral coefficient**: 0.6-0.8 initially (< 1.0 = need paid acquisition), growing to 1.2+ with team features (> 1.0 = self-sustaining growth)
+**Expected viral coefficient**: 0.4-0.6 initially (< 1.0 = need paid acquisition)
 
 **Formula**:
 ```
-Viral Coefficient = (Invites per user) × (Conversion rate)
+Viral Coefficient = (Shares per user) × (Conversion rate)
 
 Example:
 - Each user shares 3 Sprint Goals/month
 - Each share exposes 5 team members
-- 10% of exposed users sign up
+- 5% of exposed users sign up
 
-Viral Coefficient = 3 × 5 × 0.10 = 1.5
+Viral Coefficient = 3 × 5 × 0.05 = 0.75
 
-→ Every user brings 1.5 new users
-→ Exponential growth without paid ads
+→ Supplementary paid acquisition needed initially
 ```
 
-**Timeline to virality**:
+**Timeline to sustainability**:
 - Month 1-3: Coefficient < 1.0 (need manual seeding)
-- Month 4-6: Coefficient approaches 1.0 (breaking even)
-- Month 7+: Coefficient > 1.0 (self-sustaining growth)
+- Month 4-6: Coefficient approaches 0.8 (reduced acquisition cost)
+- Month 7+: Organic word-of-mouth growth
 
 ---
 
 ## FINAL RECOMMENDATION
 
-**Start with Sprint Goal Generator.** 
+**Start with Sprint Goal Generator.**
 
 It has the highest viral potential because:
 1. Used every 2 weeks (frequent touchpoint)
@@ -841,7 +692,6 @@ It has the highest viral potential because:
 **Success criteria after 6 weeks**:
 - 100+ signups
 - 15%+ select a generated goal (proves value)
-- 8%+ share via Slack/email (proves viral loop)
 - 3%+ convert to paid (proves monetization)
 
 If these metrics hit, proceed to Tool 2. If not, iterate on Tool 1 based on feedback before expanding.

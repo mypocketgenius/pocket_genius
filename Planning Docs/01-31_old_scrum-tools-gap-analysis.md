@@ -13,9 +13,6 @@
 |---------|------------------------|-------------------------------|
 | **Structured Forms (not chat)** | Guided input forms with dropdowns, multi-select | ❌ Chat-based only; intake forms exist but not for main output |
 | **Shareable Artifacts** | Formatted cards/outputs with citations | ❌ No artifact generation system |
-| **Export Integrations** | Slack, Teams, Jira, Miro, Google Calendar | ❌ None |
-| **Viral Watermarks** | "Created with MyPocketGenius.com" attribution | ❌ No watermark/attribution system |
-| **Team Collaboration** | Shared workspaces, team voting | ❌ Single-user only |
 | **A/B Testing Outputs** | Test which goal structures work | ❌ No output variation testing |
 | **Post-Event Surveys** | Follow-up after 2 weeks | ❌ Only immediate feedback exists |
 | **Freemium Usage Limits** | "5 Sprint Goals/month" metering | ❌ No usage metering |
@@ -59,12 +56,11 @@ The Scrum strategy explicitly says "**Don't build chat - build structured forms*
 
 ---
 
-## Top 3 Things to Build for Scrum Tools
+## Top 2 Things to Build for Scrum Tools
 
 ### 1. Artifact Output Component
 - Formatted, shareable cards with Scrum Guide citations
-- Copy/export buttons
-- "Created with [Product]" watermark with tracking link
+- Copy buttons
 - Multiple output options (3-5 Sprint Goal variations)
 
 ### 2. Structured Input Forms
@@ -74,11 +70,6 @@ The Scrum strategy explicitly says "**Don't build chat - build structured forms*
   - "Time constraint?" (dropdown: 1 week, 2 weeks)
   - "Key stakeholders?" (multi-select)
 - Constrained inputs → consistent, measurable outputs
-
-### 3. Export System
-- One-click export to Slack, Teams, email
-- Watermark attribution with UTM parameters
-- Track: artifact view → signup → paid conversion
 
 ---
 
@@ -92,19 +83,15 @@ The Scrum strategy explicitly says "**Don't build chat - build structured forms*
    - Quick win builds credibility
 
 2. **Retrospective Question Generator**
-   - Export to Miro/Mural
    - Cross-team spread
 
 3. **User Story Refiner**
-   - Shares in Jira/Azure DevOps
    - Developers see quality
 
 4. **Daily Scrum Talking Points**
-   - Posts in Slack/Teams
    - Team adoption
 
 5. **Sprint Review Agenda Builder**
-   - Calendar invite integration
    - Stakeholder exposure
 
 ---
@@ -132,13 +119,8 @@ The Scrum strategy explicitly says "**Don't build chat - build structured forms*
 ## Monetization Model (from strategy)
 
 ### Per-Tool Pricing:
-- **Free**: 3-5 uses/month, watermarked exports
-- **Pro** ($9-25/mo): Unlimited, remove watermark, integrations
-- **Team** ($59-149/mo): Shared workspace, voting, analytics
-
-### Bundle Pricing:
-- **Scrum Essentials** ($49/mo): All 5 tools, Pro tier
-- **Team Bundle** ($199/mo): All 5 tools, Team tier, 10 members
+- **Free**: 3-5 uses/month
+- **Pro** ($9-25/mo): Unlimited
 
 ---
 
@@ -147,8 +129,6 @@ The Scrum strategy explicitly says "**Don't build chat - build structured forms*
 1. **Complete Phase 4.0-4.3** - Analytics infrastructure needed for feedback loops
 2. **Design Artifact Output System** - Core differentiator from ChatGPT
 3. **Build Sprint Goal Generator MVP** - First tool, highest virality
-4. **Add Export + Watermark** - Viral distribution mechanism
-5. **Defer Team Features** - Launch individual first, add team later
 
 ---
 

@@ -1,0 +1,957 @@
+# Scrum Chatbots Implementation Plan
+
+## Executive Summary
+
+This plan outlines building 5 specialized AI chatbots targeting validated Scrum ceremony problems. Each bot leverages the existing Pocket Genius RAG architecture to deliver superior outcomes compared to free ChatGPT through structured inputs, persistent context, authoritative citations, and feedback-driven improvement.
+
+Why these 5 problems? See Planning Docs/02-02_validating_scrum_problems.md
+
+---
+
+## Part 1: The Five Tools to Build
+
+### Tool 1: Story Crafter (User Story Generator)
+
+**Problem solved:** Vague user stories create refinement churn. 52% of stories lack value statements, acceptance criteria merely restate narratives, and teams spend excessive time seeking clarification.
+
+**What it does:** Generates INVEST-compliant user stories with proper personas, value statements, and acceptance criteria based on user's product context and feature description.
+
+**Primary output:** Complete user story with:
+- Role-based persona (not generic "As a user")
+- Clear need statement
+- Explicit value/benefit ("so that...")
+- 3-5 acceptance criteria in Given-When-Then format
+- Story point complexity indicator
+- Potential edge cases to consider
+
+---
+
+### Tool 2: Goal Architect (Sprint Goal Generator)
+
+**Problem solved:** Sprint Goal wordsmithing consumes excessive time. Teams default to "complete everything" non-goals or spend 30+ minutes debating phrasing.
+
+**What it does:** Generates 3-5 Sprint Goal options using proven templates, connected to the user's Product Goal and current sprint scope.
+
+**Primary output:**
+- 3-5 alternative Sprint Goal formulations
+- Each following Pichler's template: "We focus on [objective] to [benefit] confirmed by [metric]"
+- Outcome-focused (not task-focused)
+- Measurable success indicators
+
+---
+
+### Tool 3: Standup Coach (Daily Scrum Talking Points)
+
+**Problem solved:** Daily Scrums devolve into status reports. 64% of teams experience command-control tensions, and senior developers are most negative about these meetings.
+
+**What it does:** Transforms raw updates into Sprint Goal-focused talking points that facilitate genuine collaboration rather than status reporting.
+
+**Primary output:**
+- 2-3 Sprint Goal-aligned talking points
+- Highlighted blockers with suggested discussion framing
+- Collaboration opportunities with specific team members
+- "Are we on track?" assessment
+
+---
+
+### Tool 4: Retro Catalyst (Retrospective Question Generator)
+
+**Problem solved:** Retrospective fatigue produces declining engagement. <50% of action items get completed, teams revisit identical problems sprint after sprint.
+
+**What it does:** Generates fresh retrospective questions tailored to team's recent context, avoiding formats used recently, with built-in action item framing.
+
+**Primary output:**
+- 5-7 questions across Start/Stop/Continue or custom framework
+- Novel format suggestions the team hasn't tried recently
+- Action item templates tied to each question category
+- One "pattern interrupt" question to surface deeper issues
+
+---
+
+### Tool 5: Stakeholder Translator (Sprint Communication Generator)
+
+**Problem solved:** Sprint Reviews lack focus, stakeholder no-show rates hit 50%, and POs spend excessive time writing release notes.
+
+**What it does:** Translates technical accomplishments into business-focused summaries tailored to stakeholder audience.
+
+**Primary output:**
+- Executive summary (2-3 sentences)
+- Business value delivered (quantified where possible)
+- Customer impact statement
+- Upcoming priorities teaser
+- Suggested talking points for Sprint Review demo
+
+---
+
+## Part 2: Existing Platform Architecture
+
+### Current Tech Stack (Fully Reusable)
+
+| Layer | Technology | Relevance to New Tools |
+|-------|------------|------------------------|
+| **Frontend** | Next.js 15, React 18, TypeScript | Chat UI, intake forms, pills already built |
+| **Backend** | Next.js API Routes, Vercel Serverless | Chat endpoint, streaming infrastructure ready |
+| **Database** | PostgreSQL (Neon), Prisma ORM | User, Conversation, Message, Intake schemas exist |
+| **Auth** | Clerk | User identity, anonymous access supported |
+| **AI/LLM** | OpenAI GPT-4o, Vercel AI SDK | Chat completions, streaming in place |
+| **Embeddings** | OpenAI text-embedding-3-small | 1536-dimension vectors for RAG |
+| **Vector DB** | Pinecone | Namespace per chatbot, query pipeline ready |
+| **File Storage** | Vercel Blob | Content ingestion pipeline exists |
+| **Analytics** | Chunk_Performance, Event, Pill_Usage tables | Feedback loops trackable |
+
+### Key Existing Components
+
+**Chat System (`/app/api/chat/route.ts`):**
+- Streaming SSE responses
+- RAG query integration
+- User context injection into prompts
+- Follow-up pill generation
+- Message storage with source attribution
+
+**Intake System:**
+- `Intake_Question` model supports: TEXT, SELECT, MULTI_SELECT, BOOLEAN, NUMBER
+- `Intake_Response` stores answers per user/chatbot
+- `intake-form.tsx` renders multi-question forms
+- Intake gate logic determines when to show intake vs chat
+
+**Feedback System:**
+- Helpful/not helpful per message
+- Chunk performance tracking
+- Pill usage analytics
+- Conversation-end ratings
+
+**Chatbot Versioning:**
+- `Chatbot_Version` for immutable config snapshots
+- System prompts, RAG settings, model selection
+
+---
+
+## Part 3: Additional Architecture Required
+
+### 3.1 No New Database Models Required
+
+The existing schema already supports everything needed. Each Scrum chatbot is just another chatbot on the platform.
+
+| Need | Existing Model | How to Use |
+|------|----------------|------------|
+| Sprint context (product goal, sprint goal, team size) | `User_Context` | Keys: `product_goal`, `current_sprint_goal`, `team_size`, `sprint_length_days` |
+| Team members | `User_Context` | Key: `team_members` with JSON array value |
+| Recent retro formats used | `User_Context` | Key: `last_retro_formats` with JSON array (per-chatbot) |
+| Structured output config | `Chatbot.configJson` | Add `outputSchema` field in JSON |
+| Output history | `Message` | Already stores `content` + `context` (JSON) |
+| Feedback on outputs | `Chunk_Performance`, `Event`, `Conversation_Feedback` | Existing feedback system |
+| Intake questions | `Intake_Question` + `Chatbot_Intake_Question` | Create questions, link to chatbot |
+
+**Example User_Context entries for Scrum tools:**
+
+```json
+// Per-user, global (chatbotId = null) - reusable across all Scrum chatbots
+{ "key": "product_goal", "value": "Enable SMBs to manage inventory without spreadsheets" }
+{ "key": "team_size", "value": 6 }
+{ "key": "sprint_length_days", "value": 14 }
+{ "key": "team_members", "value": [{"name": "Alice", "role": "Developer"}, {"name": "Bob", "role": "QA"}] }
+
+// Per-user, per-chatbot (Retro Catalyst only)
+{ "chatbotId": "retro-catalyst-id", "key": "last_retro_formats", "value": ["sailboat", "4ls", "start_stop_continue"] }
+
+// Per-user, per-chatbot (Standup Coach) - updated each sprint
+{ "chatbotId": "standup-coach-id", "key": "current_sprint_goal", "value": "Deliver MVP checkout flow" }
+```
+
+**Example Chatbot.configJson for structured output:**
+
+```json
+{
+  "outputFormat": "structured_json",
+  "outputSchema": {
+    "type": "user_story",
+    "fields": ["persona", "need", "benefit", "acceptance_criteria", "complexity", "edge_cases"]
+  },
+  "fewShotExamples": [
+    {
+      "input": "User needs to filter products by price",
+      "output": { "persona": "Budget-conscious shopper", "need": "filter products by price range", "..." }
+    }
+  ]
+}
+```
+
+### 3.2 No New API Endpoints Required
+
+All 5 Scrum chatbots use the existing `/api/chat` endpoint. The differentiation comes from:
+
+1. **Chatbot-specific system prompts** - stored in `Chatbot.systemPrompt`
+2. **Chatbot-specific RAG namespace** - stored in `Chatbot.pineconeNs`
+3. **Chatbot-specific intake questions** - linked via `Chatbot_Intake_Question`
+4. **Chatbot-specific output format** - stored in `Chatbot.configJson`
+
+The chat endpoint already:
+- Fetches user context and injects into prompt
+- Queries the chatbot's RAG namespace
+- Streams responses
+- Stores messages with context
+- Generates follow-up pills
+
+### 3.3 Structured Output via System Prompts
+
+Structured output is achieved through prompt engineering, not code. The system prompt instructs the LLM to output in a specific format (markdown with consistent headers, or JSON blocks).
+
+**Example: Story Crafter output format instruction (in system prompt):**
+
+```
+Format your response as follows:
+
+## User Story
+**As a** [specific persona]
+**I want to** [need]
+**So that** [benefit]
+
+## Acceptance Criteria
+1. **Given** [context] **When** [action] **Then** [outcome]
+2. ...
+
+## Complexity: [XS/S/M/L/XL]
+
+## Edge Cases to Consider
+- [edge case 1]
+- [edge case 2]
+
+## INVEST Compliance
+- Independent: [Yes/No - explanation]
+- Negotiable: [Yes/No - explanation]
+...
+```
+
+This renders cleanly in the existing markdown renderer. No new UI components needed.
+
+### 3.4 No New UI Components Required
+
+The existing chat UI handles everything:
+- `chat.tsx` - renders messages with markdown
+- `markdown-renderer.tsx` - formats structured output
+- `intake-form.tsx` - handles all intake question types
+- Copy buttons already exist on messages
+- Feedback (thumbs up/down) already exists
+
+### 3.5 System Prompt Configuration
+
+Each chatbot's behavior is defined entirely by its `systemPrompt` field in the database. No new code modules needed—just well-crafted prompts stored as text.
+
+**Key prompt components for each tool:**
+1. Role definition (who the AI is)
+2. Output format specification (see 3.3)
+3. RAG context injection placeholder (`{rag_context}`)
+4. User context injection placeholder (`{user_context}`)
+5. Citation requirements
+6. Guardrails (what not to do)
+
+---
+
+## Part 4: Marketing Positioning Strategy
+
+### Overall Positioning
+
+**Brand:** "Pocket Scrum Master" (or similar)
+**Tagline:** "Expert Scrum guidance that remembers your context"
+
+**Core differentiators vs ChatGPT Free:**
+
+| Feature | ChatGPT Free | Pocket Scrum Tools |
+|---------|--------------|-------------------|
+| Context persistence | None (forgets each session) | Remembers product goal, team, past formats |
+| Output structure | Unstructured text | Consistent, copy-ready artifacts |
+| Source citations | None | Scrum Guide, authoritative trainers |
+| Domain expertise | Generic | Curated Scrum best practices |
+| Feedback learning | None | Improves based on what works for YOUR team |
+| Intake flow | Manual prompting | Guided questions gather right context |
+
+### Tool-Specific Positioning
+
+#### Story Crafter
+**Headline:** "User stories that don't need refinement meetings to fix"
+**Pain point:** "Stop wasting sprint time clarifying vague stories"
+**Proof point:** "Based on INVEST criteria from Mike Cohn and Roman Pichler's persona frameworks"
+**ChatGPT comparison:** "ChatGPT gives you a story. Story Crafter gives you a story your team can actually estimate and build."
+
+#### Goal Architect
+**Headline:** "Sprint Goals in 5 minutes, not 50"
+**Pain point:** "End wordsmithing debates with proven goal templates"
+**Proof point:** "Uses Roman Pichler's template referenced 27 times in the Scrum Guide training"
+**ChatGPT comparison:** "ChatGPT suggests goals. Goal Architect gives you 5 options in the exact format Scrum trainers recommend."
+
+#### Standup Coach
+**Headline:** "Daily Scrums that aren't status reports"
+**Pain point:** "Transform monotone updates into Sprint Goal conversations"
+**Proof point:** "Implements the 2020 Scrum Guide's shift away from the three questions anti-pattern"
+**ChatGPT comparison:** "ChatGPT doesn't know your Sprint Goal. Standup Coach keeps every update connected to it."
+
+#### Retro Catalyst
+**Headline:** "Retrospectives your team actually wants to attend"
+**Pain point:** "Break the Groundhog Day cycle of discussing the same issues"
+**Proof point:** "Draws from Retromat's 100+ formats, tracks what you've used to ensure variety"
+**ChatGPT comparison:** "ChatGPT suggests retro questions. Retro Catalyst remembers which formats you've tried and suggests fresh ones."
+
+#### Stakeholder Translator
+**Headline:** "Sprint updates stakeholders actually read"
+**Pain point:** "Stop losing stakeholders to boring technical demos"
+**Proof point:** "Follows Scrum.org's guidance on avoiding 'Sprint accounting' anti-pattern"
+**ChatGPT comparison:** "ChatGPT writes summaries. Stakeholder Translator writes summaries that speak your stakeholders' language because it knows your product."
+
+### Target Audience Segments
+
+1. **Primary:** Scrum Masters (responsible for ceremony quality)
+2. **Secondary:** Product Owners (write stories, communicate with stakeholders)
+3. **Tertiary:** Developers stepping into SM/PO roles (lack formal training)
+4. **Enterprise:** Agile Coaches supporting multiple teams
+
+---
+
+## Part 5: Content to Vectorize
+
+### Global Knowledge Base (All Tools)
+
+| Source | Content | Priority |
+|--------|---------|----------|
+| **Scrum Guide 2020** | Full text (13 pages) | Critical |
+| **Scrum.org PST Articles** | Stefan Wolpers' anti-pattern series, Stephanie Ockerman's Sprint Goal guides | Critical |
+| **Mountain Goat Software** | Mike Cohn's user story articles, estimation guides | Critical |
+| **Roman Pichler** | Sprint Goal templates, Product Goal framework, persona guides | Critical |
+| **Retromat** | All 100+ retrospective formats (descriptions, instructions) | High |
+| **State of Agile Reports** | 2023-2025 data on ceremony challenges | Medium |
+| **Agile Manifesto + Principles** | 4 values, 12 principles | Medium |
+
+### Tool-Specific Knowledge
+
+#### Story Crafter
+| Source | Content |
+|--------|---------|
+| Mike Cohn's "User Stories Applied" excerpts | INVEST criteria, story splitting patterns |
+| Roman Pichler's persona templates | User Incognito anti-pattern, effective persona structure |
+| BDD resources | Given-When-Then format, acceptance criteria best practices |
+| Story splitting techniques | SPIDR method, workflow steps, business rules |
+| Common anti-patterns | Solution prescribing, compound stories, missing value |
+
+#### Goal Architect
+| Source | Content |
+|--------|---------|
+| Roman Pichler's Goal templates | Focus-benefit-metric framework |
+| Sprint Goal anti-patterns | Too vague, too compound, too specific examples |
+| Product Goal alignment | Connecting Sprint Goals to Product Goals |
+| Goal measurement techniques | Leading vs lagging indicators for sprints |
+
+#### Standup Coach
+| Source | Content |
+|--------|---------|
+| Scrum Guide 2020 | Daily Scrum purpose, removal of three questions |
+| "Walk the board" technique | Work-item focus vs person focus |
+| Collaboration patterns | How to surface impediments productively |
+| Anti-pattern library | Status reporting, problem-solving in standup, manager dynamics |
+
+#### Retro Catalyst
+| Source | Content |
+|--------|---------|
+| Retromat full database | 100+ formats with facilitation instructions |
+| Action item best practices | SMART actions, Sprint Backlog integration |
+| Psychological safety research | Creating safe retro environments |
+| Facilitation techniques | Silent writing, dot voting, 1-2-4-all |
+| Fatigue mitigation | Format rotation strategies, engagement techniques |
+
+#### Stakeholder Translator
+| Source | Content |
+|--------|---------|
+| Sprint Review anti-patterns | Sprint accounting, passive stakeholders, death by PowerPoint |
+| Business communication guides | Technical-to-business translation frameworks |
+| Value articulation | Outcome vs output language |
+| Stakeholder engagement | Interactive demo techniques, feedback collection |
+
+### Estimated Vector Counts
+
+| Tool | Chunks (est.) | Reasoning |
+|------|---------------|-----------|
+| Global base | ~500 | Core Scrum knowledge |
+| Story Crafter | +200 | Story techniques, examples |
+| Goal Architect | +100 | Goal templates, anti-patterns |
+| Standup Coach | +100 | Daily Scrum practices |
+| Retro Catalyst | +300 | 100+ formats with instructions |
+| Stakeholder Translator | +100 | Communication patterns |
+| **Total** | ~1,300 | Per-tool namespace approach |
+
+---
+
+## Part 6: Implementation Roadmap
+
+Since each tool is just a new Chatbot record using the existing platform, implementation is primarily content + configuration work.
+
+### Phase 1: Content & Foundation (Weeks 1-2)
+
+**Week 1: Content Collection**
+- [ ] Collect Scrum Guide 2020 (full text)
+- [ ] Collect Scrum.org PST articles (Wolpers, Ockerman)
+- [ ] Collect Mike Cohn user story materials
+- [ ] Collect Roman Pichler goal/persona templates
+- [ ] Scrape/compile Retromat formats (100+)
+- [ ] Format all content for chunking
+
+**Week 2: Content Ingestion & Namespaces**
+- [ ] Create 5 Pinecone namespaces (one per tool)
+- [ ] Chunk and embed global Scrum knowledge to all namespaces
+- [ ] Add tool-specific content to each namespace
+- [ ] Verify RAG retrieval quality with test queries
+- [ ] Document which content is in which namespace
+
+### Phase 2: Tool 1 - Story Crafter (Week 3)
+
+- [ ] Create Chatbot record with system prompt for user story generation
+- [ ] Configure `configJson` with structured output schema
+- [ ] Create intake questions (8 questions per Part 10)
+- [ ] Link intake questions via `Chatbot_Intake_Question`
+- [ ] Test end-to-end: intake → chat → structured story output
+- [ ] Refine system prompt based on output quality
+
+### Phase 3: Tool 2 - Goal Architect (Week 4)
+
+- [ ] Create Chatbot record with Sprint Goal system prompt
+- [ ] Configure for multi-option output (3-5 goals)
+- [ ] Create intake questions (6 questions)
+- [ ] Test with various sprint themes
+- [ ] Ensure Product Goal context carries through
+
+### Phase 4: Tool 3 - Standup Coach (Week 5)
+
+- [ ] Create Chatbot record with Daily Scrum system prompt
+- [ ] Create intake questions (6 questions, daily use)
+- [ ] Configure to reference Sprint Goal from User_Context
+- [ ] Test talking point generation
+- [ ] Optimize for speed (daily use = low latency matters)
+
+### Phase 5: Tool 4 - Retro Catalyst (Week 6)
+
+- [ ] Create Chatbot record with retro question system prompt
+- [ ] Create intake questions (6 questions)
+- [ ] Implement format tracking via User_Context (`last_retro_formats`)
+- [ ] Test novelty: ensure different formats each time
+- [ ] Verify Retromat content retrieval works well
+
+### Phase 6: Tool 5 - Stakeholder Translator (Week 7)
+
+- [ ] Create Chatbot record with stakeholder communication prompt
+- [ ] Create intake questions (7 questions)
+- [ ] Configure audience-aware output formatting
+- [ ] Test technical → business translation quality
+
+### Phase 7: Cross-Tool Polish (Week 8)
+
+- [ ] Ensure User_Context keys are consistent across tools
+- [ ] Test that global context (product_goal, team_size) flows to all tools
+- [ ] Verify feedback collection works for all tools
+- [ ] Write tool descriptions and short bios
+- [ ] Create welcome messages and fallback suggestion pills
+
+### Phase 8: Launch Preparation (Weeks 9-10)
+
+- [ ] Landing pages per tool
+- [ ] Onboarding flows
+- [ ] Beta user recruitment (20 users)
+- [ ] Beta testing and feedback collection
+- [ ] Final prompt refinements
+
+### Phase 8: Launch Preparation (Weeks 15-16)
+
+- [ ] Landing pages per tool
+- [ ] Onboarding flows
+- [ ] Analytics dashboards
+- [ ] Feedback collection infrastructure
+- [ ] Beta user recruitment
+
+---
+
+## Part 7: Feedback Loop Design
+
+### 7.1 Implicit Feedback Signals
+
+| Signal | What It Indicates | Collection Point |
+|--------|-------------------|------------------|
+| **Copy action** | Output was useful enough to use | Copy button click |
+| **Edit before use** | Output needed refinement | Diff between generated and used text |
+| **Session abandonment** | Output not helpful | No copy/use within 60s of generation |
+| **Regeneration** | First output unsatisfactory | "Try again" button click |
+| **Time to copy** | Confidence in output | Timestamp delta |
+| **Full vs partial copy** | Which parts were valuable | Selection tracking |
+
+### 7.2 Explicit Feedback Collection
+
+**Per-Output Quick Rating:**
+- Thumbs up/down on each generated artifact
+- Optional: "What would make this better?" text field (shown on thumbs down)
+
+**Weekly Digest (for active users):**
+- "How many of last week's generated stories made it to sprint unchanged?" (0-100% slider)
+- "Did your Sprint Goal stay relevant all sprint?" (Yes/Somewhat/No)
+- "Did your retro generate actionable items?" (Yes/No)
+
+**Outcome Tracking (opt-in):**
+- "Mark this story as completed" → tracks story success
+- "Mark Sprint Goal as achieved" → tracks goal quality
+- "Mark action item as completed" → tracks retro effectiveness
+
+### 7.3 Feedback Data Model
+
+```prisma
+model Tool_Feedback {
+  id              String   @id @default(cuid())
+  toolHistoryId   String
+  toolHistory     User_Tool_History @relation(fields: [toolHistoryId], references: [id])
+  feedbackType    String   // "rating", "outcome", "edit_distance", "copy_partial"
+  feedbackValue   Json     // Flexible: {rating: 5}, {outcome: "achieved"}, {editDistance: 0.3}
+  createdAt       DateTime @default(now())
+
+  @@index([toolHistoryId])
+}
+```
+
+### 7.4 Feedback-Driven Improvement Loop
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FEEDBACK LOOP                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User Input ──► RAG Query ──► LLM Generation ──► Structured    │
+│      │              │              │              Output        │
+│      │              │              │                 │          │
+│      │              │              │                 ▼          │
+│      │              │              │         User Feedback      │
+│      │              │              │         (explicit/implicit)│
+│      │              │              │                 │          │
+│      │              │              │                 ▼          │
+│      │              │              │         Feedback DB        │
+│      │              │              │                 │          │
+│      ▼              ▼              ▼                 ▼          │
+│  Context        Chunk          Prompt          Model Fine-     │
+│  Refinement     Ranking        Tuning          tuning (future) │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Short-term improvements (automated):**
+- Chunks with low satisfaction → deprioritized in retrieval
+- Prompt variations A/B tested based on output ratings
+- User context enriched based on common edits
+
+**Medium-term improvements (manual review):**
+- Weekly review of low-rated outputs → prompt refinement
+- Monthly review of edit patterns → output format adjustments
+- Quarterly content review → knowledge base updates
+
+**Long-term improvements (model-level):**
+- Fine-tuning dataset from high-rated outputs (future)
+- Custom model for each tool type (future)
+
+---
+
+## Part 8: Monetization Model
+
+### Pricing Philosophy
+
+**Free tier establishes habit, paid tier captures value when stakes are high.**
+
+Users generating a few stories or goals occasionally → free
+Users relying on tools daily for professional work → paid
+
+### Message-Based Pricing Structure
+
+| Tier | Monthly Price | Messages/Month | Per-Message Overage |
+|------|---------------|----------------|---------------------|
+| **Free** | $0 | 20 | N/A (hard cap) |
+| **Pro** | $19/mo | 200 | $0.15/message |
+| **Team** | $49/mo | 750 | $0.10/message |
+| **Enterprise** | Custom | Unlimited | N/A |
+
+### Message Counting Logic
+
+**What counts as 1 message:**
+- Each tool generation (regardless of complexity)
+- Each regeneration/retry
+- Follow-up refinement in same session
+
+**What doesn't count:**
+- Viewing past outputs
+- Editing outputs (client-side)
+- Copying outputs
+- Providing feedback
+
+### Tool-Specific Value Capture
+
+| Tool | Free Tier Limit | Reasoning |
+|------|-----------------|-----------|
+| Story Crafter | 10 stories/mo | ~2 sprints of light usage |
+| Goal Architect | 4 goals/mo | 2 sprints with retries |
+| Standup Coach | Unlimited | Daily habit builder, upsell driver |
+| Retro Catalyst | 4 retros/mo | 2 sprints with retries |
+| Stakeholder Translator | 4 summaries/mo | 2 sprints with retries |
+
+**Strategy:** Standup Coach is unlimited on free tier to establish daily habit. Once users depend on it, the value of full suite becomes clear.
+
+### Revenue Projections (Conservative)
+
+| Month | Free Users | Pro Users | Team Accounts | MRR |
+|-------|------------|-----------|---------------|-----|
+| M3 | 500 | 25 | 2 | $573 |
+| M6 | 2,000 | 100 | 10 | $2,390 |
+| M12 | 8,000 | 400 | 50 | $10,050 |
+
+**Assumptions:**
+- 5% free→Pro conversion
+- 0.5% free→Team conversion
+- 10% monthly churn on paid
+
+### Alternative Monetization Considered
+
+| Model | Pros | Cons | Decision |
+|-------|------|------|----------|
+| Per-tool pricing | Clear value per tool | Fragments experience | Rejected |
+| Seat-based | Predictable | Penalizes collaboration | Rejected |
+| Feature-gating | Clear upgrade path | Frustrating UX | Rejected |
+| Usage-based only | Aligns cost with value | Unpredictable bills | Partially adopted |
+| **Hybrid (chosen)** | Predictable + fair | Complexity | **Selected** |
+
+---
+
+## Part 9: Launch Strategy
+
+### Pre-Launch (4 weeks before)
+
+**Week -4: Build audience**
+- [ ] LinkedIn posts on each Scrum problem (cite research data)
+- [ ] r/scrum, r/agile posts (value-first, not promotional)
+- [ ] Collect email waitlist with "which tool interests you most?" survey
+
+**Week -3: Beta recruitment**
+- [ ] Recruit 20 beta users from waitlist
+- [ ] Focus on Scrum Masters at startups (fast feedback cycles)
+- [ ] Set up private Slack channel for beta
+
+**Week -2: Beta testing**
+- [ ] Beta users test all 5 tools
+- [ ] Daily standups on Slack to gather feedback
+- [ ] Fix critical issues, refine outputs
+
+**Week -1: Polish**
+- [ ] Implement top beta feedback items
+- [ ] Prepare launch assets (screenshots, demo videos)
+- [ ] Write launch posts
+
+### Launch Day
+
+**Primary channels:**
+1. **Product Hunt** - Launch all 5 tools as one product
+2. **Hacker News (Show HN)** - Focus on the RAG architecture angle
+3. **LinkedIn** - Personal post from founder + company page
+4. **Twitter/X** - Thread on each tool's problem/solution
+
+**Launch messaging:**
+- Lead with the validated problems (cite State of Agile data)
+- Position against ChatGPT clearly in comparisons
+- Offer 50% off first month for launch week signups
+
+### Post-Launch (First 30 days)
+
+**Week 1:**
+- [ ] Respond to all Product Hunt comments
+- [ ] Capture "what's missing" feedback
+- [ ] Fix any critical bugs same-day
+
+**Week 2:**
+- [ ] First user interviews (5 calls)
+- [ ] Identify power users for case studies
+- [ ] A/B test pricing page
+
+**Week 3:**
+- [ ] Publish first case study
+- [ ] Guest post on Scrum-focused blog
+- [ ] Webinar: "Fixing the 5 Most Common Scrum Ceremony Problems"
+
+**Week 4:**
+- [ ] Analyze first month data
+- [ ] Plan V2 features based on feedback
+- [ ] Begin SEO content strategy
+
+### Growth Channels (Ongoing)
+
+| Channel | Strategy | Expected CAC |
+|---------|----------|--------------|
+| **SEO** | Long-tail: "how to write sprint goal", "retrospective questions" | $5-10 |
+| **LinkedIn Organic** | Weekly problem/solution posts | $0 |
+| **Partnerships** | Scrum training providers, Jira consultants | Revenue share |
+| **Referral** | "Give 20 free messages, get 20" | $3-5 |
+| **Paid (future)** | LinkedIn ads to Scrum Master title | $30-50 |
+
+---
+
+## Part 10: Structured Input Questions
+
+### Story Crafter Intake
+
+| # | Question | Format | Required | Options/Validation |
+|---|----------|--------|----------|-------------------|
+| 1 | What product or feature area is this story for? | TEXT | Yes | Max 200 chars |
+| 2 | Who is the primary user of this feature? | SELECT | Yes | "End customer", "Admin user", "Internal team member", "API consumer", "Other (specify)" |
+| 3 | If "Other", describe the user: | TEXT | Conditional | Shown if #2 = "Other" |
+| 4 | What does this user need to do? | TEXT | Yes | Max 500 chars, placeholder: "e.g., filter search results by date range" |
+| 5 | Why do they need this? What problem does it solve? | TEXT | Yes | Max 500 chars |
+| 6 | Are there specific acceptance criteria you already know? | TEXT | No | Max 1000 chars |
+| 7 | What's the rough complexity? | SELECT | No | "Small (< 1 day)", "Medium (1-3 days)", "Large (3-5 days)", "Epic (needs splitting)", "Not sure" |
+| 8 | Any technical constraints or dependencies? | TEXT | No | Max 500 chars |
+
+### Goal Architect Intake
+
+| # | Question | Format | Required | Options/Validation |
+|---|----------|--------|----------|-------------------|
+| 1 | What is your Product Goal? (the larger objective you're working toward) | TEXT | Yes | Max 500 chars |
+| 2 | What is the main theme of this sprint? | TEXT | Yes | Max 300 chars |
+| 3 | List 2-4 key items planned for this sprint: | TEXT | Yes | Max 500 chars |
+| 4 | Who are the primary stakeholders expecting value from this sprint? | MULTI_SELECT | No | "Customers", "Sales team", "Leadership", "Operations", "Engineering (internal tooling)", "Other" |
+| 5 | Is there a specific metric or outcome you're targeting? | TEXT | No | Max 200 chars |
+| 6 | What would make this sprint a failure? | TEXT | No | Max 300 chars |
+
+### Standup Coach Intake
+
+| # | Question | Format | Required | Options/Validation |
+|---|----------|--------|----------|-------------------|
+| 1 | What is your current Sprint Goal? | TEXT | Yes | Max 300 chars (persisted) |
+| 2 | What did you work on since yesterday? | TEXT | Yes | Max 500 chars |
+| 3 | Are you blocked on anything? | SELECT | Yes | "No blockers", "Waiting on someone", "Technical issue", "Unclear requirements", "Other" |
+| 4 | If blocked, describe briefly: | TEXT | Conditional | Max 300 chars |
+| 5 | What will you focus on today? | TEXT | Yes | Max 300 chars |
+| 6 | Do you need to collaborate with anyone specific today? | TEXT | No | Max 200 chars |
+
+### Retro Catalyst Intake
+
+| # | Question | Format | Required | Options/Validation |
+|---|----------|--------|----------|-------------------|
+| 1 | How would you rate the last sprint overall? | SELECT | Yes | "Great (4-5)", "Good (3)", "Challenging (2)", "Difficult (1)" |
+| 2 | What retro formats have you used recently? | MULTI_SELECT | No | "Start/Stop/Continue", "4 L's", "Mad/Sad/Glad", "Sailboat", "Starfish", "Timeline", "None/New team" |
+| 3 | Is there a specific theme you want to explore? | SELECT | No | "Team collaboration", "Technical practices", "Process efficiency", "Communication", "Planning accuracy", "No specific theme" |
+| 4 | How is team energy/morale? | SELECT | No | "High", "Medium", "Low", "Mixed" |
+| 5 | Any major events this sprint worth reflecting on? | TEXT | No | Max 300 chars |
+| 6 | Preferred retro duration? | SELECT | No | "30 min (quick)", "45 min (standard)", "60 min (deep dive)", "90 min (extended)" |
+
+### Stakeholder Translator Intake
+
+| # | Question | Format | Required | Options/Validation |
+|---|----------|--------|----------|-------------------|
+| 1 | Who is the primary audience for this summary? | SELECT | Yes | "Executive leadership", "Sales/customer success", "Customers directly", "Cross-functional partners", "Board/investors", "Mixed audience" |
+| 2 | List what was delivered/completed this sprint: | TEXT | Yes | Max 1000 chars |
+| 3 | What business value was delivered? | TEXT | No | Max 500 chars |
+| 4 | Any metrics to highlight? (performance, adoption, etc.) | TEXT | No | Max 300 chars |
+| 5 | What's coming next sprint that stakeholders should know? | TEXT | No | Max 300 chars |
+| 6 | Anything that didn't get done that was expected? | TEXT | No | Max 300 chars |
+| 7 | Preferred tone? | SELECT | No | "Formal/professional", "Conversational", "Technical (some audience)", "Celebratory" |
+
+---
+
+## Part 11: Additional Considerations
+
+### 11.1 Privacy & Data Handling
+
+**Principle:** User inputs may contain sensitive business information.
+
+| Data Type | Retention | Sharing |
+|-----------|-----------|---------|
+| Intake responses | Indefinite (user value) | Never shared between users |
+| Generated outputs | 90 days | Never |
+| Feedback ratings | Indefinite | Aggregated only |
+| Sprint context | Until user deletes | Never |
+
+**Compliance considerations:**
+- GDPR: Data export and deletion on request
+- SOC 2: Consider for enterprise tier
+- No PII in RAG knowledge base
+
+### 11.2 Offline/Degraded Mode
+
+**When OpenAI is unavailable:**
+- Show cached recent outputs for reference
+- Allow offline editing of past outputs
+- Queue requests for retry
+- Display clear "AI unavailable" status
+
+### 11.3 Integration Opportunities (Future)
+
+| Integration | Value | Complexity |
+|-------------|-------|------------|
+| Jira | Auto-create stories from output | Medium |
+| Slack | Post standups, summaries | Low |
+| Notion | Export stories/goals to workspace | Low |
+| Calendar | Sprint timeline context | Medium |
+| Linear | Issue creation | Medium |
+
+### 11.4 Competitive Moat
+
+**Short-term moat (0-6 months):**
+- Structured outputs ChatGPT can't match
+- Scrum-specific knowledge curation
+- Intake flows that gather right context
+
+**Medium-term moat (6-18 months):**
+- User context that compounds value over time
+- Feedback-refined outputs for each user's style
+- Format history (retros) preventing repetition
+
+**Long-term moat (18+ months):**
+- Fine-tuned models on successful outputs
+- Network effects from team features
+- Integration ecosystem
+
+### 11.5 Risk Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| ChatGPT adds memory/structure | High | High | Move fast, build feedback loop moat |
+| Low adoption | Medium | High | Strong free tier, daily use tool (Standup) |
+| OpenAI pricing increases | Medium | Medium | Abstract provider, test Anthropic/others |
+| User churn | Medium | Medium | Focus on daily habit (Standup Coach) |
+| Content accuracy complaints | Low | Medium | Citations, human review process |
+
+### 11.6 Success Metrics
+
+**Product metrics:**
+- Daily Active Users (DAU) per tool
+- Messages generated per user per week
+- Free→Paid conversion rate
+- Net Promoter Score (NPS)
+- Tool-specific satisfaction ratings
+
+**Business metrics:**
+- Monthly Recurring Revenue (MRR)
+- Customer Acquisition Cost (CAC)
+- Lifetime Value (LTV)
+- Churn rate (monthly)
+- Revenue per user
+
+**Quality metrics:**
+- Output acceptance rate (used without major edits)
+- Regeneration rate (lower is better)
+- Feedback rating distribution
+- Time to value (first useful output)
+
+### 11.7 Team Requirements
+
+**To execute this plan:**
+- 1 Full-stack developer (existing team can handle)
+- 1 Part-time content curator (for knowledge base maintenance)
+- Founder involvement for product decisions, marketing
+
+**Future hires (post-traction):**
+- Growth marketer (Month 6+)
+- Customer success (Month 9+)
+
+---
+
+## Appendix A: System Prompt Templates
+
+### Story Crafter System Prompt (Draft)
+
+```
+You are Story Crafter, an expert at writing INVEST-compliant user stories for Scrum teams.
+
+## Your Knowledge
+You have access to best practices from Mike Cohn, Roman Pichler, and the Scrum Guide. Use the retrieved context to ground your recommendations in established practices.
+
+## User Context
+- Product/Feature: {product_context}
+- User Persona: {persona}
+- Team's Definition of Ready: {dor_if_provided}
+
+## Your Task
+Generate a complete user story with:
+1. A specific persona (not "As a user")
+2. A clear need statement
+3. An explicit value statement ("so that...")
+4. 3-5 acceptance criteria in Given-When-Then format
+5. Complexity indicator (XS/S/M/L/XL)
+6. 2-3 edge cases to consider
+7. INVEST compliance checklist
+
+## Output Format
+Respond ONLY with valid JSON matching this schema:
+{schema}
+
+## Guidelines
+- Make the persona specific and relatable
+- The value statement should answer "why does this matter?"
+- Acceptance criteria should be testable
+- Flag any INVEST violations with suggestions to fix
+- If the request is too large for one story, suggest how to split it
+
+## Retrieved Best Practices
+{rag_context}
+```
+
+### Goal Architect System Prompt (Draft)
+
+```
+You are Goal Architect, an expert at crafting Sprint Goals that align teams and enable flexibility.
+
+## Your Knowledge
+You have access to Roman Pichler's Sprint Goal template, the Scrum Guide 2020, and documented anti-patterns from Scrum.org trainers.
+
+## User Context
+- Product Goal: {product_goal}
+- Sprint Theme: {sprint_theme}
+- Planned Items: {planned_items}
+- Stakeholders: {stakeholders}
+
+## Your Task
+Generate 3-5 Sprint Goal options, each following this structure:
+"We focus on [objective] to [benefit/impact] confirmed by [metric/evidence]"
+
+## Output Format
+Respond ONLY with valid JSON matching this schema:
+{schema}
+
+## Guidelines
+- Goals should be outcome-focused, not task lists
+- Each option should emphasize a different angle (user value, business value, learning, risk reduction)
+- Avoid compound goals (X AND Y AND Z)
+- Include a recommended option with reasoning
+- Flag if the sprint scope seems too unfocused for a single goal
+
+## Anti-Patterns to Avoid
+- "Complete all sprint backlog items" (not a goal)
+- Too vague: "Improve the user experience" (how will you know?)
+- Too specific: "Implement ticket #1234" (that's a task)
+
+## Retrieved Best Practices
+{rag_context}
+```
+
+---
+
+## Appendix B: Pinecone Namespace Strategy
+
+**Option A: Shared namespace, metadata filtering**
+- All tools share one namespace
+- Filter by `toolType` metadata
+- Pros: Simpler management
+- Cons: Larger index, potential retrieval noise
+
+**Option B: Separate namespaces per tool (Recommended)**
+- `scrum-global` - Shared Scrum knowledge
+- `scrum-story-crafter` - Story-specific content
+- `scrum-goal-architect` - Goal-specific content
+- `scrum-standup-coach` - Daily Scrum content
+- `scrum-retro-catalyst` - Retrospective formats
+- `scrum-stakeholder-translator` - Communication patterns
+
+**Query strategy:**
+1. Query tool-specific namespace (top 3)
+2. Query global namespace (top 2)
+3. Merge and dedupe by similarity
+4. Return top 5 total
+
+---
+
+*Document version: 1.0*
+*Created: 2026-02-02*
+*Author: Implementation Planning Session*
