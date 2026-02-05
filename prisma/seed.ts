@@ -61,14 +61,14 @@ async function main() {
 
   // Create creator
   const creator = await prisma.creator.upsert({
-    where: { id: 'creator_sun_tzu' },
+    where: { id: 'sun_tzu' },
     update: {
       slug: 'sun-tzu',
       bio: 'Ancient Chinese military strategist and philosopher, author of The Art of War, one of the most influential works on military strategy ever written.',
       shortBio: 'Ancient Chinese military strategist and philosopher',
     },
     create: {
-      id: 'creator_sun_tzu',
+      id: 'sun_tzu',
       name: 'Sun Tzu',
       slug: 'sun-tzu',
       bio: 'Ancient Chinese military strategist and philosopher, author of The Art of War, one of the most influential works on military strategy ever written.',
@@ -100,7 +100,7 @@ async function main() {
 
   // Create chatbot
   const chatbot = await prisma.chatbot.upsert({
-    where: { id: 'chatbot_art_of_war' },
+    where: { id: 'art_of_war' },
     update: {
       slug: 'art-of-war',
       description: 'A deep dive into Sun Tzu\'s timeless military strategy classic, The Art of War. Explore ancient wisdom on strategy, tactics, and leadership that remains relevant for modern business, personal development, and competitive situations.',
@@ -114,7 +114,7 @@ async function main() {
       currency: 'USD',
     },
     create: {
-      id: 'chatbot_art_of_war',
+      id: 'art_of_war',
       title: 'Art of War Deep Dive',
       creatorId: creator.id,
       slug: 'art-of-war',
@@ -132,19 +132,37 @@ async function main() {
 
   console.log('✅ Created chatbot:', chatbot.title);
 
-  // Create source
+  // Create source (no chatbotId - use Chatbot_Source junction table for many-to-many)
   const source = await prisma.source.upsert({
-    where: { id: 'source_art_of_war' },
+    where: { id: 'art_of_war' },
     update: {},
     create: {
-      id: 'source_art_of_war',
+      id: 'art_of_war',
       title: 'The Art of War',
       creatorId: creator.id,
-      chatbotId: chatbot.id,
+      // chatbotId removed - sources can now be linked to multiple chatbots via Chatbot_Source
     },
   });
 
   console.log('✅ Created source:', source.title);
+
+  // Link source to chatbot via junction table (many-to-many)
+  await prisma.chatbot_Source.upsert({
+    where: {
+      chatbotId_sourceId: {
+        chatbotId: chatbot.id,
+        sourceId: source.id,
+      },
+    },
+    update: {},
+    create: {
+      chatbotId: chatbot.id,
+      sourceId: source.id,
+      isActive: true,
+    },
+  });
+
+  console.log('✅ Linked source to chatbot via Chatbot_Source');
 
   // Phase 3.7.1: Seed initial categories
   console.log('\n🌱 Seeding categories...');

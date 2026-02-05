@@ -19,7 +19,10 @@ async function checkIngestion() {
     const chatbot = await prisma.chatbot.findUnique({
       where: { id: 'chatbot_art_of_war' },
       include: {
-        sources: true,
+        sources: {
+          include: { source: true },
+        },
+        creator: true,
       },
     });
 
@@ -32,17 +35,20 @@ async function checkIngestion() {
     console.log('✅ Chatbot found:');
     console.log(`   ID: ${chatbot.id}`);
     console.log(`   Title: ${chatbot.title}`);
-    console.log(`   Namespace: chatbot-${chatbot.id}`);
+    console.log(`   Namespace: creator-${chatbot.creatorId}`);
     console.log('');
 
-    // 2. Check sources
+    // 2. Check sources (via junction table)
     if (chatbot.sources.length === 0) {
-      console.error('❌ No sources found for chatbot');
+      console.error('❌ No sources linked to chatbot');
       process.exit(1);
     }
 
-    console.log(`✅ Found ${chatbot.sources.length} source(s):`);
-    for (const source of chatbot.sources) {
+    // Flatten junction table to get source details
+    const linkedSources = chatbot.sources.map((cs) => cs.source);
+
+    console.log(`✅ Found ${linkedSources.length} source(s):`);
+    for (const source of linkedSources) {
       console.log(`   - ${source.title} (${source.id})`);
     }
     console.log('');
@@ -51,7 +57,7 @@ async function checkIngestion() {
     const files = await prisma.file.findMany({
       where: {
         sourceId: {
-          in: chatbot.sources.map((s) => s.id),
+          in: linkedSources.map((s) => s.id),
         },
       },
       orderBy: {

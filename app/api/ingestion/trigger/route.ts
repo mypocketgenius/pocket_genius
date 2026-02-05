@@ -33,15 +33,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Get file record with related data
+    // 3. Get file record with related source (no chatbot needed - use creatorId for namespace)
     const file = await prisma.file.findUnique({
       where: { id: fileId },
       include: {
-        source: {
-          include: {
-            chatbot: true,
-          },
-        },
+        source: true,
       },
     });
 
@@ -56,13 +52,6 @@ export async function POST(req: Request) {
     if (!file.source) {
       return NextResponse.json(
         { error: 'Source not found for file' },
-        { status: 404 }
-      );
-    }
-
-    if (!file.source.chatbot) {
-      return NextResponse.json(
-        { error: 'Chatbot not found for source' },
         { status: 404 }
       );
     }
@@ -151,8 +140,9 @@ export async function POST(req: Request) {
       }));
 
       // 12. Upsert to Pinecone with retry logic (Task 7)
+      // Uses creator-based namespace for source sharing across chatbots
       try {
-        await upsertWithRetry(vectors, file.source.chatbot.id, 3);
+        await upsertWithRetry(vectors, file.source.creatorId, 3);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         throw new Error(`Failed to upsert vectors to Pinecone: ${errorMessage}`);

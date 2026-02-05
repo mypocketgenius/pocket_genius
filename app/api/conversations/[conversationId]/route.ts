@@ -126,7 +126,7 @@ export async function PATCH(
             configJson: true,
             fallbackSuggestionPills: true,
             creator: { select: { name: true } },
-            sources: { select: { title: true } },
+            sources: { select: { source: { select: { title: true } } } },
           },
         });
 
@@ -136,6 +136,8 @@ export async function PATCH(
           hasFallbackPills: !!(chatbot?.fallbackSuggestionPills as string[])?.length,
         });
         if (chatbot) {
+          // Transform junction table results to flat source array
+          const sourceTitles = chatbot.sources.map((cs) => ({ title: cs.source.title }));
           // Fetch intake responses for this user and chatbot
           const intakeResponses = await prisma.intake_Response.findMany({
             where: {
@@ -178,7 +180,7 @@ export async function PATCH(
               description: chatbot.description,
               type: chatbot.type as ChatbotType | null,
               creator: chatbot.creator,
-              sources: chatbot.sources,
+              sources: sourceTitles,
             },
             intake: intakeContext,
             customPrompt,

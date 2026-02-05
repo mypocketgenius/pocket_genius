@@ -118,7 +118,7 @@ export async function GET(
         },
         sources: {
           select: {
-            title: true,
+            source: { select: { title: true } },
           },
           take: 1, // Only need first source for DEEP_DIVE
         },
@@ -132,12 +132,15 @@ export async function GET(
       );
     }
 
+    // Transform junction table results to flat source array
+    const sourceTitles = chatbot.sources.map((cs) => ({ title: cs.source.title }));
+
     // 4. Generate purpose text
     const chatbotPurpose = generatePurposeText({
       type: chatbot.type,
       creator: chatbot.creator,
       title: chatbot.title,
-      sources: chatbot.sources,
+      sources: sourceTitles,
     });
 
     // 5. Get all intake questions for the chatbot through junction table

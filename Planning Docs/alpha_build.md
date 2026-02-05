@@ -5342,6 +5342,52 @@ active → loading (user switches to different conversation)
 
 ---
 
+### Side Quest: Source Many-to-Many Migration ✅ COMPLETE (Feb 5, 2026)
+
+**Status:** ✅ **COMPLETE** (Feb 5, 2026)
+
+**Objective:** Migrate `Source` model from one-to-many (Source → Chatbot) to many-to-many relationship, enabling a single source to power multiple chatbots.
+
+**Problem:** The original `Source` model had a direct `chatbotId` foreign key, meaning each source could only belong to one chatbot. This required duplicating Source records to use the same content in multiple chatbots, and was inconsistent with the many-to-many pattern already used by `Intake_Question`.
+
+**Solution:** Introduced `Chatbot_Source` junction table and migrated to creator-based Pinecone namespaces with sourceId filtering.
+
+**Key Features Implemented:**
+
+1. **Schema Changes:**
+   - Added `Chatbot_Source` junction table with `chatbotId`, `sourceId`, `isActive`, `addedAt`
+   - Added `sourceIds` field to `Conversation` model for snapshotting allowed sources at conversation creation
+   - Removed `chatbotId` from `Source` model (sources now linked via junction table)
+   - Renamed Chatbot relation from `linkedSources` to `sources` pointing to `Chatbot_Source[]`
+
+2. **Pinecone Namespace Strategy:**
+   - Changed from `chatbot-{chatbotId}` to `creator-{creatorId}` namespaces
+   - All vectors for a creator stored in single namespace with `sourceId` metadata
+   - Query-time filtering with `sourceId: { $in: allowedSourceIds }`
+   - Benefits: No vector duplication, single Pinecone query per chat, flexible source-chatbot linking
+
+3. **Conversation SourceIds Snapshotting:**
+   - New conversations fetch allowed `sourceIds` from `Chatbot_Source` and store on conversation
+   - Prevents mid-conversation source changes from affecting ongoing conversations
+   - Legacy conversations (created before migration) use fallback live lookup with backfill
+
+**Files Modified:**
+- `prisma/schema.prisma` - Added junction table, removed Source.chatbotId
+- `lib/pinecone/upsert-with-retry.ts` - Changed namespace to `creator-{creatorId}`
+- `app/api/ingestion/trigger/route.ts` - Uses creatorId for namespace
+- `app/api/chat/route.ts` - Snapshots sourceIds, applies filter to RAG queries
+- `prisma/seed.ts` - Creates Chatbot_Source links
+- `app/api/chatbots/[chatbotId]/suggestion-pills/route.ts` - Query via junction table
+- `app/api/chatbots/[chatbotId]/welcome/route.ts` - Query via junction table
+- `app/api/conversations/[conversationId]/route.ts` - Query via junction table
+- `app/api/intake/completion/route.ts` - Query via junction table
+- `scripts/check-ingestion.ts` - Updated for new namespace and junction queries
+- `scripts/re-trigger-ingestion.ts` - Query files via Chatbot_Source
+
+**Planning Document:** Full implementation details in `Planning Docs/source-many-to-many-migration.md`
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
@@ -6583,6 +6629,10 @@ If critical issues arise in production:
   - Fixed race condition causing pill skeleton flash on first message send
   - Created `useChatStateMachine` hook with 5 explicit states and synchronous transition lock
   - Removed key prop from chat component; replaced complex URL effect with state machine
+- [x] Side Quest: Source Many-to-Many Migration ✅ **COMPLETE** (Feb 5, 2026)
+  - Migrated Source from one-to-many to many-to-many via Chatbot_Source junction table
+  - Changed Pinecone namespaces from `chatbot-{id}` to `creator-{id}` with sourceId filtering
+  - Added sourceIds snapshotting to Conversation for consistent RAG filtering
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

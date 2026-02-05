@@ -175,6 +175,7 @@ export async function POST(req: Request) {
 
     // 6. Get or create conversation
     let conversationId = providedConversationId;
+    let conversationSourceIds: string[] = []; // Track sourceIds for RAG filtering
     if (!conversationId) {
       // Get chatbot version ID (use current version or first version as fallback)
       let chatbotVersionId: string;
@@ -210,6 +211,13 @@ export async function POST(req: Request) {
         }
       }
       
+      // Fetch allowed sourceIds from Chatbot_Source junction table
+      // These are snapshotted at conversation creation time for consistent RAG filtering
+      const allowedSourceIds = await prisma.chatbot_Source.findMany({
+        where: { chatbotId, isActive: true },
+        select: { sourceId: true },
+      }).then(rows => rows.map(r => r.sourceId));
+
       const conversation = await prisma.conversation.create({
         data: {
           chatbotId,
@@ -219,9 +227,11 @@ export async function POST(req: Request) {
           messageCount: 0,
           // Mark intake as complete if welcome message is provided (returning user)
           intakeCompleted: welcomeMessageContent ? true : false,
+          sourceIds: allowedSourceIds, // Snapshot allowed sources at creation
         },
       });
       conversationId = conversation.id;
+      conversationSourceIds = allowedSourceIds;
 
       // For returning users: save welcome message as first assistant message
       if (welcomeMessageContent) {
@@ -288,6 +298,32 @@ export async function POST(req: Request) {
           console.warn('Failed to upgrade conversation ownership:', error);
         }
       }
+
+      // Handle legacy conversations created before sourceIds migration
+      // If conversation has no sourceIds, fetch from Chatbot_Source and backfill
+      if (!conversation.sourceIds || conversation.sourceIds.length === 0) {
+        const liveSourceIds = await prisma.chatbot_Source.findMany({
+          where: { chatbotId: conversation.chatbotId, isActive: true },
+          select: { sourceId: true },
+        }).then(rows => rows.map(r => r.sourceId));
+
+        // Backfill the conversation record for future requests
+        if (liveSourceIds.length > 0) {
+          try {
+            await prisma.conversation.update({
+              where: { id: conversationId },
+              data: { sourceIds: liveSourceIds },
+            });
+          } catch (error) {
+            console.warn('Failed to backfill conversation sourceIds:', error);
+          }
+        }
+
+        // Store for use in RAG query below
+        conversationSourceIds = liveSourceIds;
+      } else {
+        conversationSourceIds = conversation.sourceIds;
+      }
     }
 
     // 7. Store user message (with error handling)
@@ -329,40 +365,49 @@ export async function POST(req: Request) {
     }
 
     // 8. Query RAG for relevant chunks (with error handling)
-    const namespace = `chatbot-${chatbotId}`;
+    // Use creator-based namespace for source sharing across chatbots
+    const namespace = `creator-${chatbot.creatorId}`;
     let retrievedChunks: RetrievedChunk[] = [];
-    try {
-      retrievedChunks = await queryRAG({
-        query: lastMessage.content,
-        namespace,
-        topK: 5,
-      });
-    } catch (error) {
-      console.error('RAG query failed:', error);
 
-      // Handle Pinecone connection errors
-      if (error instanceof Error) {
-        if (error.message.includes('Pinecone') || error.message.includes('connection')) {
-          return NextResponse.json(
-            { error: 'Unable to retrieve content. Please try again in a moment.' },
-            { status: 503 } // Service Unavailable
-          );
-        }
-
-        // Handle embedding generation errors - check message for quota errors
-        if (error.message.includes('embedding') || error.message.includes('quota') || error.message.includes('429') || error.message.includes('exceeded')) {
-          return NextResponse.json(
-            { error: 'Service quota exceeded. Please check your billing or try again later.' },
-            { status: 503 }
-          );
-        }
-      }
-
-      // For other RAG errors, continue without context (fallback to general knowledge)
-      console.warn('RAG query failed, continuing without context:', error);
+    // Skip RAG if no sources are linked to this chatbot
+    if (conversationSourceIds.length === 0) {
+      console.warn(`Conversation ${conversationId} has no linked sources, skipping RAG`);
       retrievedChunks = [];
+    } else {
+      try {
+        retrievedChunks = await queryRAG({
+          query: lastMessage.content,
+          namespace,
+          topK: 5,
+          filter: { sourceId: { $in: conversationSourceIds } },
+        });
+      } catch (error) {
+        console.error('RAG query failed:', error);
+
+        // Handle Pinecone connection errors
+        if (error instanceof Error) {
+          if (error.message.includes('Pinecone') || error.message.includes('connection')) {
+            return NextResponse.json(
+              { error: 'Unable to retrieve content. Please try again in a moment.' },
+              { status: 503 } // Service Unavailable
+            );
+          }
+
+          // Handle embedding generation errors - check message for quota errors
+          if (error.message.includes('embedding') || error.message.includes('quota') || error.message.includes('429') || error.message.includes('exceeded')) {
+            return NextResponse.json(
+              { error: 'Service quota exceeded. Please check your billing or try again later.' },
+              { status: 503 }
+            );
+          }
+        }
+
+        // For other RAG errors, continue without context (fallback to general knowledge)
+        console.warn('RAG query failed, continuing without context:', error);
+        retrievedChunks = [];
+      }
     }
-    
+
     // Handle empty results gracefully
     if (!retrievedChunks || retrievedChunks.length === 0) {
       console.warn('No chunks retrieved from RAG query');
@@ -385,13 +430,13 @@ export async function POST(req: Request) {
     const sourceIds = [...new Set(retrievedChunks.map((c) => c.sourceId))];
 
     // 11. Fetch source titles for attribution
+    // No chatbotId filter needed - sourceIds are already validated at conversation creation
     const sourceTitlesMap = new Map<string, string>();
     if (sourceIds.length > 0) {
       try {
         const sources = await prisma.source.findMany({
           where: {
             id: { in: sourceIds },
-            chatbotId,
           },
           select: {
             id: true,

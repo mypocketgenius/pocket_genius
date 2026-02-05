@@ -21,15 +21,18 @@ async function reTriggerIngestion(fileId?: string) {
 
   // Get file ID from args or find first READY file
   let targetFileId = fileId;
-  
+
   if (!targetFileId) {
+    // Get source IDs linked to the chatbot via junction table
+    const chatbotSources = await prisma.chatbot_Source.findMany({
+      where: { chatbotId: 'chatbot_art_of_war' },
+      select: { sourceId: true },
+    });
+    const sourceIds = chatbotSources.map((cs) => cs.sourceId);
+
     const files = await prisma.file.findMany({
       where: {
-        source: {
-          chatbot: {
-            id: 'chatbot_art_of_war',
-          },
-        },
+        sourceId: { in: sourceIds },
       },
       orderBy: { createdAt: 'desc' },
       take: 1,

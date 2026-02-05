@@ -24,13 +24,17 @@ export interface PineconeVector {
 /**
  * Upserts vectors to Pinecone with retry logic and exponential backoff
  * Retries up to maxRetries times if the upsert fails
- * Uses explicit namespace convention: `chatbot-${chatbotId}`
- * 
+ * Uses explicit namespace convention: `creator-${creatorId}`
+ *
+ * All sources for a creator are stored in the same namespace, with sourceId
+ * in the vector metadata for filtering. This allows sources to be shared
+ * across multiple chatbots without duplicating vectors.
+ *
  * @param vectors - Array of vectors to upsert
- * @param chatbotId - Chatbot ID used to construct namespace
+ * @param creatorId - Creator ID used to construct namespace
  * @param maxRetries - Maximum number of retry attempts (default: 3)
  * @throws Error if all retry attempts fail
- * 
+ *
  * @example
  * ```typescript
  * const vectors = [
@@ -40,27 +44,26 @@ export interface PineconeVector {
  *     metadata: { text: '...', sourceId: 'src-1', page: 1 }
  *   }
  * ];
- * await upsertWithRetry(vectors, 'chatbot-123', 3);
+ * await upsertWithRetry(vectors, 'creator-123', 3);
  * ```
  */
 export async function upsertWithRetry(
   vectors: PineconeVector[],
-  chatbotId: string,
+  creatorId: string,
   maxRetries: number = 3
 ): Promise<void> {
   // Validate inputs
   if (!vectors || vectors.length === 0) {
     throw new Error('Vectors array cannot be empty');
   }
-  if (!chatbotId || chatbotId.trim().length === 0) {
-    throw new Error('chatbotId is required');
+  if (!creatorId || creatorId.trim().length === 0) {
+    throw new Error('creatorId is required');
   }
 
-  // Use explicit namespace convention to prevent collisions
-  // Format: "chatbot-{chatbotId}" (e.g., "chatbot-art-of-war")
-  // This prevents collision if you later add other namespace types
-  // (e.g., "questions-art-of-war" for future question clustering)
-  const namespace = `chatbot-${chatbotId}`;
+  // Use creator-based namespace for source sharing across chatbots
+  // Format: "creator-{creatorId}" (e.g., "creator-sun_tzu")
+  // All sources for a creator are stored together, filtered by sourceId at query time
+  const namespace = `creator-${creatorId}`;
 
   // Get Pinecone index instance
   const index = getPineconeIndex(env.PINECONE_INDEX);

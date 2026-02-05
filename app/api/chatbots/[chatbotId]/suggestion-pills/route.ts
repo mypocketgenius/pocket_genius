@@ -85,13 +85,16 @@ export async function GET(
         configJson: true,
         fallbackSuggestionPills: true,
         creator: { select: { name: true } },
-        sources: { select: { title: true } },
+        sources: { select: { source: { select: { title: true } } } },
       },
     });
 
     if (!chatbot) {
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
+
+    // Transform junction table results to flat source array
+    const sourceTitles = chatbot.sources.map((cs) => ({ title: cs.source.title }));
 
     // 4. Fetch intake responses
     const intakeResponses = await prisma.intake_Response.findMany({
@@ -130,7 +133,7 @@ export async function GET(
         description: chatbot.description,
         type: chatbot.type as ChatbotType | null,
         creator: chatbot.creator,
-        sources: chatbot.sources,
+        sources: sourceTitles,
       },
       intake: intakeContext,
       customPrompt,

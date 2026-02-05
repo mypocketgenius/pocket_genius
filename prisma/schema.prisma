@@ -144,7 +144,7 @@ model Chatbot {
 
   // Relations
   conversations              Conversation[]
-  sources                    Source[]
+  sources                    Chatbot_Source[]               // Many-to-many via junction table
   chunkPerformances          Chunk_Performance[]
   pills                      Pill[]
   pillUsages                 Pill_Usage[]
@@ -216,18 +216,34 @@ model Favorited_Chatbots {
 }
 
 // Source model - Content sources (books, courses, etc.)
+// Sources are linked to chatbots via Chatbot_Source junction table (many-to-many)
 model Source {
   id        String   @id @default(cuid())
   title     String
   creatorId String
   creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  chatbotId String
-  chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   // Relations
   files             File[]
   chunkPerformances Chunk_Performance[]
+  chatbots          Chatbot_Source[]    // Many-to-many via junction table
+}
+
+// Junction table for many-to-many relationship between Chatbot and Source
+// Allows a single source to be linked to multiple chatbots
+model Chatbot_Source {
+  id        String   @id @default(cuid())
+  chatbotId String
+  chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  sourceId  String
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)  // Soft-disable without unlinking
+  addedAt   DateTime @default(now())
+
+  @@unique([chatbotId, sourceId])
+  @@index([chatbotId])
+  @@index([sourceId])
 }
 
 // File model - Uploaded assets
@@ -265,6 +281,10 @@ model Conversation {
   intakeCompletedAt DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+
+  // Snapshot of allowed sourceIds at conversation start (for RAG filtering)
+  // Prevents mid-conversation source changes from affecting ongoing conversations
+  sourceIds        String[]        @default([])
 
   // AI-generated suggestion pills cache (Phase: AI Suggestion Pills)
   suggestionPillsCache     Json?      // Cached array of personalized pill strings
