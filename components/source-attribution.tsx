@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Maximize2 } from 'lucide-react';
 
 interface SourceAttributionProps {
   chunkIds: string[];
@@ -120,9 +120,10 @@ export function SourceAttribution({
           <Dialog>
             <DialogTrigger asChild>
               <button
-                className="underline hover:no-underline cursor-pointer"
+                className="inline-flex items-center gap-1 underline hover:no-underline cursor-pointer"
                 style={{ color: textColor }}
               >
+                <Maximize2 className="h-3 w-3" />
                 {source.title}
               </button>
             </DialogTrigger>

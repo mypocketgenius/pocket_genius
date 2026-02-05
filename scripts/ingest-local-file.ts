@@ -1,5 +1,5 @@
 // scripts/ingest-local-file.ts
-// Direct ingestion of a local file without Vercel Blob
+// Ingestion of a local file - uploads to Vercel Blob then processes
 // Usage: npx tsx scripts/ingest-local-file.ts
 
 import dotenv from 'dotenv';
@@ -7,6 +7,7 @@ dotenv.config({ path: '.env.local' });
 
 import fs from 'fs';
 import path from 'path';
+import { put } from '@vercel/blob';
 import { prisma } from '../lib/prisma';
 import { chunkText } from '../lib/chunking/text';
 import { generateEmbeddings } from '../lib/embeddings';
@@ -95,7 +96,7 @@ async function ingestLocalFile(config: IngestConfig) {
       text: chunk.text,
       sourceId: sourceId,
       sourceTitle: sourceTitle,
-      page: chunk.page,
+      ...(chunk.page !== undefined && { page: chunk.page }),
     },
   }));
 
@@ -105,20 +106,35 @@ async function ingestLocalFile(config: IngestConfig) {
   await upsertWithRetry(vectors, creatorId, 3);
   console.log(`   Upserted ${vectors.length} vectors`);
 
-  // 7. Create file record (for tracking)
-  console.log('7. Creating file record...');
+  // 7. Upload to Vercel Blob
+  console.log('7. Uploading to Vercel Blob...');
   const fileName = path.basename(filePath);
   const fileSize = fs.statSync(absolutePath).size;
+  const fileContent = fs.readFileSync(absolutePath);
+  const blobPath = `sources/${sourceId}/${fileName}`;
 
+  const blob = await put(blobPath, fileContent, {
+    access: 'public',
+    contentType: 'text/plain',
+    allowOverwrite: true,
+  });
+  console.log(`   Uploaded to: ${blob.url}`);
+
+  // 8. Create file record
+  console.log('8. Creating file record...');
   const file = await prisma.file.upsert({
     where: { id: `file_${sourceId}` },
-    update: { status: 'READY' },
+    update: {
+      status: 'READY',
+      fileUrl: blob.url,
+      fileSize: fileSize,
+    },
     create: {
       id: `file_${sourceId}`,
       sourceId: sourceId,
       creatorId: creatorId,
       fileName: fileName,
-      fileUrl: `local://${absolutePath}`, // Placeholder for local files
+      fileUrl: blob.url,
       fileSize: fileSize,
       status: 'READY',
     },

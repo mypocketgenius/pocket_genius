@@ -1,3 +1,6 @@
+// Simplified MVP Schema - Phase 1, Task 5
+// Only includes tables needed for MVP functionality
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,497 +9,29 @@ datasource db {
   provider = "postgresql"
 }
 
-model Bookmark {
-  id        String   @id
-  messageId String
-  userId    String
-  chatbotId String
-  chunkIds  String[] @default([])
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  Chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([messageId, userId])
-  @@index([chatbotId])
-  @@index([createdAt])
-  @@index([userId])
-}
-
-model Category {
-  id               String             @id
-  type             CategoryType
-  label            String
-  slug             String
-  icon             String?
-  color            String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime
-  Chatbot_Category Chatbot_Category[]
-
-  @@unique([type, slug])
-  @@index([type])
-}
-
-model Chatbot {
-  id                                                        String                     @id
-  title                                                     String
-  creatorId                                                 String
-  createdAt                                                 DateTime                   @default(now())
-  allowAnonymous                                            Boolean                    @default(false)
-  currency                                                  String                     @default("USD")
-  description                                               String?
-  isActive                                                  Boolean                    @default(true)
-  isPublic                                                  Boolean                    @default(false)
-  priceCents                                                Int                        @default(0)
-  slug                                                      String?                    @unique
-  type                                                      ChatbotType?
-  imageUrl                                                  String?
-  systemPrompt                                              String?
-  modelProvider                                             String?
-  modelName                                                 String?
-  pineconeNs                                                String?
-  vectorNamespace                                           String?
-  configJson                                                Json?
-  ragSettingsJson                                           Json?
-  ingestionRunIds                                           String[]                   @default([])
-  currentVersionId                                          String?                    @unique
-  shortDescription                                          String?
-  publicDashboard                                           Boolean                    @default(false)
-  fallbackSuggestionPills                                   Json?
-  welcomeMessage                                            String?
-  Bookmark                                                  Bookmark[]
-  Creator                                                   Creator                    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  Chatbot_Version_Chatbot_currentVersionIdToChatbot_Version Chatbot_Version?           @relation("Chatbot_currentVersionIdToChatbot_Version", fields: [currentVersionId], references: [id])
-  Chatbot_Category                                          Chatbot_Category[]
-  Chatbot_Intake_Question                                   Chatbot_Intake_Question[]
-  Chatbot_Ratings_Aggregate                                 Chatbot_Ratings_Aggregate?
-  Chatbot_Source                                            Chatbot_Source[]
-  Chatbot_Version_Chatbot_Version_chatbotIdToChatbot        Chatbot_Version[]          @relation("Chatbot_Version_chatbotIdToChatbot")
-  Chunk_Performance                                         Chunk_Performance[]
-  Conversation                                              Conversation[]
-  Favorited_Chatbots                                        Favorited_Chatbots[]
-  Intake_Response                                           Intake_Response[]
-  Pill                                                      Pill[]
-  Pill_Usage                                                Pill_Usage[]
-  User_Context                                              User_Context[]
-
-  @@index([isActive])
-  @@index([isPublic])
-  @@index([isPublic, isActive, type])
-  @@index([publicDashboard])
-  @@index([slug])
-  @@index([type])
-}
-
-model Chatbot_Category {
-  id             String   @id
-  chatbotId      String
-  categoryId     String
-  relevanceScore Float?
-  createdAt      DateTime @default(now())
-  Category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  Chatbot        Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-
-  @@unique([chatbotId, categoryId])
-  @@index([categoryId])
-  @@index([chatbotId])
-}
-
-model Chatbot_Intake_Question {
-  id               String          @id
-  chatbotId        String
-  intakeQuestionId String
-  displayOrder     Int
-  isRequired       Boolean         @default(false)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime
-  Chatbot          Chatbot         @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Intake_Question  Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
-
-  @@unique([intakeQuestionId, chatbotId])
-  @@index([chatbotId])
-  @@index([intakeQuestionId])
-}
-
-model Chatbot_Ratings_Aggregate {
-  id                 String   @id
-  chatbotId          String   @unique
-  averageRating      Decimal  @db.Decimal(3, 2)
-  ratingCount        Int      @default(0)
-  ratingDistribution Json?
-  updatedAt          DateTime
-  Chatbot            Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-}
-
-model Chatbot_Source {
-  id        String   @id
-  chatbotId String
-  sourceId  String
-  isActive  Boolean  @default(true)
-  addedAt   DateTime @default(now())
-  Chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  @@unique([chatbotId, sourceId])
-  @@index([chatbotId])
-  @@index([sourceId])
-}
-
-model Chatbot_Version {
-  id                                                String         @id
-  chatbotId                                         String
-  versionNumber                                     Int
-  title                                             String
-  description                                       String?
-  systemPrompt                                      String
-  modelProvider                                     String
-  modelName                                         String
-  pineconeNs                                        String
-  vectorNamespace                                   String
-  configJson                                        Json?
-  ragSettingsJson                                   Json?
-  ingestionRunIds                                   String[]       @default([])
-  allowAnonymous                                    Boolean        @default(false)
-  priceCents                                        Int
-  currency                                          String
-  type                                              ChatbotType
-  notes                                             String?
-  changelog                                         String?
-  createdByUserId                                   String
-  activatedAt                                       DateTime?
-  deactivatedAt                                     DateTime?
-  createdAt                                         DateTime       @default(now())
-  updatedAt                                         DateTime
-  Chatbot_Chatbot_currentVersionIdToChatbot_Version Chatbot?       @relation("Chatbot_currentVersionIdToChatbot_Version")
-  Chatbot_Chatbot_Version_chatbotIdToChatbot        Chatbot        @relation("Chatbot_Version_chatbotIdToChatbot", fields: [chatbotId], references: [id], onDelete: Cascade)
-  User                                              User           @relation(fields: [createdByUserId], references: [id])
-  Conversation                                      Conversation[]
-
-  @@unique([chatbotId, versionNumber])
-  @@index([activatedAt])
-  @@index([chatbotId])
-}
-
-model Chunk_Performance {
-  id                  String   @id
-  chunkId             String
-  sourceId            String
-  chatbotId           String
-  timesUsed           Int      @default(0)
-  helpfulCount        Int      @default(0)
-  notHelpfulCount     Int      @default(0)
-  satisfactionRate    Float    @default(0)
-  chunkText           String?
-  chunkMetadata       Json?
-  month               Int
-  year                Int
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime
-  needsCaseStudyCount Int      @default(0)
-  needsExamplesCount  Int      @default(0)
-  needsScriptsCount   Int      @default(0)
-  needsStepsCount     Int      @default(0)
-  copyToUseNowCount   Int      @default(0)
-  Chatbot             Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Source              Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  @@unique([chunkId, chatbotId, month, year])
-  @@index([chatbotId, month, year, satisfactionRate])
-  @@index([chatbotId, month, year, timesUsed])
-  @@index([sourceId])
-}
-
-model Conversation {
-  id                      String                 @id
-  chatbotId               String
-  userId                  String?
-  status                  String                 @default("active")
-  messageCount            Int                    @default(0)
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime
-  chatbotVersionId        String
-  intakeCompleted         Boolean                @default(false)
-  intakeCompletedAt       DateTime?
-  suggestionPillsCache    Json?
-  suggestionPillsCachedAt DateTime?
-  sourceIds               String[]               @default([])
-  Chatbot                 Chatbot                @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Chatbot_Version         Chatbot_Version        @relation(fields: [chatbotVersionId], references: [id], onDelete: Cascade)
-  User                    User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  Conversation_Feedback   Conversation_Feedback?
-  Message                 Message[]
-
-  @@index([chatbotId, status])
-  @@index([chatbotVersionId])
-  @@index([userId])
-}
-
-model Conversation_Feedback {
-  id             String       @id
-  conversationId String       @unique
-  userId         String?
-  rating         Int?
-  userGoal       String?
-  goalAchieved   String?
-  stillNeed      String?
-  timeSaved      String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime
-  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  User           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([rating])
-  @@index([userId])
-}
-
-model Creator {
-  id           String         @id
-  name         String
-  createdAt    DateTime       @default(now())
-  avatarUrl    String?
-  bio          String?
-  slug         String         @unique
-  socialLinks  Json?
-  shortBio     String?
-  Chatbot      Chatbot[]
-  Creator_User Creator_User[]
-  File         File[]
-  Source       Source[]
-}
-
-model Creator_User {
-  id        String   @id
-  creatorId String
-  userId    String
-  role      String   @default("OWNER")
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  Creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([creatorId, userId])
-  @@index([creatorId])
-  @@index([userId])
-}
-
-model Event {
-  id        String   @id
-  sessionId String?
-  userId    String?
-  eventType String
-  chunkIds  String[] @default([])
-  metadata  Json?
-  timestamp DateTime @default(now())
-  messageId String?
-  Message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  User      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([eventType])
-  @@index([messageId])
-  @@index([sessionId])
-  @@index([timestamp])
-  @@index([userId])
-}
-
-model Favorited_Chatbots {
-  id        String   @id
-  userId    String
-  chatbotId String
-  createdAt DateTime @default(now())
-  Chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, chatbotId])
-  @@index([chatbotId])
-  @@index([userId])
-}
-
-model File {
-  id              String            @id
-  sourceId        String
-  creatorId       String
-  fileName        String
-  fileUrl         String
-  fileSize        Int
-  status          String            @default("PENDING")
-  createdAt       DateTime          @default(now())
-  Creator         Creator           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  Source          Source            @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  Intake_Response Intake_Response[]
-
-  @@index([creatorId])
-  @@index([sourceId])
-}
-
-model Intake_Question {
-  id                      String                    @id
-  slug                    String                    @unique
-  questionText            String
-  helperText              String?
-  responseType            IntakeResponseType
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime
-  createdByUserId         String
-  options                 Json?
-  Chatbot_Intake_Question Chatbot_Intake_Question[]
-  User                    User                      @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
-  Intake_Response         Intake_Response[]
-}
-
-model Intake_Response {
-  id                       String          @id
-  intakeQuestionId         String
-  userId                   String
-  chatbotId                String?
-  fileId                   String?
-  value                    Json
-  reusableAcrossFrameworks Boolean         @default(false)
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime
-  Chatbot                  Chatbot?        @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  File                     File?           @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  Intake_Question          Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
-  User                     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, intakeQuestionId, chatbotId])
-  @@index([intakeQuestionId])
-  @@index([userId])
-}
-
-model Message {
-  id             String       @id
-  conversationId String
-  userId         String?
-  role           String
-  content        String
-  context        Json?
-  sourceIds      String[]     @default([])
-  createdAt      DateTime     @default(now())
-  followUpPills  String[]     @default([])
-  Bookmark       Bookmark[]
-  Event          Event[]
-  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  User           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-  @@index([sourceIds])
-  @@index([userId])
-}
-
-model Pill {
-  id                                           String       @id
-  chatbotId                                    String?
-  pillType                                     String
-  label                                        String
-  prefillText                                  String
-  displayOrder                                 Int          @default(0)
-  isActive                                     Boolean      @default(true)
-  createdAt                                    DateTime     @default(now())
-  updatedAt                                    DateTime
-  Chatbot                                      Chatbot?     @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Pill_Usage_Pill_Usage_pairedWithPillIdToPill Pill_Usage[] @relation("Pill_Usage_pairedWithPillIdToPill")
-  Pill_Usage_Pill_Usage_pillIdToPill           Pill_Usage[] @relation("Pill_Usage_pillIdToPill")
-
-  @@index([chatbotId])
-  @@index([pillType])
-}
-
-model Pill_Usage {
-  id                                     String   @id
-  pillId                                 String
-  sessionId                              String?
-  userId                                 String?
-  chatbotId                              String
-  sourceChunkIds                         String[] @default([])
-  prefillText                            String
-  sentText                               String
-  wasModified                            Boolean  @default(false)
-  pairedWithPillId                       String?
-  timestamp                              DateTime @default(now())
-  Chatbot                                Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  Pill_Pill_Usage_pairedWithPillIdToPill Pill?    @relation("Pill_Usage_pairedWithPillIdToPill", fields: [pairedWithPillId], references: [id])
-  Pill_Pill_Usage_pillIdToPill           Pill     @relation("Pill_Usage_pillIdToPill", fields: [pillId], references: [id], onDelete: Cascade)
-  User                                   User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([chatbotId])
-  @@index([pillId])
-  @@index([sessionId])
-  @@index([userId])
-}
-
-model Source {
-  id                String              @id
-  title             String
-  creatorId         String
-  createdAt         DateTime            @default(now())
-  authors           String?
-  year              Int?
-  license           String?
-  licenseUrl        String?
-  sourceUrl         String?
-  Chatbot_Source    Chatbot_Source[]
-  Chunk_Performance Chunk_Performance[]
-  File              File[]
-  Creator           Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-}
-
-model User {
-  id                    String                  @id
-  clerkId               String                  @unique
-  email                 String
-  username              String?
-  firstName             String?
-  lastName              String?
-  createdAt             DateTime                @default(now())
-  Bookmark              Bookmark[]
-  Chatbot_Version       Chatbot_Version[]
-  Conversation          Conversation[]
-  Conversation_Feedback Conversation_Feedback[]
-  Creator_User          Creator_User[]
-  Event                 Event[]
-  Favorited_Chatbots    Favorited_Chatbots[]
-  Intake_Question       Intake_Question[]
-  Intake_Response       Intake_Response[]
-  Message               Message[]
-  Pill_Usage            Pill_Usage[]
-  User_Context          User_Context[]
-}
-
-model User_Context {
-  id         String        @id
-  userId     String
-  chatbotId  String?
-  key        String
-  value      Json
-  source     ContextSource @default(USER_PROVIDED)
-  confidence Float?
-  expiresAt  DateTime?
-  isVisible  Boolean       @default(true)
-  isEditable Boolean       @default(true)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime
-  Chatbot    Chatbot?      @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  User       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, chatbotId, key])
-  @@index([chatbotId])
-  @@index([userId])
-}
-
-enum CategoryType {
-  ROLE
-  CHALLENGE
-  STAGE
-}
-
+// Phase 3.7.1: Enums for homepage browsing
 enum ChatbotType {
   BODY_OF_WORK
   FRAMEWORK
   DEEP_DIVE
   ADVISOR_BOARD
+}
+
+enum CategoryType {
+  ROLE // sales_leader, founder, product_manager
+  CHALLENGE // customer_acquisition, pricing, positioning
+  STAGE // early_stage, growth_stage, scale_stage
+}
+
+// Phase 3.10: Intake form enums
+enum IntakeResponseType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  FILE
+  DATE
+  BOOLEAN
 }
 
 enum ContextSource {
@@ -506,12 +41,577 @@ enum ContextSource {
   PLATFORM_SYNC
 }
 
-enum IntakeResponseType {
-  TEXT
-  NUMBER
-  SELECT
-  MULTI_SELECT
-  FILE
-  DATE
-  BOOLEAN
+// User model - Clerk user sync
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String
+  username  String?
+  firstName String?
+  lastName  String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  creatorMemberships     Creator_User[]
+  conversations          Conversation[]
+  messages               Message[]
+  pillUsages             Pill_Usage[]
+  events                 Event[]
+  bookmarks              Bookmark[]
+  conversationFeedbacks  Conversation_Feedback[]
+  favoritedChatbots      Favorited_Chatbots[]
+  createdChatbotVersions Chatbot_Version[]       @relation("ChatbotVersionCreator")
+  intakeResponses        Intake_Response[]
+  userContexts           User_Context[]           @relation("UserContext")
+  createdIntakeQuestions Intake_Question[]       @relation("IntakeQuestionCreator")
+}
+
+// Creator model - AI creator profile
+model Creator {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  avatarUrl   String?
+  bio         String?  // Full bio for detail pages
+  shortBio    String?  // Short bio for cards (~150 chars)
+  socialLinks Json? // { website, linkedin, x, facebook, tiktok, masterclass, youtube }
+  createdAt   DateTime @default(now())
+
+  // Relations
+  users    Creator_User[]
+  chatbots Chatbot[]
+  sources  Source[]
+  files    File[]
+}
+
+// Creator_User join table - Multi-user creators (for MVP, supports one user per creator)
+model Creator_User {
+  id        String  @id @default(cuid())
+  creatorId String
+  creator   Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String  @default("OWNER") // 'OWNER' | 'ADMIN' | 'MEMBER'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([creatorId, userId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
+// Chatbot model - Live chatbot entity
+model Chatbot {
+  id        String  @id @default(cuid())
+  title     String
+  creatorId String
+  creator   Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  // Phase 3.7.1: Homepage browsing fields
+  slug             String?      @unique
+  description      String?      // Full description for detail pages
+  shortDescription String?      // Short description for cards (~150 chars)
+  imageUrl         String?
+  isPublic       Boolean      @default(false)
+  allowAnonymous Boolean      @default(false)
+  publicDashboard Boolean      @default(false) // If true, dashboard is accessible to all authenticated users
+  type           ChatbotType?
+  priceCents     Int          @default(0)
+  currency       String       @default("USD")
+  isActive       Boolean      @default(true)
+
+  // Phase 3.9: Versioning fields (current/live configuration)
+  systemPrompt    String? // Current system prompt
+  modelProvider   String? // e.g., "openai"
+  modelName       String? // e.g., "gpt-4o"
+  pineconeNs      String? // Pinecone namespace
+  vectorNamespace String? // Vector namespace
+  configJson      Json? // Current config (temperature, etc.)
+  ragSettingsJson Json? // Current RAG settings (topK, etc.)
+  ingestionRunIds String[] @default([]) // Current ingestion runs
+
+  // Phase 3.9: Versioning relations
+  currentVersionId String?           @unique
+  currentVersion   Chatbot_Version?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  versions         Chatbot_Version[]
+
+  createdAt DateTime @default(now())
+
+  // AI-generated suggestion pills (Phase: AI Suggestion Pills)
+  welcomeMessage           String?   // Welcome message shown after intake completion
+  fallbackSuggestionPills  Json?     // Array of 3 fallback pill strings if AI generation fails
+
+  // Relations
+  conversations              Conversation[]
+  sources                    Chatbot_Source[]               // Many-to-many via junction table
+  chunkPerformances          Chunk_Performance[]
+  pills                      Pill[]
+  pillUsages                 Pill_Usage[]
+  bookmarks                  Bookmark[]
+  ratingsAggregate           Chatbot_Ratings_Aggregate?
+  categories                 Chatbot_Category[]
+  favoritedBy                Favorited_Chatbots[]
+  intakeQuestionAssociations Chatbot_Intake_Question[]
+  intakeResponses            Intake_Response[]              @relation("IntakeResponseChatbot")
+  userContexts               User_Context[]                @relation("ChatbotContext")
+
+  @@index([slug])
+  @@index([isPublic])
+  @@index([isActive])
+  @@index([type])
+  @@index([publicDashboard])
+  // Composite index for homepage queries: filters by isPublic, isActive, and type
+  // This significantly improves performance for /api/chatbots/public queries
+  @@index([isPublic, isActive, type])
+}
+
+// Phase 3.7.1: Category model - For categorizing chatbots
+model Category {
+  id    String       @id @default(cuid())
+  type  CategoryType
+  label String
+  slug  String
+  icon  String?
+  color String?
+
+  chatbots Chatbot_Category[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, slug])
+  @@index([type])
+}
+
+// Phase 3.7.1: Chatbot_Category junction table
+model Chatbot_Category {
+  id             String   @id @default(cuid())
+  chatbotId      String
+  chatbot        Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  relevanceScore Float?
+
+  createdAt DateTime @default(now())
+
+  @@unique([chatbotId, categoryId])
+  @@index([categoryId])
+  @@index([chatbotId])
+}
+
+// Phase 3.7.1: Favorited_Chatbots model - User favorites
+model Favorited_Chatbots {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId String
+  chatbot   Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, chatbotId])
+  @@index([userId])
+  @@index([chatbotId])
+}
+
+// Source model - Content sources (books, courses, etc.)
+// Sources are linked to chatbots via Chatbot_Source junction table (many-to-many)
+model Source {
+  id        String   @id @default(cuid())
+  title     String
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  // Attribution fields (Phase 02_05)
+  authors    String?  // e.g., "Ken Schwaber & Jeff Sutherland"
+  year       Int?     // e.g., 2020
+  license    String?  // e.g., "CC-BY-SA 4.0"
+  licenseUrl String?  // e.g., "https://creativecommons.org/licenses/by-sa/4.0/"
+  sourceUrl  String?  // e.g., "https://scrumguides.org/scrum-guide.html"
+
+  // Relations
+  files             File[]
+  chunkPerformances Chunk_Performance[]
+  chatbots          Chatbot_Source[]    // Many-to-many via junction table
+}
+
+// Junction table for many-to-many relationship between Chatbot and Source
+// Allows a single source to be linked to multiple chatbots
+model Chatbot_Source {
+  id        String   @id @default(cuid())
+  chatbotId String
+  chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  sourceId  String
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)  // Soft-disable without unlinking
+  addedAt   DateTime @default(now())
+
+  @@unique([chatbotId, sourceId])
+  @@index([chatbotId])
+  @@index([sourceId])
+}
+
+// File model - Uploaded assets
+model File {
+  id        String   @id @default(cuid())
+  sourceId  String
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileSize  Int
+  status    String   @default("PENDING") // 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR'
+  createdAt DateTime @default(now())
+
+  // Relations
+  intakeResponses Intake_Response[] @relation("IntakeResponseFile")
+
+  @@index([sourceId])
+  @@index([creatorId])
+}
+
+// Conversation model - Chat sessions
+model Conversation {
+  id               String          @id @default(cuid())
+  chatbotId        String
+  chatbot          Chatbot         @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  chatbotVersionId String
+  chatbotVersion   Chatbot_Version @relation(fields: [chatbotVersionId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           String          @default("active") // 'active' | 'completed'
+  messageCount     Int             @default(0)
+  intakeCompleted  Boolean         @default(false)
+  intakeCompletedAt DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  // Snapshot of allowed sourceIds at conversation start (for RAG filtering)
+  // Prevents mid-conversation source changes from affecting ongoing conversations
+  sourceIds        String[]        @default([])
+
+  // AI-generated suggestion pills cache (Phase: AI Suggestion Pills)
+  suggestionPillsCache     Json?      // Cached array of personalized pill strings
+  suggestionPillsCachedAt  DateTime?  // When pills were last generated
+
+  // Relations
+  messages             Message[]
+  conversationFeedback Conversation_Feedback?
+
+  @@index([chatbotId, status])
+  @@index([userId])
+  @@index([chatbotVersionId])
+}
+
+// Message model - Individual messages in conversations
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String // 'user' | 'assistant'
+  content        String
+  context        Json? // { chunks: [{ chunkId, sourceId, text, page?, section? }] }
+  followUpPills String[]     @default([]) // Follow-up pills (separate from RAG context)
+  sourceIds      String[]     @default([]) // Extracted from context.chunks for easier querying
+  createdAt      DateTime     @default(now())
+
+  // Relations
+  bookmarks Bookmark[]
+  events    Event[] @relation("EventMessage")
+
+  @@index([conversationId])
+  @@index([sourceIds])
+  @@index([userId])
+}
+
+// Chunk_Performance model - Basic counters for chunk usage and feedback
+model Chunk_Performance {
+  id        String  @id @default(cuid())
+  chunkId   String
+  sourceId  String
+  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chatbotId String
+  chatbot   Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  // Counters
+  timesUsed       Int @default(0)
+  helpfulCount    Int @default(0)
+  notHelpfulCount Int @default(0)
+
+  // Phase 3.3: "Need more" feedback counters - track what format users need more of
+  needsScriptsCount   Int @default(0) // Count of users needing scripts/exact words
+  needsExamplesCount  Int @default(0) // Count of users needing more examples
+  needsStepsCount     Int @default(0) // Count of users needing step-by-step instructions
+  needsCaseStudyCount Int @default(0) // Count of users needing case studies/real scenarios
+
+  // Phase 3.4: Copy feedback counter
+  copyToUseNowCount Int @default(0) // Count of users copying content to use immediately
+
+  // Computed satisfaction rate (updated on each feedback)
+  satisfactionRate Float @default(0)
+
+  // Cached chunk text for dashboard display (populated on first use from Pinecone)
+  chunkText     String?
+  chunkMetadata Json? // { page, section, sourceTitle }
+
+  // Time period
+  month Int
+  year  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chunkId, chatbotId, month, year])
+  @@index([chatbotId, month, year, satisfactionRate])
+  @@index([chatbotId, month, year, timesUsed])
+  @@index([sourceId])
+}
+
+// Pill model - Feedback, expansion, and suggested question pills
+// Phase 1: Feedback UX System Update
+model Pill {
+  id           String   @id @default(cuid())
+  chatbotId    String? // NULL for system pills
+  chatbot      Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  pillType     String // 'feedback' | 'expansion' | 'suggested'
+  label        String // Display text
+  prefillText  String // Input prefill text
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  pillUsages       Pill_Usage[] @relation("PillUsage")
+  pairedPillUsages Pill_Usage[] @relation("PillPairing")
+
+  @@index([chatbotId])
+  @@index([pillType])
+}
+
+// Pill_Usage model - Tracks when pills are used
+// Phase 1: Feedback UX System Update
+model Pill_Usage {
+  id               String   @id @default(cuid())
+  pillId           String
+  pill             Pill     @relation("PillUsage", fields: [pillId], references: [id], onDelete: Cascade)
+  sessionId        String? // Conversation ID
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId        String
+  chatbot          Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  sourceChunkIds   String[] @default([])
+  prefillText      String
+  sentText         String
+  wasModified      Boolean  @default(false)
+  pairedWithPillId String?
+  pairedWithPill   Pill?    @relation("PillPairing", fields: [pairedWithPillId], references: [id])
+  timestamp        DateTime @default(now())
+
+  @@index([pillId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([chatbotId])
+}
+
+// Event model - General event logging (copy, bookmark, conversation patterns, etc.)
+// Phase 1: Feedback UX System Update
+model Event {
+  id        String   @id @default(cuid())
+  messageId String?  // Optional FK (some events don't have messages)
+  message   Message? @relation("EventMessage", fields: [messageId], references: [id], onDelete: Cascade)
+  sessionId String? // Conversation ID
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String // 'copy' | 'bookmark' | 'conversation_pattern' | 'expansion_followup' | 'gap_submission' | 'user_message'
+  chunkIds  String[] @default([])
+  metadata  Json? // Event-specific data (no longer stores messageId)
+  timestamp DateTime @default(now())
+
+  @@index([messageId]) // Critical for query performance
+  @@index([sessionId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+// Bookmark model - User-saved messages
+// Phase 1: Feedback UX System Update
+model Bookmark {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId String
+  chatbot   Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  chunkIds  String[] @default([]) // Chunks from message context
+  notes     String? // Optional user notes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([messageId, userId]) // One bookmark per message per user
+  @@index([userId])
+  @@index([chatbotId])
+  @@index([createdAt])
+}
+
+// Conversation_Feedback model - Chat rating and follow-up questions
+// Phase 1: Feedback UX System Update (Phase 3.5: End-of-conversation survey)
+model Conversation_Feedback {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating         Int? // 1-5 star rating
+  userGoal       String? // What were you trying to accomplish?
+  goalAchieved   String? // Yes/Partially/No
+  stillNeed      String? // What's still missing?
+  timeSaved      String? // How much time did this save you? (e.g., "5 minutes", "30 minutes", "1 hour", "2+ hours", "Not applicable")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([conversationId]) // One rating per conversation
+  @@index([userId])
+  @@index([rating])
+}
+
+// Chatbot_Ratings_Aggregate model - Aggregated ratings for chatbots
+// Phase 1: Feedback UX System Update
+model Chatbot_Ratings_Aggregate {
+  id                 String   @id @default(cuid())
+  chatbotId          String   @unique
+  chatbot            Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  averageRating      Decimal  @db.Decimal(3, 2)
+  ratingCount        Int      @default(0)
+  ratingDistribution Json? // {"1": 5, "2": 10, "3": 25, ...}
+  updatedAt          DateTime @updatedAt
+}
+
+// Phase 3.9: Chatbot_Version model - Immutable snapshots of chatbot configuration
+model Chatbot_Version {
+  id              String      @id @default(cuid())
+  chatbotId       String
+  chatbot         Chatbot     @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  currentChatbot  Chatbot?    @relation("CurrentVersion")
+  versionNumber   Int
+  title           String
+  description     String?
+  systemPrompt    String
+  modelProvider   String
+  modelName       String
+  pineconeNs      String
+  vectorNamespace String
+  configJson      Json?
+  ragSettingsJson Json?
+  ingestionRunIds String[] @default([])
+  allowAnonymous  Boolean     @default(false)
+  priceCents      Int
+  currency        String
+  type            ChatbotType
+  notes           String?
+  changelog       String?
+  createdByUserId String
+  createdBy       User        @relation("ChatbotVersionCreator", fields: [createdByUserId], references: [id])
+
+  activatedAt   DateTime? // When it became current
+  deactivatedAt DateTime? // When it was replaced
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+
+  @@unique([chatbotId, versionNumber])
+  @@index([chatbotId])
+  @@index([activatedAt])
+}
+
+// Phase 3.10: Intake form models (Updated for many-to-many)
+model Intake_Question {
+  id             String            @id @default(cuid())
+  slug           String            @unique // Global uniqueness
+  questionText   String
+  helperText     String?
+  responseType   IntakeResponseType
+  options        Json?             // Options for SELECT and MULTI_SELECT response types
+  createdByUserId String
+  createdBy      User              @relation("IntakeQuestionCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  // Relations
+  chatbots       Chatbot_Intake_Question[]
+  responses      Intake_Response[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Junction table for many-to-many relationship between Chatbot and Intake_Question
+model Chatbot_Intake_Question {
+  id              String   @id @default(cuid())
+  chatbotId       String
+  chatbot         Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  intakeQuestionId String
+  intakeQuestion  Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
+  displayOrder    Int
+  isRequired      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([intakeQuestionId, chatbotId])
+  @@index([chatbotId])
+  @@index([intakeQuestionId])
+}
+
+model Intake_Response {
+  id                      String   @id @default(cuid())
+  intakeQuestionId        String
+  intakeQuestion         Intake_Question @relation(fields: [intakeQuestionId], references: [id], onDelete: Cascade)
+  userId                  String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId               String?
+  chatbot                 Chatbot? @relation("IntakeResponseChatbot", fields: [chatbotId], references: [id], onDelete: Cascade)
+  fileId                  String?
+  file                    File?    @relation("IntakeResponseFile", fields: [fileId], references: [id], onDelete: Cascade)
+  value                   Json
+  reusableAcrossFrameworks Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, intakeQuestionId, chatbotId])
+  @@index([userId])
+  @@index([intakeQuestionId])
+}
+
+// Phase 3.10: Flexible user context storage (editable via profile settings)
+model User_Context {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserContext", fields: [userId], references: [id], onDelete: Cascade)
+  chatbotId String?  // Null = global context (applies to all chatbots)
+  chatbot   Chatbot? @relation("ChatbotContext", fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  key       String // e.g., 'industry', 'role', 'goals', 'company_size'
+  value     Json   // Flexible value storage
+  source    ContextSource @default(USER_PROVIDED)
+  confidence Float? // 0.0-1.0 for inferred context
+
+  expiresAt DateTime? // Optional expiration for temporary context
+  isVisible Boolean   @default(true)  // User can see this in profile
+  isEditable Boolean   @default(true)  // User can edit this in profile
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chatbotId, key])
+  @@index([userId])
+  @@index([chatbotId])
 }

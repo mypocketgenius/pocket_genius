@@ -135,7 +135,7 @@ export async function POST(req: Request) {
           text: chunk.text,
           sourceId: file.sourceId,
           sourceTitle: file.source.title,
-          page: chunk.page,
+          ...(chunk.page !== undefined && { page: chunk.page }),
         },
       }));
 

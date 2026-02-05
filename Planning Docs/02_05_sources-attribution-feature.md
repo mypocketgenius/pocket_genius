@@ -512,3 +512,26 @@ All planned changes were implemented successfully:
 
 **Additional file created:**
 - `scripts/update-scrum-guide-attribution.ts` - One-time script to populate Scrum Guide attribution
+
+---
+
+## ⚠️ SCHEMA CHANGE WARNING
+
+When adding fields to `prisma/schema.prisma`:
+
+**NEVER run `prisma db pull`** - it will overwrite the entire schema file and strip:
+- `@default(cuid())` from all id fields
+- `@updatedAt` from all updatedAt fields
+- All comments
+
+**Always:**
+1. Edit `schema.prisma` manually
+2. Run `prisma migrate dev --name <descriptive-name>` or `prisma db push`
+3. Run `prisma generate`
+
+If you accidentally run `db pull`, recover via:
+```bash
+git checkout <last-good-commit> -- prisma/schema.prisma
+```
+
+See `02_03_source-many-to-many-migration.md` for full details on this issue.

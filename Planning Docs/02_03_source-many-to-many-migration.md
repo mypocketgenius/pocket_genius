@@ -872,6 +872,52 @@ Currently there's no UI for managing sources. Post-migration, consider adding:
 
 ## Migration Complete ✅
 
+---
+
+## ⚠️ CRITICAL LESSON LEARNED (Feb 5, 2026)
+
+### The Problem
+
+During this migration, `prisma db pull` was accidentally run, which **overwrote the entire schema.prisma file** with an auto-generated version from the database. This caused:
+
+1. **All `@default(cuid())` stripped** from 24 id fields → TypeScript errors on record creation
+2. **All `@updatedAt` stripped** from 13 fields → TypeScript errors on record creation
+3. **All comments removed** from schema
+4. **Relation names changed** from camelCase (`message`, `user`) to PascalCase (`Message`, `User`)
+5. **Model ordering changed** from logical grouping to alphabetical
+
+### Why It Happened
+
+`prisma db pull` (introspection) reads the **database structure** and generates a schema. But:
+- `@default(cuid())` is a **Prisma client-side feature** - the DB just sees a VARCHAR column
+- `@updatedAt` is also **Prisma-specific** - the DB column is just a TIMESTAMP
+- Comments aren't stored in the database
+
+The database doesn't know about these Prisma-specific features, so introspection overwrites them.
+
+### How to Avoid This
+
+**NEVER run `prisma db pull` on a production schema.** Instead:
+
+1. **Always edit schema.prisma manually** for schema changes
+2. **Use `prisma migrate dev`** to apply changes to the database
+3. **If you need to see DB state**, run `prisma db pull` to a **temporary file**:
+   ```bash
+   npx prisma db pull --schema=./temp-schema.prisma
+   ```
+4. **Manually merge** only the structural changes you need
+5. **Commit schema changes** frequently so you can recover
+
+### Recovery Steps (If It Happens)
+
+1. Check git history: `git log --oneline -- prisma/schema.prisma`
+2. Find last good commit (has `@default(cuid())`)
+3. Revert schema: `git checkout <good-commit> -- prisma/schema.prisma`
+4. Manually re-apply any legitimate structural changes
+5. Run `npx prisma generate` to regenerate client
+
+---
+
 **Final Schema State:**
 - `Source` model no longer has `chatbotId` - uses `Chatbot_Source` junction table
 - `Chatbot.sources` now points to `Chatbot_Source[]` (many-to-many)

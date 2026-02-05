@@ -42,20 +42,23 @@ if (!databaseUrl) {
   );
 }
 
-// In Prisma 7, we must use an adapter for database connections
-// Create PostgreSQL adapter with the connection string
-const adapter = new PrismaPg({ connectionString: databaseUrl });
+function createPrismaClient(): PrismaClient {
+  // In Prisma 7, we must use an adapter for database connections
+  // Create PostgreSQL adapter with the connection string
+  const adapter = new PrismaPg({ connectionString: databaseUrl });
 
-// Prisma Client requires adapter in Prisma 7
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+  return new PrismaClient({
     adapter,
     log:
       process.env.NODE_ENV === 'development'
         ? ['query', 'error', 'warn']
         : ['error'],
   });
+}
+
+// Prisma Client requires adapter in Prisma 7
+// Only create a new client if one doesn't exist in the global scope
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;

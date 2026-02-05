@@ -8,7 +8,7 @@
  */
 export interface TextChunk {
   text: string;
-  page: number;
+  page?: number;  // Optional - only set when actual page info is available
 }
 
 /**
@@ -34,7 +34,6 @@ export function chunkText(
   const paragraphs = text.split(/\n\n+/);
   const chunks: TextChunk[] = [];
   let currentChunk = '';
-  let page = 1; // For plain text files, we use page 1 as default
   
   for (const para of paragraphs) {
     const trimmedPara = para.trim();
@@ -52,7 +51,6 @@ export function chunkText(
     ) {
       chunks.push({
         text: currentChunk.trim(),
-        page,
       });
       currentChunk = trimmedPara;
     } else {
@@ -65,7 +63,6 @@ export function chunkText(
   if (currentChunk.trim()) {
     chunks.push({
       text: currentChunk.trim(),
-      page,
     });
   }
   

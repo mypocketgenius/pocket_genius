@@ -11,7 +11,6 @@ describe('chunkText', () => {
       const chunks = chunkText(text, 100);
       expect(chunks.length).toBeGreaterThan(0);
       expect(chunks[0]).toHaveProperty('text');
-      expect(chunks[0]).toHaveProperty('page');
     });
 
     it('should handle empty text', () => {
@@ -29,7 +28,6 @@ describe('chunkText', () => {
       const chunks = chunkText(text, 1000);
       expect(chunks.length).toBe(1);
       expect(chunks[0].text).toBe(text);
-      expect(chunks[0].page).toBe(1);
     });
   });
 
@@ -160,12 +158,12 @@ describe('chunkText', () => {
   });
 
   describe('page numbering', () => {
-    it('should set page to 1 for plain text files', () => {
+    it('should not set page for plain text files without page info', () => {
       const text = 'Para 1\n\nPara 2';
       const chunks = chunkText(text, 100);
-      
+
       chunks.forEach((chunk) => {
-        expect(chunk.page).toBe(1);
+        expect(chunk.page).toBeUndefined();
       });
     });
   });
@@ -181,13 +179,12 @@ This is the second paragraph. It provides more details about the topic.
 
 This is the third paragraph. It concludes the introduction.
       `.trim();
-      
+
       const chunks = chunkText(text, 200);
-      
+
       expect(chunks.length).toBeGreaterThan(0);
       chunks.forEach((chunk) => {
         expect(chunk.text.length).toBeGreaterThan(0);
-        expect(chunk.page).toBe(1);
       });
     });
 
