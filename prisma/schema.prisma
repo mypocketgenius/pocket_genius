@@ -577,7 +577,7 @@ model Intake_Response {
   userId                  String
   user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatbotId               String?
-  chatbot                 Chatbot? @relation("IntakeResponseChatbot", fields: [chatbotId], references: [id], onDelete: Cascade)
+  chatbot                 Chatbot? @relation("IntakeResponseChatbot", fields: [chatbotId], references: [id], onDelete: SetNull)
   fileId                  String?
   file                    File?    @relation("IntakeResponseFile", fields: [fileId], references: [id], onDelete: Cascade)
   value                   Json

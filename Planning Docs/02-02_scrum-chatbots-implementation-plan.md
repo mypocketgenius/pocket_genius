@@ -284,7 +284,7 @@ A common assumption is that Scrum tools need to pull data from project managemen
 | Input Needed | Source Without Integration | Why It Works |
 |--------------|---------------------------|--------------|
 | Product/feature area | User types (persisted in User_Context) | User knows what they're working on—they came to write a story about it |
-| User persona | SELECT + optional text | Common personas are predictable; "Other" handles edge cases |
+| User persona | SELECT | Common personas cover 90%+ of cases; users can clarify in chat if needed |
 | What the user needs to do | User types 1-2 sentences | This IS the story—user must articulate the need regardless of tooling |
 | Why they need it | User types | Forces user to think about value (improves story quality) |
 | Known acceptance criteria | Optional text | User pastes from existing notes/tickets if available |
@@ -579,7 +579,7 @@ Since each tool is just a new Chatbot record using the existing platform, implem
 
 - [ ] Create Chatbot record with system prompt for user story generation
 - [ ] Configure `configJson` with structured output schema
-- [ ] Create intake questions (8 questions per Part 10)
+- [ ] Create intake questions (7 questions per Part 10)
 - [ ] Link intake questions via `Chatbot_Intake_Question`
 - [ ] Test end-to-end: intake → chat → structured story output
 - [ ] Refine system prompt based on output quality
@@ -871,13 +871,12 @@ Users relying on tools daily for professional work → paid
 | # | Question | Format | Required | Options/Validation |
 |---|----------|--------|----------|-------------------|
 | 1 | What product or feature area is this story for? | TEXT | Yes | Max 200 chars |
-| 2 | Who is the primary user of this feature? | SELECT | Yes | "End customer", "Admin user", "Internal team member", "API consumer", "Other (specify)" |
-| 3 | If "Other", describe the user: | TEXT | Conditional | Shown if #2 = "Other" |
-| 4 | What does this user need to do? | TEXT | Yes | Max 500 chars, placeholder: "e.g., filter search results by date range" |
-| 5 | Why do they need this? What problem does it solve? | TEXT | Yes | Max 500 chars |
-| 6 | Are there specific acceptance criteria you already know? | TEXT | No | Max 1000 chars |
-| 7 | What's the rough complexity? | SELECT | No | "Small (< 1 day)", "Medium (1-3 days)", "Large (3-5 days)", "Epic (needs splitting)", "Not sure" |
-| 8 | Any technical constraints or dependencies? | TEXT | No | Max 500 chars |
+| 2 | Who is the primary user of this feature? | SELECT | Yes | "End customer", "Admin user", "Internal team member", "API consumer" |
+| 3 | What does this user need to do? | TEXT | Yes | Max 500 chars, placeholder: "e.g., filter search results by date range" |
+| 4 | Why do they need this? What problem does it solve? | TEXT | Yes | Max 500 chars |
+| 5 | Are there specific acceptance criteria you already know? | TEXT | No | Max 1000 chars |
+| 6 | What's the rough complexity? | SELECT | No | "Small (< 1 day)", "Medium (1-3 days)", "Large (3-5 days)", "Epic (needs splitting)", "Not sure" |
+| 7 | Any technical constraints or dependencies? | TEXT | No | Max 500 chars |
 
 ### Goal Architect Intake
 
@@ -886,7 +885,7 @@ Users relying on tools daily for professional work → paid
 | 1 | What is your Product Goal? (the larger objective you're working toward) | TEXT | Yes | Max 500 chars |
 | 2 | What is the main theme of this sprint? | TEXT | Yes | Max 300 chars |
 | 3 | List 2-4 key items planned for this sprint: | TEXT | Yes | Max 500 chars |
-| 4 | Who are the primary stakeholders expecting value from this sprint? | MULTI_SELECT | No | "Customers", "Sales team", "Leadership", "Operations", "Engineering (internal tooling)", "Other" |
+| 4 | Who are the primary stakeholders expecting value from this sprint? | MULTI_SELECT | No | "Customers", "Sales team", "Leadership", "Operations", "Engineering (internal tooling)" |
 | 5 | Is there a specific metric or outcome you're targeting? | TEXT | No | Max 200 chars |
 | 6 | What would make this sprint a failure? | TEXT | No | Max 300 chars |
 
@@ -896,7 +895,7 @@ Users relying on tools daily for professional work → paid
 |---|----------|--------|----------|-------------------|
 | 1 | What is your current Sprint Goal? | TEXT | Yes | Max 300 chars (persisted) |
 | 2 | What did you work on since yesterday? | TEXT | Yes | Max 500 chars |
-| 3 | Are you blocked on anything? | SELECT | Yes | "No blockers", "Waiting on someone", "Technical issue", "Unclear requirements", "Other" |
+| 3 | Are you blocked on anything? | SELECT | Yes | "No blockers", "Waiting on someone", "Technical issue", "Unclear requirements" |
 | 4 | If blocked, describe briefly: | TEXT | Conditional | Max 300 chars |
 | 5 | What will you focus on today? | TEXT | Yes | Max 300 chars |
 | 6 | Do you need to collaborate with anyone specific today? | TEXT | No | Max 200 chars |
@@ -1168,4 +1167,5 @@ Format your response as follows:
 *Author: Implementation Planning Session*
 
 **Changelog:**
+- v1.2 (2026-02-06): Removed "Other" options from all SELECT intake questions. Deferred `allowOther` feature to March iterate phase (see `02_05_intake-select-other-option.md`). Story Crafter reduced from 8 to 7 intake questions (removed conditional "describe the user" question). Users can clarify edge cases in chat.
 - v1.1 (2026-02-04): Confirmed prompt engineering approach for structured output (no Zod schemas). Added watermarks to tool outputs. Simplified system prompts with format instructions.

@@ -64,13 +64,6 @@ export function useIntakeGate(
   // Fetch welcome data when: signed in, auth loaded
   // Check intake completion even when conversationId exists (to handle incomplete intake)
   useEffect(() => {
-    console.log('[useIntakeGate] Effect running', {
-      conversationId,
-      isSignedIn,
-      isLoaded,
-      currentGateState: gateState
-    });
-    
     // Skip if not signed in or auth not loaded
     if (!isSignedIn || !isLoaded) {
       setGateState('chat'); // Will show empty state
@@ -89,16 +82,6 @@ export function useIntakeGate(
           const data = await response.json();
           setWelcomeData(data);
           
-          // Debug logging to help diagnose intake gate issues
-          console.log('[useIntakeGate] Welcome data received:', {
-            chatbotId,
-            conversationId,
-            hasQuestions: data.hasQuestions,
-            intakeCompleted: data.intakeCompleted,
-            questionsCount: data.questions?.length || 0,
-            conversation: data.conversation,
-          });
-
           // Use pure decision function for gate logic
           const gateInput = {
             conversationId,
@@ -109,7 +92,13 @@ export function useIntakeGate(
           };
 
           const decision = decideGate(gateInput);
-          console.log('[useIntakeGate] Gate decision:', decision, 'from input:', gateInput);
+
+          // Explicit logging to diagnose intake gate issues
+          console.log(
+            `[useIntakeGate] → ${decision.toUpperCase()} | ` +
+            `hasQuestions=${data.hasQuestions}, intakeCompleted=${data.intakeCompleted}, ` +
+            `questionsCount=${data.questions?.length || 0}, conversationId=${conversationId || 'null'}`
+          );
           setGateState(decision);
         } else {
           const errorText = await response.text();
@@ -133,17 +122,9 @@ export function useIntakeGate(
 
   // Handle intake completion - transition to chat
   // This immediately sets gate state to 'chat' without waiting for effect to run
-  const onIntakeComplete = useCallback((convId: string) => {
-    console.log('[useIntakeGate] onIntakeComplete called', {
-      conversationId: convId,
-      currentGateState: gateState
-    });
-    // Immediately transition to chat state
+  const onIntakeComplete = useCallback((_convId: string) => {
     setGateState('chat');
-    console.log('[useIntakeGate] Gate state set to chat');
-    // Note: conversationId will be set by chat component via callback
-    // The effect will see conversationId on next render and keep gate state as 'chat'
-  }, [gateState]);
+  }, []);
 
   return {
     gateState,

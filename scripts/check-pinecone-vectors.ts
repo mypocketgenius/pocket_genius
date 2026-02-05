@@ -34,7 +34,9 @@ async function main() {
     });
 
     if (response.vectors) {
-      allVectorIds = allVectorIds.concat(response.vectors.map((v) => v.id));
+      allVectorIds = allVectorIds.concat(
+        response.vectors.map((v) => v.id).filter((id): id is string => id !== undefined)
+      );
     }
 
     paginationToken = response.pagination?.next;
