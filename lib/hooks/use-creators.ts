@@ -30,52 +30,34 @@ export function useCreators(): UseCreatorsReturn {
   const hasInitialFetch = useRef(false);
 
   const fetchCreators = useCallback(async () => {
-    const fetchStartTime = Date.now();
     const cacheKey = 'creators';
-    
-    console.log(`[useCreators] Starting fetch - cacheKey: ${cacheKey}, timestamp: ${new Date().toISOString()}`);
     setIsLoading(true);
     setError(null);
-    
+
     // Request deduplication
     let requestPromise = inFlightCreatorsRequest.get(cacheKey);
-    
+
     if (!requestPromise) {
-      console.log(`[useCreators] Creating new request for ${cacheKey}`);
       requestPromise = (async () => {
-        const apiStartTime = Date.now();
         try {
-          console.log(`[useCreators] Fetching from API: /api/creators`);
           const res = await fetch('/api/creators');
-          const apiTime = Date.now() - apiStartTime;
-          console.log(`[useCreators] API response received in ${apiTime}ms, status: ${res.status}`);
-          
           if (!res.ok) throw new Error('Failed to fetch creators');
-          const data = await res.json();
-          console.log(`[useCreators] API data parsed, creators: ${data.creators?.length || 0}, totalTime: ${Date.now() - apiStartTime}ms`);
-          return data;
+          return await res.json();
         } catch (err) {
-          const apiTime = Date.now() - apiStartTime;
-          console.error(`[useCreators] API request failed after ${apiTime}ms:`, err);
+          console.error('[useCreators] API request failed:', err);
           throw err;
         } finally {
           inFlightCreatorsRequest.delete(cacheKey);
-          console.log(`[useCreators] Removed ${cacheKey} from in-flight requests`);
         }
       })();
       inFlightCreatorsRequest.set(cacheKey, requestPromise);
-    } else {
-      console.log(`[useCreators] Reusing in-flight request for ${cacheKey}`);
     }
-    
+
     try {
       const data = await requestPromise;
-      const totalTime = Date.now() - fetchStartTime;
       setCreators(data.creators || []);
-      console.log(`[useCreators] Fetch completed successfully - creators: ${data.creators?.length || 0}, totalTime: ${totalTime}ms`);
     } catch (err) {
-      const totalTime = Date.now() - fetchStartTime;
-      console.error(`[useCreators] Fetch failed after ${totalTime}ms:`, err);
+      console.error('[useCreators] Fetch failed:', err);
       setError('Unable to load creators. Please try again.');
     } finally {
       setIsLoading(false);
@@ -85,32 +67,21 @@ export function useCreators(): UseCreatorsReturn {
   // Auto-fetch on mount with slight delay in development
   // Creators load first (before chatbot grids) to show content progressively
   useEffect(() => {
-    if (hasInitialFetch.current) {
-      console.log(`[useCreators] Skipping duplicate initial fetch`);
-      return;
-    }
+    if (hasInitialFetch.current) return;
     hasInitialFetch.current = true;
-    
+
     // In development: small delay to avoid overwhelming server
     // In production: fire immediately
-    const processEnv = typeof process !== 'undefined' ? process.env.NODE_ENV : 'undefined';
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'undefined';
-    const isDevelopment = 
+    const isDevelopment =
       (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
       (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-    const delay = isDevelopment ? 50 : 0; // Small delay, fires before chatbot grids
-    
-    console.log(`[useCreators] Mounting hook - process.env.NODE_ENV: ${processEnv}, hostname: ${hostname}, isDevelopment: ${isDevelopment}, delay: ${delay}ms`);
-    
-    const timeoutId = setTimeout(() => {
-      console.log(`[useCreators] Delay completed, starting fetch after ${delay}ms delay`);
-      fetchCreators();
-    }, delay);
-    
+    const delay = isDevelopment ? 50 : 0;
+
+    const timeoutId = setTimeout(() => fetchCreators(), delay);
+
     return () => {
       clearTimeout(timeoutId);
       hasInitialFetch.current = false;
-      console.log(`[useCreators] Unmounting hook`);
     };
   }, [fetchCreators]);
 
