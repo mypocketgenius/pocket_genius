@@ -429,9 +429,17 @@ export async function POST(req: Request) {
     // 10. Extract unique sourceIds for easier querying
     const sourceIds = [...new Set(retrievedChunks.map((c) => c.sourceId))];
 
-    // 11. Fetch source titles for attribution
+    // 11. Fetch source data for attribution
     // No chatbotId filter needed - sourceIds are already validated at conversation creation
-    const sourceTitlesMap = new Map<string, string>();
+    const sourcesMap = new Map<string, {
+      id: string;
+      title: string;
+      authors: string | null;
+      year: number | null;
+      license: string | null;
+      licenseUrl: string | null;
+      sourceUrl: string | null;
+    }>();
     if (sourceIds.length > 0) {
       try {
         const sources = await prisma.source.findMany({
@@ -441,10 +449,15 @@ export async function POST(req: Request) {
           select: {
             id: true,
             title: true,
+            authors: true,
+            year: true,
+            license: true,
+            licenseUrl: true,
+            sourceUrl: true,
           },
         });
         sources.forEach((source) => {
-          sourceTitlesMap.set(source.id, source.title);
+          sourcesMap.set(source.id, source);
         });
       } catch (error) {
         console.error('Error fetching source titles:', error);
@@ -452,16 +465,24 @@ export async function POST(req: Request) {
       }
     }
 
-    // 12. Prepare chunks for storage in message context (include sourceTitle for attribution)
-    const chunksForContext = retrievedChunks.map((chunk) => ({
-      chunkId: chunk.chunkId,
-      sourceId: chunk.sourceId,
-      sourceTitle: sourceTitlesMap.get(chunk.sourceId) || null, // Include sourceTitle for attribution
-      text: chunk.text,
-      page: chunk.page,
-      section: chunk.section,
-      relevanceScore: chunk.relevanceScore,
-    }));
+    // 12. Prepare chunks for storage in message context (include source attribution data)
+    const chunksForContext = retrievedChunks.map((chunk) => {
+      const source = sourcesMap.get(chunk.sourceId);
+      return {
+        chunkId: chunk.chunkId,
+        sourceId: chunk.sourceId,
+        sourceTitle: source?.title || null,
+        sourceAuthors: source?.authors || null,
+        sourceYear: source?.year || null,
+        sourceLicense: source?.license || null,
+        sourceLicenseUrl: source?.licenseUrl || null,
+        sourceUrl: source?.sourceUrl || null,
+        text: chunk.text,
+        page: chunk.page,
+        section: chunk.section,
+        relevanceScore: chunk.relevanceScore,
+      };
+    });
 
     // 13. Generate streaming response with OpenAI (with error handling)
     // Build system prompt with user context (Phase 3.10, Step 6)

@@ -19,6 +19,11 @@ interface IngestConfig {
   sourceId: string;
   sourceTitle: string;
   creatorId: string;
+  authors?: string;
+  year?: number;
+  license?: string;
+  licenseUrl?: string;
+  sourceUrl?: string;
 }
 
 async function ingestLocalFile(config: IngestConfig) {
@@ -42,11 +47,23 @@ async function ingestLocalFile(config: IngestConfig) {
   console.log('2. Creating source record...');
   const source = await prisma.source.upsert({
     where: { id: sourceId },
-    update: { title: sourceTitle },
+    update: {
+      title: sourceTitle,
+      authors: config.authors,
+      year: config.year,
+      license: config.license,
+      licenseUrl: config.licenseUrl,
+      sourceUrl: config.sourceUrl,
+    },
     create: {
       id: sourceId,
       title: sourceTitle,
       creatorId: creatorId,
+      authors: config.authors,
+      year: config.year,
+      license: config.license,
+      licenseUrl: config.licenseUrl,
+      sourceUrl: config.sourceUrl,
     },
   });
   console.log('   Source:', source.id);
@@ -125,6 +142,11 @@ ingestLocalFile({
   sourceId: 'scrum_guide',
   sourceTitle: 'Scrum Guide 2020',
   creatorId: 'scrum_genius',
+  authors: 'Ken Schwaber & Jeff Sutherland',
+  year: 2020,
+  license: 'CC-BY-SA 4.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  sourceUrl: 'https://scrumguides.org/scrum-guide.html',
 })
   .then((result) => {
     console.log('\nResult:', result);

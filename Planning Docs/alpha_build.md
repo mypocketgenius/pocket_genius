@@ -5388,6 +5388,48 @@ active → loading (user switches to different conversation)
 
 ---
 
+### Side Quest: Sources Attribution Feature ✅ COMPLETE (Feb 5, 2026)
+
+**Status:** ✅ **COMPLETE** (Feb 5, 2026)
+
+**Objective:** Enhance source attribution to show clickable sources with detailed popups displaying metadata and excerpts used in each response.
+
+**Problem:** The existing `SourceAttribution` component only displayed comma-separated source names as plain text. Users had no way to see what specific content was used from each source or access source metadata (authors, license, original URL).
+
+**Solution:** Made source names clickable, opening a dialog that shows source details and the exact excerpts used in the response.
+
+**Key Features Implemented:**
+
+1. **Schema Changes:**
+   - Added `authors`, `year`, `license`, `licenseUrl`, `sourceUrl` fields to `Source` model
+   - All fields are optional to maintain backward compatibility
+
+2. **Backend Changes:**
+   - Updated source query in `app/api/chat/route.ts` to fetch attribution fields
+   - Extended `chunksForContext` to include `sourceAuthors`, `sourceYear`, `sourceLicense`, `sourceLicenseUrl`, `sourceUrl`
+   - Data automatically persisted in `message.context.chunks` (no streaming changes needed)
+
+3. **Frontend Changes:**
+   - Updated `SourceAttribution` component with clickable source names using Dialog
+   - Source names now separated by bullet (•) instead of comma
+   - Dialog shows: Title, Authors, Year, License, and all excerpts used from that source
+   - External links for "View License" and "Visit Original" when URLs are available
+
+4. **Ingestion Updates:**
+   - Extended `IngestConfig` interface to accept attribution fields
+   - Updated source upsert in `scripts/ingest-local-file.ts` to store attribution data
+
+**Files Modified:**
+- `prisma/schema.prisma` - Added 5 attribution fields to Source model
+- `app/api/chat/route.ts` - Fetch and include attribution fields in chunksForContext
+- `components/source-attribution.tsx` - Complete rewrite with clickable Dialog UI
+- `scripts/ingest-local-file.ts` - Accept attribution fields in config
+- `scripts/update-scrum-guide-attribution.ts` - One-time script to populate Scrum Guide data
+
+**Planning Document:** Full implementation details in `Planning Docs/02_05_sources-attribution-feature.md`
+
+---
+
 ## Phase 4: Analytics & Intelligence (Weeks 8-10)
 
 #### Phase 4.0: Schema Migration for Analytics ⚠️ REQUIRED FIRST
@@ -6633,6 +6675,10 @@ If critical issues arise in production:
   - Migrated Source from one-to-many to many-to-many via Chatbot_Source junction table
   - Changed Pinecone namespaces from `chatbot-{id}` to `creator-{id}` with sourceId filtering
   - Added sourceIds snapshotting to Conversation for consistent RAG filtering
+- [x] Side Quest: Sources Attribution Feature ✅ **COMPLETE** (Feb 5, 2026)
+  - Added authors, year, license, licenseUrl, sourceUrl fields to Source model
+  - Made source names clickable with dialog showing details and excerpts
+  - Updated chat route to include attribution data in chunksForContext
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

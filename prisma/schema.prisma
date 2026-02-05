@@ -432,6 +432,11 @@ model Source {
   title             String
   creatorId         String
   createdAt         DateTime            @default(now())
+  authors           String?
+  year              Int?
+  license           String?
+  licenseUrl        String?
+  sourceUrl         String?
   Chatbot_Source    Chatbot_Source[]
   Chunk_Performance Chunk_Performance[]
   File              File[]
