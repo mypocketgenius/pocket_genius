@@ -13,6 +13,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 import { prisma } from '../lib/prisma';
+import { Prisma } from '@prisma/client';
 
 const CHATBOT_ID = 'art_of_war';
 
@@ -54,7 +55,7 @@ async function main() {
     userId: r.userId,
     intakeQuestionId: r.intakeQuestionId,
     chatbotId: r.chatbotId,
-    value: r.value,
+    value: r.value === null ? Prisma.JsonNull : (r.value as Prisma.InputJsonValue),
     reusableAcrossFrameworks: r.reusableAcrossFrameworks,
   }));
 

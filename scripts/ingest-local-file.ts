@@ -152,18 +152,53 @@ async function ingestLocalFile(config: IngestConfig) {
   };
 }
 
-// Run for scrum guide
-ingestLocalFile({
-  filePath: 'MVP_Sources/scrum_guide_2020.md',
-  sourceId: 'scrum_guide',
-  sourceTitle: 'Scrum Guide 2020',
-  creatorId: 'scrum_genius',
-  authors: 'Ken Schwaber & Jeff Sutherland',
-  year: 2020,
-  license: 'CC-BY-SA 4.0',
-  licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
-  sourceUrl: 'https://scrumguides.org/scrum-guide.html',
-})
+// Choose which source to ingest based on CLI arg, or default to scrum guide
+const SOURCE_CONFIGS: Record<string, IngestConfig> = {
+  scrum_guide: {
+    filePath: 'MVP_Sources/scrum_guide_2020.md',
+    sourceId: 'scrum_guide',
+    sourceTitle: 'Scrum Guide 2020',
+    creatorId: 'scrum_genius',
+    authors: 'Ken Schwaber & Jeff Sutherland',
+    year: 2020,
+    license: 'CC-BY-SA 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    sourceUrl: 'https://scrumguides.org/scrum-guide.html',
+  },
+  ebm_guide: {
+    filePath: 'MVP_Sources/The_Evidence_Based_Management_Guide.md',
+    sourceId: 'ebm_guide',
+    sourceTitle: 'The Evidence-Based Management Guide',
+    creatorId: 'scrum_genius',
+    authors: 'Scrum.org, Ken Schwaber & Christina Schwaber',
+    year: 2024,
+    license: 'CC-BY-SA 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    sourceUrl: 'https://www.scrum.org/resources/evidence-based-management-guide',
+  },
+  nexus_guide: {
+    filePath: 'MVP_Sources/Nexus_Guide.md',
+    sourceId: 'nexus_guide',
+    sourceTitle: 'The Nexus Guide',
+    creatorId: 'scrum_genius',
+    authors: 'Ken Schwaber & Scrum.org',
+    year: 2021,
+    license: 'CC-BY-SA 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    sourceUrl: 'https://www.scrum.org/resources/nexus-guide',
+  },
+};
+
+const sourceKey = process.argv[2] || 'scrum_guide';
+const config = SOURCE_CONFIGS[sourceKey];
+
+if (!config) {
+  console.error(`Unknown source: ${sourceKey}`);
+  console.error(`Available sources: ${Object.keys(SOURCE_CONFIGS).join(', ')}`);
+  process.exit(1);
+}
+
+ingestLocalFile(config)
   .then((result) => {
     console.log('\nResult:', result);
   })

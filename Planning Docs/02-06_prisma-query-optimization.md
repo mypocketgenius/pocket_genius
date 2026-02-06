@@ -1201,3 +1201,112 @@ See "Combined Implementation Plan: Batch Intake (Issues 1 + 3)" in Issue 3 secti
 | `[conversationId]/route.test.ts` | 0/0 (suite crash) | 9/9 passing |
 | `use-conversational-intake.test.ts` | 5/59 passing | 18/18 passing |
 | **Total** | **5/59 passing** | **27/27 passing** |
+
+---
+
+## Implementation Log — Phase 2: Batch Intake (Issues 1+3) Complete
+
+**Date:** 2026-02-06
+**Status:** Issues 1 and 3 implemented. ~95 → ~44 queries per full flow.
+
+### Overview
+
+Deferred ALL intake persistence (messages + responses) to client state during intake. On intake completion, batch-persists everything in a single PATCH request wrapped in a Prisma `$transaction`. The existing individual `POST /api/intake/responses` and `POST /api/conversations/[id]/messages` routes remain untouched (they're still used outside intake).
+
+### Step 1: Client — `addMessage()` made local-only
+
+**File:** `hooks/use-conversational-intake.ts`
+
+- Replaced async `addMessage` (which POSTed to `/api/conversations/[id]/messages` per message) with synchronous local state update
+- Added `messageCounterRef` for sequential temp IDs (`intake-temp-0`, `intake-temp-1`, ...)
+- Added `pendingMessagesRef` to accumulate `{ role, content, createdAt }` for batch save
+- Each message stores client-side `createdAt` timestamp for correct ordering after `createMany`
+- Removed all `await` from callers: `processQuestion` (×2), `handleAnswer` (×2), `handleSkip` (×2), `showFinalMessage` (×1), `initialize` (×1)
+- Removed `useAuth` import and `clerkUserId` declaration (no longer needed — `saveResponse` is local-only)
+
+### Step 2: Client — `saveResponse()` made local-only
+
+**File:** `hooks/use-conversational-intake.ts`
+
+- Replaced async `saveResponse` (which POSTed to `/api/intake/responses` per answer) with synchronous ref accumulation
+- Added `pendingResponsesRef` to accumulate `{ intakeQuestionId, value }`
+- Handles modify case via `findIndex` dedup by `intakeQuestionId`
+- Removed `await` from caller: `handleAnswer` (×1)
+
+### Step 3: Client — Batch save with retry support
+
+**File:** `hooks/use-conversational-intake.ts`
+
+- **`batchSaveIntake(convId)`:** Sends single PATCH to `/api/conversations/${convId}` with `{ intakeCompleted: true, messages: [...], responses: [...] }`. On success: clears pending refs, maps suggestion pills, calls `onComplete` after 1s. On failure: sets error, does NOT call `onComplete`, keeps pending refs populated for retry.
+- **`retryBatchSave()`:** Re-attempts `batchSaveIntake` with the saved `batchSaveConvIdRef`. No-op if no pending batch.
+- **`showFinalMessage`:** Simplified to just add the final message locally then delegate to `batchSaveIntake`.
+- `setCurrentQuestionIndex(-2)` moved into `batchSaveIntake` (removed from `handleAnswer`, `handleSkip`, `handleVerifyYes`)
+- Added `retryBatchSave` to `UseConversationalIntakeReturn` interface and return object
+
+### Step 4: Server — Batch data handling in PATCH route
+
+**File:** `app/api/conversations/[conversationId]/route.ts`
+
+- Added batch processing block after authorization check, before existing `updateData` logic
+- Accepts `messages?: { role, content, createdAt }[]` and `responses?: { intakeQuestionId, value }[]` in request body
+- Message handling: validates roles (only 'user'/'assistant'), uses `prisma.message.createMany` with explicit `createdAt` timestamps, increments `messageCount`
+- Response handling: bulk-fetches question slugs and chatbot associations for validation, upserts `intake_Response` + `user_Context` per valid response
+- All operations wrapped in `prisma.$transaction` for all-or-nothing persistence
+- Responses are persisted BEFORE pill generation reads them, ensuring pills see latest intake data
+
+### Step 5: Client — Post-intake message reload
+
+**File:** `components/chat.tsx`
+
+- Replaced complex merge/dedup logic in `onComplete` callback with full replacement
+- After batch save, API has canonical message set — temp IDs (`intake-temp-*`) don't match real cuid IDs
+- Fallback: keeps local messages if API reload fails (they display correctly even with temp IDs)
+
+### Step 6: Client — Retry button for batch save failure
+
+**File:** `components/chat.tsx`
+
+- Added "Try Again" button in error display that only appears when `currentQuestionIndex === -2` (batch save state)
+- Calls `intakeHook.retryBatchSave()` which re-attempts the same PATCH with same pending data
+- Init failures (`currentQuestionIndex === -1`) don't show retry button
+
+### Step 7: Tests updated
+
+**Files:** `__tests__/api/conversations/[conversationId]/route.test.ts`, `__tests__/hooks/use-conversational-intake.test.ts`
+
+**PATCH route tests (9 → 18 passing):**
+- Added Prisma model mocks: `message.createMany`, `intake_Question.findMany`, `chatbot_Intake_Question.findMany`, `user_Context.upsert`, `$transaction`
+- Added 9 new batch intake tests: happy path, messages-only, responses-only, role validation, invalid associations, anonymous users, empty arrays, timestamp ordering, transaction failure
+
+**Intake hook tests (18 → 23 passing, full rewrite):**
+- Completely rewrote mock sequences — `addMessage` and `saveResponse` no longer make fetch calls
+- Initialization now only needs 1 mock (conversation creation) instead of multiple message POST mocks
+- Changed `beforeEach` from `mockClear()` to `mockReset()` (clears `mockResolvedValueOnce` queue between tests)
+- Added new batch-specific tests: sends correct PATCH payload, error handling, retryBatchSave, no-op retry, temp ID pattern, saveResponse dedup
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `hooks/use-conversational-intake.ts` | Steps 1-3: local-only `addMessage`/`saveResponse`, batch save, retry, removed `useAuth` |
+| `app/api/conversations/[conversationId]/route.ts` | Step 4: batch message+response processing in `$transaction` |
+| `components/chat.tsx` | Steps 5-6: simplified post-intake reload, retry button |
+| `__tests__/api/conversations/[conversationId]/route.test.ts` | Step 7: added batch Prisma mocks + 9 new tests |
+| `__tests__/hooks/use-conversational-intake.test.ts` | Step 7: full rewrite for batch behavior (23 tests) |
+
+### Query Count Impact
+
+| Before | After |
+|--------|-------|
+| 10 message POSTs × 4 queries = **40** | `createMany` + count update = **2** |
+| 3 response POSTs × 6 queries = **18** | 2 bulk fetches + N upserts in txn = **~8** (for 3 questions) |
+| 3 `/api/user/current` calls = **3** | **0** (responses don't hit separate route) |
+| **Total: ~61 queries** | **Total: ~10 queries** |
+
+### Test Summary (before → after)
+
+| Test File | Before | After |
+|-----------|--------|-------|
+| `[conversationId]/route.test.ts` | 9/9 passing | 18/18 passing |
+| `use-conversational-intake.test.ts` | 18/18 passing | 23/23 passing |
+| **Total** | **27/27 passing** | **41/41 passing** |

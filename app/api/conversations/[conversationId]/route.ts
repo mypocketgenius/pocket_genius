@@ -77,6 +77,146 @@ export async function PATCH(
       );
     }
 
+    // --- Batch intake persistence (Issues 1+3) ---
+    const { messages: batchMessages, responses: batchResponses } = body;
+
+    console.log('[PATCH conversation] Batch intake payload:', {
+      conversationId,
+      dbUserId,
+      chatbotId: conversation.chatbotId,
+      batchMessagesCount: batchMessages?.length ?? 0,
+      batchResponsesCount: batchResponses?.length ?? 0,
+    });
+
+    if (batchMessages?.length > 0 || batchResponses?.length > 0) {
+      // Build transaction operations
+      const txOps: any[] = [];
+
+      // 1. Batch create messages with explicit createdAt for correct ordering
+      if (batchMessages?.length > 0) {
+        const validMessages = batchMessages.filter(
+          (msg: any) => (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string'
+        );
+        console.log('[PATCH conversation] Valid messages:', validMessages.length, 'of', batchMessages.length);
+        if (validMessages.length > 0) {
+          txOps.push(
+            prisma.message.createMany({
+              data: validMessages.map((msg: any) => ({
+                conversationId,
+                userId: msg.role === 'user' ? dbUserId : null,
+                role: msg.role,
+                content: msg.content,
+                context: null,
+                followUpPills: [],
+                sourceIds: [],
+                createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+              })),
+            })
+          );
+          txOps.push(
+            prisma.conversation.update({
+              where: { id: conversationId },
+              data: { messageCount: { increment: validMessages.length } },
+            })
+          );
+        }
+      }
+
+      // 2. Batch upsert responses + User_Context sync
+      if (batchResponses?.length > 0 && dbUserId) {
+        // Bulk-fetch question slugs (needed for User_Context keys)
+        const questionIds = batchResponses.map((r: any) => r.intakeQuestionId);
+        console.log('[PATCH conversation] Batch response questionIds:', questionIds);
+        const questions = await prisma.intake_Question.findMany({
+          where: { id: { in: questionIds } },
+          select: { id: true, slug: true },
+        });
+        const slugMap = new Map(questions.map((q: any) => [q.id, q.slug]));
+        console.log('[PATCH conversation] Found questions with slugs:', Array.from(slugMap.entries()));
+
+        // Bulk-validate question-chatbot associations
+        const associations = await prisma.chatbot_Intake_Question.findMany({
+          where: { chatbotId: conversation.chatbotId, intakeQuestionId: { in: questionIds } },
+          select: { intakeQuestionId: true },
+        });
+        const validQuestionIds = new Set(associations.map((a: any) => a.intakeQuestionId));
+        console.log('[PATCH conversation] Valid question IDs (chatbot-associated):', Array.from(validQuestionIds));
+
+        for (const r of batchResponses) {
+          if (!validQuestionIds.has(r.intakeQuestionId)) {
+            console.log('[PATCH conversation] Skipping response - question not associated with chatbot:', r.intakeQuestionId);
+            continue;
+          }
+          const slug = slugMap.get(r.intakeQuestionId);
+          if (!slug) {
+            console.log('[PATCH conversation] Skipping response - no slug for question:', r.intakeQuestionId);
+            continue;
+          }
+
+          console.log('[PATCH conversation] Adding upsert for response:', {
+            questionId: r.intakeQuestionId,
+            slug,
+            valueType: typeof r.value,
+            value: typeof r.value === 'string' ? r.value.substring(0, 50) : r.value,
+          });
+
+          txOps.push(
+            prisma.intake_Response.upsert({
+              where: {
+                userId_intakeQuestionId_chatbotId: {
+                  userId: dbUserId,
+                  intakeQuestionId: r.intakeQuestionId,
+                  chatbotId: conversation.chatbotId,
+                },
+              },
+              create: {
+                userId: dbUserId,
+                intakeQuestionId: r.intakeQuestionId,
+                chatbotId: conversation.chatbotId,
+                value: r.value,
+                reusableAcrossFrameworks: false,
+              },
+              update: { value: r.value, updatedAt: new Date() },
+            })
+          );
+          txOps.push(
+            prisma.user_Context.upsert({
+              where: {
+                userId_chatbotId_key: {
+                  userId: dbUserId,
+                  chatbotId: conversation.chatbotId,
+                  key: slug,
+                },
+              },
+              create: {
+                userId: dbUserId,
+                chatbotId: conversation.chatbotId,
+                key: slug,
+                value: r.value,
+                source: 'INTAKE_FORM',
+                isVisible: true,
+                isEditable: true,
+              },
+              update: { value: r.value, source: 'INTAKE_FORM', updatedAt: new Date() },
+            })
+          );
+        }
+      }
+
+      // Execute all persistence in one transaction
+      console.log('[PATCH conversation] Executing transaction with', txOps.length, 'operations');
+      if (txOps.length > 0) {
+        try {
+          await prisma.$transaction(txOps);
+          console.log('[PATCH conversation] Transaction succeeded');
+        } catch (txError) {
+          console.error('[PATCH conversation] Transaction FAILED:', txError);
+          throw txError; // Re-throw to be caught by outer catch
+        }
+      }
+    }
+    // --- End batch intake persistence ---
+
     // Build update data - only allow specific fields
     const updateData: { intakeCompleted?: boolean; intakeCompletedAt?: Date } = {};
 
@@ -241,8 +381,11 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('[PATCH conversation] Error:', error);
+    const details = error instanceof Error
+      ? { message: error.message, name: error.name, ...(('code' in error) ? { code: (error as any).code } : {}) }
+      : { raw: String(error) };
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', ...(process.env.NODE_ENV !== 'production' && { details }) },
       { status: 500 }
     );
   }

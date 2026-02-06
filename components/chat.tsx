@@ -1009,9 +1009,8 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
       // This ensures UI transitions immediately
       intakeGate.onIntakeComplete(convId);
       
-      // Reload messages from API to ensure consistency and persistence
-      // This ensures all intake messages are properly loaded and scrollable
-      // Deduplicate by message ID to prevent duplicates from onMessageAdded callback
+      // Reload messages from API — full replacement since temp IDs (intake-temp-*)
+      // won't match the real cuid IDs created by batch save
       try {
         const response = await fetch(`/api/conversations/${convId}/messages`);
         if (response.ok) {
@@ -1024,47 +1023,12 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             context: msg.context || undefined,
             followUpPills: msg.followUpPills || undefined,
           }));
-          
-          // Deduplicate: Create a map of existing message IDs to avoid duplicates
-          const existingMessageIds = new Set(messages.map(m => m.id));
-          const newMessages = loadedMessages.filter(msg => !existingMessageIds.has(msg.id));
-          
-          // Only add new messages, don't replace entire array to avoid duplicates
-          // Always sort by createdAt to ensure correct order (especially important for intake flow)
-          if (newMessages.length > 0) {
-            setMessages((prev) => {
-              // Merge and deduplicate by ID
-              const merged = [...prev, ...newMessages];
-              const uniqueMessages = merged.filter((msg, index, self) => 
-                index === self.findIndex(m => m.id === msg.id)
-              );
-              // Sort by createdAt to ensure correct order
-              return uniqueMessages.sort((a, b) => {
-                const aTime = a.createdAt?.getTime() || 0;
-                const bTime = b.createdAt?.getTime() || 0;
-                return aTime - bTime;
-              });
-            });
-          } else {
-            // No new messages, but ensure we have all messages from API (in case of ordering issues)
-            // Deduplicate existing messages with loaded messages
-            setMessages((prev) => {
-              const allMessages = [...prev, ...loadedMessages];
-              const uniqueMessages = allMessages.filter((msg, index, self) => 
-                index === self.findIndex(m => m.id === msg.id)
-              );
-              // Sort by createdAt to ensure correct order
-              return uniqueMessages.sort((a, b) => {
-                const aTime = a.createdAt?.getTime() || 0;
-                const bTime = b.createdAt?.getTime() || 0;
-                return aTime - bTime;
-              });
-            });
-          }
+          // Full replacement — temp IDs don't match DB IDs after batch save
+          setMessages(loadedMessages);
         }
       } catch (error) {
         console.error('[Chat] Error reloading messages after intake completion', error);
-        // Continue with existing messages if reload fails
+        // Keep existing local messages as fallback — they display correctly even with temp IDs
       }
       
       // Mark messages as loaded
@@ -1588,13 +1552,21 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
             <p className="text-sm">Loading intake questions...</p>
           </div>
         )}
-        {/* Show error if initialization failed */}
+        {/* Show error if initialization or batch save failed */}
         {intakeGate.gateState === 'intake' && intakeHook && intakeHook.isInitialized && intakeHook.error && (
-          <div 
+          <div
             className="text-center mt-8 opacity-80"
             style={{ color: currentBubbleStyle.text }}
           >
             <p className="text-sm text-red-500">{intakeHook.error}</p>
+            {intakeHook.currentQuestionIndex === -2 && (
+              <button
+                onClick={() => intakeHook.retryBatchSave()}
+                className="mt-3 px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
           </div>
         )}
 

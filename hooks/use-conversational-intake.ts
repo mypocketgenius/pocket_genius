@@ -4,7 +4,6 @@
 // Custom hook for managing conversational intake flow state and logic
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import { Pill as PillType } from '../components/pills/pill';
 
 export interface IntakeQuestion {
@@ -45,6 +44,7 @@ export interface UseConversationalIntakeReturn {
   handleVerifyModify: () => void;
   setCurrentInput: (value: any) => void;
   currentQuestion: IntakeQuestion | null;
+  retryBatchSave: () => Promise<void>;
   // Helper getters for backward compatibility (derived from mode)
   verificationMode: boolean;
   modifyMode: boolean;
@@ -71,8 +71,6 @@ export function useConversationalIntake(
   existingConversationId?: string | null,
   welcomeMessage?: string
 ): UseConversationalIntakeReturn {
-  const { userId: clerkUserId } = useAuth();
-
   const [conversationId, setConversationId] = useState<string | null>(existingConversationId || null);
   const [messages, setMessages] = useState<IntakeMessage[]>([]);
 
@@ -99,59 +97,29 @@ export function useConversationalIntake(
   // Use ref to prevent initialization loop (prevent re-entry during async initialization)
   const isInitializingRef = useRef(false);
 
-  // Add message to conversation and notify parent
-  const addMessage = useCallback(async (role: 'user' | 'assistant', content: string, convId: string): Promise<IntakeMessage> => {
-    try {
-      const response = await fetch(`/api/conversations/${convId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, content }),
-      });
+  // Batch intake refs — accumulate messages and responses locally, persist all at once on completion
+  const messageCounterRef = useRef(0);
+  const pendingMessagesRef = useRef<{ role: string; content: string; createdAt: string }[]>([]);
+  const pendingResponsesRef = useRef<{ intakeQuestionId: string; value: any }[]>([]);
+  const batchSaveConvIdRef = useRef<string | null>(null);
 
-      if (!response.ok) {
-        // Try to get error message from response
-        let errorMessage = 'Failed to save message';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || `Failed to save message (${response.status})`;
-        } catch {
-          errorMessage = `Failed to save message (${response.status} ${response.statusText})`;
-        }
-        console.error('Error saving message:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorMessage,
-          conversationId: convId,
-          role,
-          contentLength: content.length,
-        });
-        throw new Error(errorMessage);
-      }
+  // Add message to local state (no network call — batched on intake completion)
+  const addMessage = useCallback((role: 'user' | 'assistant', content: string, _convId: string): IntakeMessage => {
+    const now = new Date();
+    const newMessage: IntakeMessage = {
+      id: `intake-temp-${messageCounterRef.current++}`,
+      role,
+      content,
+      createdAt: now,
+    };
 
-      const data = await response.json();
-      const newMessage: IntakeMessage = {
-        id: data.message.id,
-        role: data.message.role,
-        content: data.message.content,
-        createdAt: new Date(data.message.createdAt),
-      };
+    // Accumulate for batch save
+    pendingMessagesRef.current.push({ role, content, createdAt: now.toISOString() });
 
-      // Add to hook's internal messages state (deduplicate by ID)
-      setMessages((prev) => {
-        // Check if message already exists
-        if (prev.some(msg => msg.id === newMessage.id)) {
-          return prev;
-        }
-        return [...prev, newMessage];
-      });
-      
-      // Notify parent component (deduplication handled in parent)
-      onMessageAdded(newMessage);
-      return newMessage;
-    } catch (err) {
-      console.error('Error adding message:', err);
-      throw err;
-    }
+    // Update local state + notify parent
+    setMessages(prev => [...prev, newMessage]);
+    onMessageAdded(newMessage);
+    return newMessage;
   }, [onMessageAdded]);
 
   // Check if question has existing response
@@ -185,76 +153,77 @@ export function useConversationalIntake(
     return String(value);
   }, []);
 
-  // Show final intro message and pills
-  const showFinalMessage = useCallback(async (convId: string) => {
-    console.log('[Pills Debug - Intake Hook] showFinalMessage called with convId:', convId);
+  // Batch save all pending intake data (messages + responses) in a single PATCH request
+  const batchSaveIntake = useCallback(async (convId: string) => {
+    batchSaveConvIdRef.current = convId;
+    setCurrentQuestionIndex(-2); // Hide intake input during save
+    setError(null);
 
-    // Build welcome message: use chatbot's custom welcome message or default
-    // Convert literal \n to actual newlines (database may store escaped newlines)
+    try {
+      const response = await fetch(`/api/conversations/${convId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: pendingMessagesRef.current,
+          responses: pendingResponsesRef.current,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Handle suggestion pills
+        if (data.suggestionPills?.length > 0) {
+          const mappedPills: PillType[] = data.suggestionPills.map(
+            (text: string, index: number) => ({
+              id: `suggestion-${index}`,
+              chatbotId,
+              pillType: 'suggested' as const,
+              label: text,
+              prefillText: text,
+              displayOrder: index,
+              isActive: true,
+            })
+          );
+          setSuggestionPills(mappedPills);
+          setShowPills(true);
+        }
+        // Clear pending data
+        pendingMessagesRef.current = [];
+        pendingResponsesRef.current = [];
+        batchSaveConvIdRef.current = null;
+        // Only transition on success
+        setTimeout(() => onComplete(convId), 1000);
+      } else {
+        const errorText = await response.text();
+        console.error('[Intake] Batch save failed:', response.status, errorText);
+        setError('Failed to save your responses. Please try again.');
+        // Do NOT call onComplete — stay in intake state with retry available
+      }
+    } catch (err) {
+      console.error('[Intake] Batch save error:', err);
+      setError('Failed to save your responses. Please check your connection and try again.');
+      // Do NOT call onComplete — stay in intake state with retry available
+    }
+  }, [onComplete, chatbotId]);
+
+  // Retry a failed batch save with the same pending data
+  const retryBatchSave = useCallback(async () => {
+    if (!batchSaveConvIdRef.current) return;
+    await batchSaveIntake(batchSaveConvIdRef.current);
+  }, [batchSaveIntake]);
+
+  // Show final intro message and batch-persist all intake data
+  const showFinalMessage = useCallback(async (convId: string) => {
     const baseWelcome = (welcomeMessage || "Let's get started! Feel free to ask any questions.").replace(/\\n/g, '\n');
     const ratingCTA = "When our conversation is finished, leave me a rating and you will get free messages for the next AI! Now let's get started...";
     const finalMessage = `${baseWelcome}\n\n${ratingCTA}`;
+    addMessage('assistant', finalMessage, convId); // no await — local-only
 
-    await addMessage('assistant', finalMessage, convId);
-
-    setCurrentQuestionIndex(-2); // Special marker for "intake complete"
-
-    // Mark conversation as intake complete and get AI-generated suggestion pills
     if (convId) {
-      try {
-        console.log('[Pills Debug - Intake Hook] Making PATCH request to mark intake complete');
-        const response = await fetch(`/api/conversations/${convId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ intakeCompleted: true }),
-        });
-
-        console.log('[Pills Debug - Intake Hook] PATCH response status:', response.status);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[Pills Debug - Intake Hook] PATCH response data:', {
-            hasSuggestionPills: !!data.suggestionPills,
-            suggestionPillsLength: data.suggestionPills?.length,
-            conversationId: data.conversation?.id,
-          });
-
-          // Backend returns AI-generated pills or fallbacks
-          if (data.suggestionPills?.length > 0) {
-            console.log('[Pills Debug - Intake Hook] Setting suggestion pills:', data.suggestionPills.length);
-            const mappedPills: PillType[] = data.suggestionPills.map(
-              (text: string, index: number) => ({
-                id: `suggestion-${index}`,
-                chatbotId: chatbotId, // Required by Pill interface
-                pillType: 'suggested' as const,
-                label: text,
-                prefillText: text,
-                displayOrder: index,
-                isActive: true,
-              })
-            );
-            setSuggestionPills(mappedPills);
-            setShowPills(true);
-            console.log('[Pills Debug - Intake Hook] Pills set, showPills set to true');
-          } else {
-            console.log('[Pills Debug - Intake Hook] No suggestion pills in response');
-          }
-        } else {
-          const errorText = await response.text();
-          console.error('[Pills Debug - Intake Hook] Failed to mark intake complete:', response.status, errorText);
-        }
-      } catch (err) {
-        console.error('[Pills Debug - Intake Hook] Failed to complete intake:', err);
-      }
+      await batchSaveIntake(convId);
     }
-
-    // Transition to chat after 1 second
-    console.log('[Pills Debug - Intake Hook] Setting timeout for onComplete (1 second)');
-    setTimeout(() => {
-      console.log('[Pills Debug - Intake Hook] Calling onComplete');
-      onComplete(convId);
-    }, 1000);
-  }, [welcomeMessage, addMessage, onComplete, chatbotId]);
+  }, [welcomeMessage, addMessage, batchSaveIntake]);
 
   // Single function to process a question - handles all question flow logic
   const processQuestion = useCallback(async (index: number, convId: string, includeWelcome: boolean = false, chatbotName?: string, chatbotPurpose?: string) => {
@@ -295,21 +264,21 @@ export function useConversationalIntake(
       const savedAnswer = existingResponses[question.id];
       const formattedAnswer = formatAnswerForDisplay(question, savedAnswer);
       content += `\n\nThis is what I have. Is it still correct?\n\n${formattedAnswer}`;
-      
-      await addMessage('assistant', content, convId);
+
+      addMessage('assistant', content, convId);
     } else {
       // Show question input mode
       setMode('question');
-      
+
       // Increment state version IMMEDIATELY after setting mode
       setStateVersion((prev) => prev + 1);
-      
+
       // Build message content
       const content = includeWelcome && chatbotName && chatbotPurpose
         ? `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.\n\n${question.questionText}`
         : question.questionText;
 
-      await addMessage('assistant', content, convId);
+      addMessage('assistant', content, convId);
     }
   }, [questions, hasExistingResponse, existingResponses, formatAnswerForDisplay, addMessage, showFinalMessage]);
 
@@ -339,28 +308,16 @@ export function useConversationalIntake(
     }
   }, [conversationId, processQuestion]);
 
-  // Save response to API (server resolves userId from auth — no need to fetch /api/user/current)
-  const saveResponse = useCallback(async (questionId: string, value: any) => {
-    if (!clerkUserId) {
-      throw new Error('User not authenticated');
+  // Save response locally (batched on intake completion — no network call)
+  const saveResponse = useCallback((questionId: string, value: any) => {
+    // Check for existing entry for this question (handles modify case)
+    const existingIndex = pendingResponsesRef.current.findIndex(r => r.intakeQuestionId === questionId);
+    if (existingIndex >= 0) {
+      pendingResponsesRef.current[existingIndex].value = value;
+    } else {
+      pendingResponsesRef.current.push({ intakeQuestionId: questionId, value });
     }
-
-    const response = await fetch('/api/intake/responses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        intakeQuestionId: questionId,
-        chatbotId,
-        value,
-        reusableAcrossFrameworks: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Failed to save response');
-    }
-  }, [clerkUserId, chatbotId]);
+  }, []);
 
   // Handle answer submission
   const handleAnswer = useCallback(async (value: any) => {
@@ -372,9 +329,9 @@ export function useConversationalIntake(
     setIsSaving(true);
 
     try {
-      await saveResponse(question.id, value);
-      await addMessage('user', formatAnswerForDisplay(question, value), conversationId!);
-      await addMessage('assistant', 'Thank you.', conversationId!);
+      saveResponse(question.id, value);
+      addMessage('user', formatAnswerForDisplay(question, value), conversationId!);
+      addMessage('assistant', 'Thank you.', conversationId!);
 
       // Don't reset state here - let processQuestion handle it
       // This ensures mode is set correctly based on next question's existing response
@@ -383,9 +340,6 @@ export function useConversationalIntake(
       if (nextIndex < questions.length) {
         await showQuestion(nextIndex, conversationId!);
       } else {
-        // Immediately clear currentQuestionIndex to prevent input field from showing
-        // while transitioning to final message
-        setCurrentQuestionIndex(-2);
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
@@ -412,8 +366,8 @@ export function useConversationalIntake(
     setIsSaving(true);
 
     try {
-      await addMessage('user', '(Skipped)', conversationId!);
-      await addMessage('assistant', 'Thank you.', conversationId!);
+      addMessage('user', '(Skipped)', conversationId!);
+      addMessage('assistant', 'Thank you.', conversationId!);
 
       // Don't reset state here - let processQuestion handle it
 
@@ -421,9 +375,6 @@ export function useConversationalIntake(
       if (nextIndex < questions.length) {
         await showQuestion(nextIndex, conversationId!);
       } else {
-        // Immediately clear currentQuestionIndex to prevent input field from showing
-        // while transitioning to final message
-        setCurrentQuestionIndex(-2);
         await showFinalMessage(conversationId!);
       }
     } catch (err) {
@@ -464,9 +415,6 @@ export function useConversationalIntake(
     if (nextIndex < questions.length) {
       await showQuestion(nextIndex, conversationId!);
     } else {
-      // Immediately clear currentQuestionIndex to prevent input field from showing
-      // while transitioning to final message
-      setCurrentQuestionIndex(-2);
       setIsLoadingNextQuestion(true);
       try {
         await showFinalMessage(conversationId!);
@@ -555,7 +503,7 @@ export function useConversationalIntake(
         if (questions.length === 0) {
           // No questions - show welcome + final message
           const welcomeContent = `Hi, I'm ${chatbotName} AI. I'm here to help you ${chatbotPurpose}.\n\nFirst, let's personalise your experience.`;
-          await addMessage('assistant', welcomeContent, convId);
+          addMessage('assistant', welcomeContent, convId);
           await showFinalMessage(convId);
         } else {
           // Determine which question to show next based on existing responses
@@ -624,6 +572,7 @@ export function useConversationalIntake(
     handleVerifyModify,
     setCurrentInput,
     currentQuestion,
+    retryBatchSave,
     // Backward compatibility helpers
     verificationMode,
     modifyMode,

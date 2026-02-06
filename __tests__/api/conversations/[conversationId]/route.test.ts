@@ -45,7 +45,21 @@ jest.mock('@/lib/prisma', () => ({
     },
     intake_Response: {
       findMany: jest.fn(),
+      upsert: jest.fn(),
     },
+    message: {
+      createMany: jest.fn(),
+    },
+    intake_Question: {
+      findMany: jest.fn(),
+    },
+    chatbot_Intake_Question: {
+      findMany: jest.fn(),
+    },
+    user_Context: {
+      upsert: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -347,6 +361,300 @@ describe('Conversation API', () => {
       expect(response.status).toBe(200);
       expect(data.suggestionPills).toBeUndefined();
       expect(generateSuggestionPills).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Batch Intake (Issues 1+3)', () => {
+    const setupAuthAndConversation = () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        userId: mockUserId,
+        chatbotId: 'bot-123',
+      });
+      (prisma.conversation.update as jest.Mock).mockResolvedValue({
+        id: mockConversationId,
+        intakeCompleted: true,
+        intakeCompletedAt: new Date(),
+      });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: 'bot-123',
+        title: 'Test Bot',
+        description: 'A test chatbot',
+        type: null,
+        configJson: null,
+        fallbackSuggestionPills: [],
+        creator: { name: 'Test Creator' },
+        sources: [],
+      });
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.$transaction as jest.Mock).mockResolvedValue([]);
+    };
+
+    it('should batch-create messages and responses in transaction', async () => {
+      setupAuthAndConversation();
+      (prisma.intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { id: 'q1', slug: 'user_name' },
+      ]);
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { intakeQuestionId: 'q1' },
+      ]);
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'assistant', content: 'What is your name?', createdAt: '2024-01-15T10:00:00.000Z' },
+            { role: 'user', content: 'John', createdAt: '2024-01-15T10:00:01.000Z' },
+            { role: 'assistant', content: 'Thank you.', createdAt: '2024-01-15T10:00:02.000Z' },
+          ],
+          responses: [
+            { intakeQuestionId: 'q1', value: 'John' },
+          ],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // Transaction should contain: createMany + increment + upsert response + upsert context
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      expect(txOps.length).toBe(4); // createMany, increment, response upsert, context upsert
+    });
+
+    it('should handle messages-only batch (no responses)', async () => {
+      setupAuthAndConversation();
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'assistant', content: 'Welcome!', createdAt: '2024-01-15T10:00:00.000Z' },
+          ],
+          responses: [],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      expect(txOps.length).toBe(2); // createMany + increment only
+    });
+
+    it('should handle responses-only batch (no messages)', async () => {
+      setupAuthAndConversation();
+      (prisma.intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { id: 'q1', slug: 'user_name' },
+      ]);
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { intakeQuestionId: 'q1' },
+      ]);
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [],
+          responses: [
+            { intakeQuestionId: 'q1', value: 'John' },
+          ],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      expect(txOps.length).toBe(2); // response upsert + context upsert
+    });
+
+    it('should validate message roles', async () => {
+      setupAuthAndConversation();
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'system', content: 'Invalid role', createdAt: '2024-01-15T10:00:00.000Z' },
+            { role: 'assistant', content: 'Valid message', createdAt: '2024-01-15T10:00:01.000Z' },
+          ],
+          responses: [],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // Should only include the valid message in createMany
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      expect(txOps.length).toBe(2); // createMany (1 valid msg) + increment
+    });
+
+    it('should skip responses for invalid question-chatbot associations', async () => {
+      setupAuthAndConversation();
+      (prisma.intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { id: 'q1', slug: 'user_name' },
+      ]);
+      // q-invalid is NOT associated with this chatbot
+      (prisma.chatbot_Intake_Question.findMany as jest.Mock).mockResolvedValue([
+        { intakeQuestionId: 'q1' },
+      ]);
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [],
+          responses: [
+            { intakeQuestionId: 'q1', value: 'John' },
+            { intakeQuestionId: 'q-invalid', value: 'Should be skipped' },
+          ],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      // Only q1 should have upserts (response + context), q-invalid skipped
+      expect(txOps.length).toBe(2); // response upsert + context upsert for q1 only
+    });
+
+    it('should skip response processing for anonymous users', async () => {
+      (auth as jest.Mock).mockResolvedValue({ userId: null });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        userId: null,
+        chatbotId: 'bot-123',
+      });
+      (prisma.conversation.update as jest.Mock).mockResolvedValue({
+        id: mockConversationId,
+        intakeCompleted: true,
+        intakeCompletedAt: new Date(),
+      });
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'assistant', content: 'Welcome!', createdAt: '2024-01-15T10:00:00.000Z' },
+          ],
+          responses: [
+            { intakeQuestionId: 'q1', value: 'John' },
+          ],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // Only messages should be in transaction, no response upserts (dbUserId is null)
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      expect(txOps.length).toBe(2); // createMany + increment only
+    });
+
+    it('should return 200 with empty message/response arrays', async () => {
+      setupAuthAndConversation();
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [],
+          responses: [],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      // No transaction needed for empty arrays
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should preserve message ordering via createdAt', async () => {
+      setupAuthAndConversation();
+
+      const timestamps = [
+        '2024-01-15T10:00:00.000Z',
+        '2024-01-15T10:00:01.000Z',
+        '2024-01-15T10:00:02.000Z',
+      ];
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'assistant', content: 'Question 1', createdAt: timestamps[0] },
+            { role: 'user', content: 'Answer 1', createdAt: timestamps[1] },
+            { role: 'assistant', content: 'Thank you.', createdAt: timestamps[2] },
+          ],
+          responses: [],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(200);
+      // Verify createMany was called with explicit timestamps
+      const txOps = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+      // txOps[0] is the createMany promise — we can verify it was called
+      expect(prisma.message.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ createdAt: new Date(timestamps[0]) }),
+          expect.objectContaining({ createdAt: new Date(timestamps[1]) }),
+          expect.objectContaining({ createdAt: new Date(timestamps[2]) }),
+        ]),
+      });
+    });
+
+    it('should return 500 on transaction failure', async () => {
+      setupAuthAndConversation();
+      (prisma.$transaction as jest.Mock).mockRejectedValue(new Error('Transaction failed'));
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intakeCompleted: true,
+          messages: [
+            { role: 'assistant', content: 'Hello', createdAt: '2024-01-15T10:00:00.000Z' },
+          ],
+          responses: [],
+        }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error: 'Internal server error' });
     });
   });
 });

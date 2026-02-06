@@ -8,13 +8,7 @@ import {
   IntakeQuestion,
   IntakeMessage,
 } from '@/hooks/use-conversational-intake';
-import { useAuth } from '@clerk/nextjs';
 import { Pill as PillType } from '@/components/pills/pill';
-
-// Mock Clerk's useAuth
-jest.mock('@clerk/nextjs', () => ({
-  useAuth: jest.fn(),
-}));
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -25,7 +19,6 @@ const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
 
 describe('useConversationalIntake', () => {
-  const mockUserId = 'user-123';
   const mockChatbotId = 'chatbot-123';
   const mockChatbotName = 'Test Chatbot';
   const mockChatbotPurpose = 'Help you test';
@@ -64,12 +57,34 @@ describe('useConversationalIntake', () => {
   const mockOnMessageAdded = jest.fn();
   const mockOnComplete = jest.fn();
 
+  // Helper: mock only the conversation creation fetch (the only fetch during init)
+  const mockConversationCreation = () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        conversation: { id: mockConversationId },
+      }),
+    });
+  };
+
+  // Helper: mock the batch PATCH request (used by showFinalMessage → batchSaveIntake)
+  const mockBatchPatch = (pills: string[] = []) => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        conversation: {
+          id: mockConversationId,
+          intakeCompleted: true,
+          intakeCompletedAt: new Date().toISOString(),
+        },
+        ...(pills.length > 0 && { suggestionPills: pills }),
+      }),
+    });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockClear();
-    (useAuth as jest.Mock).mockReturnValue({
-      userId: mockUserId,
-    });
+    (global.fetch as jest.Mock).mockReset(); // mockReset clears the mockResolvedValueOnce queue
     consoleErrorSpy.mockClear();
     consoleWarnSpy.mockClear();
     consoleLogSpy.mockClear();
@@ -88,26 +103,8 @@ describe('useConversationalIntake', () => {
   describe('useConversationalIntake hook', () => {
     describe('Initialization', () => {
       it('creates conversation and shows welcome + first question', async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Mock message creation (welcome + first question combined in one addMessage call)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: `Hi, I'm ${mockChatbotName} AI...`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
+        mockConversationCreation();
+        // addMessage is now local-only — no fetch mocks needed for messages
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -129,55 +126,14 @@ describe('useConversationalIntake', () => {
         expect(result.current.currentQuestionIndex).toBe(0);
         expect(result.current.mode).toBe('question');
         expect(mockOnMessageAdded).toHaveBeenCalled();
+        // Verify only 1 fetch was made (conversation creation)
+        expect(global.fetch).toHaveBeenCalledTimes(1);
       });
 
       it('handles no questions case', async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Mock welcome message (addMessage in initialize for no-questions path)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: 'Welcome',
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
-
-        // Mock final message (addMessage in showFinalMessage)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-2',
-              role: 'assistant',
-              content: 'Final message',
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
-
-        // Mock PATCH /api/conversations/{id} (mark intake complete)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: {
-              id: mockConversationId,
-              intakeCompleted: true,
-              intakeCompletedAt: new Date().toISOString(),
-            },
-            suggestionPills: ['What topics interest you?', 'Tell me about yourself'],
-          }),
-        });
+        mockConversationCreation();
+        // showFinalMessage → batchSaveIntake → PATCH
+        mockBatchPatch(['What topics interest you?', 'Tell me about yourself']);
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -226,25 +182,7 @@ describe('useConversationalIntake', () => {
 
     describe('Question Flow', () => {
       it('shows all questions sequentially', async () => {
-        // Setup: Initialize
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: `Hi, I'm ${mockChatbotName} AI...\n\n${mockQuestions[0].questionText}`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -265,75 +203,10 @@ describe('useConversationalIntake', () => {
         expect(result.current.currentQuestion?.id).toBe('q1');
       });
 
-      it('handles existing responses correctly and shows verification', async () => {
-        const existingResponses = { q1: 'John Doe' };
-
-        // Setup: Initialize — with q1 answered, firstUnansweredIndex = 1
-        // But q1 has existing response, so initialize goes to showQuestion(1, convId)
-        // which calls processQuestion(1, ...) — q2 has no existing response, so question mode
-        // Wait, actually — let me re-check the init logic:
-        // firstUnansweredIndex = 1 (q1 is answered, q2 is first unanswered)
-        // Since firstUnansweredIndex !== 0 and !== -1, it calls showQuestion(1, convId)
-        // q2 does NOT have an existing response, so it goes to question mode for q2
-
-        // Actually for the verification test to work, we need ALL questions answered so
-        // firstUnansweredIndex = -1, OR we need to test verification at a specific point.
-        // Let me test with existingResponses for all questions so init resumes at verification.
-        // Actually, with only q1 answered, the init goes to q2 (unanswered), not verification.
-        // For verification, the question needs an existing response.
-        // Let's use existingResponses = { q1: 'John Doe', q2: 'Blue' } so q3 is first unanswered
-        // and q3 doesn't have an existing response.
-        // OR, let's put an existing response on q2 so that when init shows q2 (since q1 is answered,
-        // firstUnanswered is q2 actually... wait, q1 IS answered, so first unanswered is q2.
-        // If q2 also has existing response, first unanswered is q3.
-        // For q2 to show in verification mode, we need q2 to have existing response AND be shown.
-
-        // Simplest: existingResponses = { q1: 'John Doe' } means firstUnanswered = 1 (q2).
-        // q2 does NOT have existing response, so it shows in question mode.
-        // To test verification, let's use q1 and q2 answered, q3 unanswered:
-        // Wait, the init flow doesn't show verification for already-answered questions.
-        // It jumps to the first UNANSWERED question and shows that.
-        // Verification only happens if the question being shown HAS an existing response.
-        // So for verification test we need: firstUnanswered = index of question WITH existing response.
-        // That happens when e.g. firstUnanswered = 0 and q1 has existing response.
-        // But firstUnanswered = 0 means q1 is NOT answered... contradiction.
-
-        // Actually wait — existingResponses comes from the welcome API data.
-        // If existingResponses has q1, then answeredQuestionIds includes q1,
-        // so firstUnansweredIndex = questions.findIndex(q => !answeredQuestionIds.has(q.id)) = 1 (q2).
-        // Then showQuestion(1, convId) calls processQuestion(1, ...) for q2.
-        // q2 does NOT have existing response, so it shows in question mode.
-
-        // For verification to appear, we need showQuestion called with an index whose
-        // question HAS an existing response. This happens when:
-        // existingResponses = { q2: 'Blue' } → first unanswered = 0 (q1)
-        // showFirstQuestion shows q1 in question mode (no existing for q1).
-        // Then user answers q1, moves to q2 which HAS existing → verification mode.
-
-        // So verification is tested through the answer flow, not init. Let me restructure this test.
-        // For now, let's test that init correctly starts at the first unanswered question.
+      it('handles existing responses correctly and resumes at first unanswered', async () => {
         const allExisting = { q1: 'John Doe', q2: 'Blue' };
-        // First unanswered = 2 (q3). q3 has no existing → question mode.
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // showQuestion(2, convId) → processQuestion(2) → addMessage for q3
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: mockQuestions[2].questionText,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
+        // Init creates conv, then jumps to q3 (first unanswered)
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -359,110 +232,10 @@ describe('useConversationalIntake', () => {
     });
 
     describe('Verification Flow', () => {
-      it('shows Yes/Modify buttons in verification mode', async () => {
-        // To get verification mode, we need a question with existing response
-        // to be shown via processQuestion. This happens when:
-        // existingResponses = { q1: 'John Doe' } and init shows q1.
-        // But init shows firstUnanswered. If q1 has response, firstUnanswered > 0.
-        // So we need a setup where processQuestion is called for a question with existing response.
-        // Use: existingResponses = { q2: 'Blue' }, no response for q1.
-        // Init: firstUnanswered = 0 (q1) → shows q1 in question mode.
-        // Answer q1 → moves to q2 which has existing → verification mode.
-        // This is complex. Let's use a simpler approach: all questions have existing responses.
-        // existingResponses = { q1: 'John Doe', q2: 'Blue', q3: true }
-        // firstUnansweredIndex = -1 → all answered → showFinalMessage
-        // That skips verification entirely!
-
-        // The correct approach: have SOME questions with existing responses.
-        // existingResponses = { q1: 'John Doe' }, init starts at q2 (no existing) in question mode.
-        // After answering q2, if q3 had existing response, it would show verification.
-        // But testing multi-step flows is complex. Let me use a single-question approach.
-
-        // Simplest verification test: 1 question, with existing response.
-        // existingResponses = { q1: 'John Doe' }
-        // firstUnansweredIndex = 1 (past end of single-question array)
-        // Actually no: questions has 3 items. firstUnansweredIndex finds first without response.
-        // With {q1: 'John Doe'}: q2 and q3 don't have responses. firstUnanswered = 1 (q2).
-        // processQuestion(1, ...) → q2 has no existing → question mode. Not verification.
-
-        // To get verification mode during init:
-        // We need the first unanswered question's INDEX to point to a question WITH existing response.
-        // That can't happen by definition (unanswered means no response).
-
-        // Verification happens in showQuestion/processQuestion when the SHOWN question has
-        // an existing response. This only happens when navigating BACK or when init resumes
-        // at a point where... hmm, actually in the current init logic, it only shows questions
-        // that DON'T have existing responses (it finds firstUnanswered).
-
-        // Wait, I need to re-read the init code more carefully:
-        // const firstUnansweredIndex = questions.findIndex(q => !answeredQuestionIds.has(q.id));
-        // If firstUnansweredIndex === 0: showFirstQuestion (q1, combined with welcome)
-        // else: showQuestion(firstUnansweredIndex, convId)
-        // Both call processQuestion which checks hasExistingResponse for THAT question.
-        // Since firstUnanswered means the question DOESN'T have response, it's always question mode.
-
-        // So verification mode only happens AFTER answering — when showQuestion(nextIndex)
-        // is called for a question that HAS an existing response.
-
-        // For this test, let's just verify the hook exposes the verification-related properties.
-        // We'll test actual verification flow in a separate test that goes through answer → next question.
-
-        // Setup with existingResponses for q2, init at q1 (no existing)
+      it('shows verification mode when advancing to question with existing response', async () => {
+        // existingResponses for q2 — init starts at q1 (no existing), answer q1 → q2 (has existing → verification)
         const existingResponses = { q2: 'Blue' };
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Init shows q1 (combined welcome + question)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: `Hi, I'm ${mockChatbotName} AI...\n\n${mockQuestions[0].questionText}`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
-
-        // After answering q1:
-        // saveResponse → POST /api/intake/responses
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({}),
-        });
-        // addMessage user answer → POST messages
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-2', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-        // addMessage thank you → POST messages
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-        // showQuestion(1) → processQuestion(1) → q2 HAS existing response → verification mode
-        // addMessage for verification content
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-4',
-              role: 'assistant',
-              content: `${mockQuestions[1].questionText}\n\nThis is what I have. Is it still correct?\n\nBlue`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -480,7 +253,9 @@ describe('useConversationalIntake', () => {
           expect(result.current.currentQuestionIndex).toBe(0);
         });
 
-        // Answer q1 to trigger move to q2 (which has existing response)
+        // Answer q1 to trigger move to q2 (which has existing response → verification)
+        // handleAnswer: saveResponse (local) + addMessage (local) + addMessage (local) + showQuestion(1)
+        // No fetch calls needed — all local
         await act(async () => {
           await result.current.handleAnswer('John Doe');
         });
@@ -495,52 +270,7 @@ describe('useConversationalIntake', () => {
 
       it('Yes button moves to next question', async () => {
         const existingResponses = { q2: 'Blue' };
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ conversation: { id: mockConversationId } }),
-        });
-
-        // Init: welcome + q1
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-1', role: 'assistant', content: mockQuestions[0].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Answer q1: saveResponse
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true, json: async () => ({}),
-        });
-        // Answer q1: user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-2', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-        // Answer q1: thank you
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-        // showQuestion(1) → q2 verification
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-4', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-        // handleVerifyYes → showQuestion(2) → q3 question mode
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-5', role: 'assistant', content: mockQuestions[2].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -581,45 +311,7 @@ describe('useConversationalIntake', () => {
 
       it('Modify button switches to modify mode', async () => {
         const existingResponses = { q2: 'Blue' };
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ conversation: { id: mockConversationId } }),
-        });
-
-        // Init: welcome + q1
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-1', role: 'assistant', content: mockQuestions[0].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Answer q1: saveResponse
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true, json: async () => ({}),
-        });
-        // Answer q1: user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-2', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-        // Answer q1: thank you
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-        // showQuestion(1) → q2 verification
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-4', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -659,34 +351,7 @@ describe('useConversationalIntake', () => {
     describe('Modify Flow', () => {
       it('pre-fills existing value and allows editing', async () => {
         const existingResponses = { q2: 'Blue' };
-
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ conversation: { id: mockConversationId } }),
-        });
-
-        // Init: welcome + q1
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-1', role: 'assistant', content: mockQuestions[0].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Answer q1: saveResponse + user msg + thank you + q2 verification msg
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-2', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() } }),
-        });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-3', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() } }),
-        });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-4', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() } }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -731,60 +396,8 @@ describe('useConversationalIntake', () => {
     });
 
     describe('Answer Submission', () => {
-      // Setup: init creates conversation and shows first question
-      beforeEach(async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Mock welcome + first question (combined in one addMessage)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: `Hi, I'm ${mockChatbotName} AI...\n\n${mockQuestions[0].questionText}`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
-      });
-
-      it('saves answer to API', async () => {
-        // Mock save response (POST /api/intake/responses)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({}),
-        });
-
-        // Mock user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock thank you message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-4', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock next question
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-5', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
+      it('adds user message and thank you locally without fetch', async () => {
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -801,6 +414,8 @@ describe('useConversationalIntake', () => {
         await waitFor(() => {
           expect(result.current.currentQuestionIndex).toBe(0);
         });
+
+        const fetchCountBefore = (global.fetch as jest.Mock).mock.calls.length;
 
         await act(async () => {
           await result.current.handleAnswer('John Doe');
@@ -810,105 +425,20 @@ describe('useConversationalIntake', () => {
           expect(result.current.isSaving).toBe(false);
         });
 
-        // Verify save was called (POST /api/intake/responses)
-        const saveCalls = (global.fetch as jest.Mock).mock.calls.filter(
-          (call) => call[0] === '/api/intake/responses'
-        );
-        expect(saveCalls.length).toBeGreaterThan(0);
-      });
+        // No additional fetch calls — addMessage and saveResponse are local-only
+        expect((global.fetch as jest.Mock).mock.calls.length).toBe(fetchCountBefore);
 
-      it('shows user message and thank you message', async () => {
-        // Mock save response
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true, json: async () => ({}),
-        });
-
-        // Mock user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock thank you message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-4', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock next question
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-5', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        const { result } = renderHook(() =>
-          useConversationalIntake(
-            mockChatbotId,
-            mockChatbotName,
-            mockChatbotPurpose,
-            mockQuestions,
-            {},
-            mockOnMessageAdded,
-            mockOnComplete
-          )
-        );
-
-        await waitFor(() => {
-          expect(result.current.currentQuestionIndex).toBe(0);
-        });
-
-        await act(async () => {
-          await result.current.handleAnswer('John Doe');
-        });
-
-        await waitFor(() => {
-          expect(result.current.messages.length).toBeGreaterThan(2);
-        });
-
+        // Messages should include user answer and thank you
         const userMessages = result.current.messages.filter((m) => m.role === 'user');
         const thankYouMessages = result.current.messages.filter(
           (m) => m.role === 'assistant' && m.content === 'Thank you.'
         );
-
         expect(userMessages.length).toBeGreaterThan(0);
         expect(thankYouMessages.length).toBeGreaterThan(0);
       });
 
       it('moves to next question after submission', async () => {
-        // Mock save response
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true, json: async () => ({}),
-        });
-
-        // Mock user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-3', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock thank you message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-4', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock next question
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-5', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -937,13 +467,8 @@ describe('useConversationalIntake', () => {
         expect(result.current.currentQuestion?.id).toBe('q2');
       });
 
-      it('handles errors correctly', async () => {
-        // Mock save response error
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          json: async () => ({ error: 'Save failed' }),
-        });
+      it('uses temp IDs with intake-temp-N pattern', async () => {
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -958,7 +483,49 @@ describe('useConversationalIntake', () => {
         );
 
         await waitFor(() => {
+          expect(result.current.isInitialized).toBe(true);
+        });
+
+        // Messages should have temp IDs
+        const tempIdMessages = result.current.messages.filter(m =>
+          m.id.startsWith('intake-temp-')
+        );
+        expect(tempIdMessages.length).toBeGreaterThan(0);
+
+        // IDs should be sequential
+        const ids = tempIdMessages.map(m => parseInt(m.id.replace('intake-temp-', '')));
+        for (let i = 1; i < ids.length; i++) {
+          expect(ids[i]).toBeGreaterThan(ids[i - 1]);
+        }
+      });
+
+      it('handles saveResponse errors gracefully', async () => {
+        // With batch intake, saveResponse is local-only and can't fail on its own.
+        // Errors now happen at batch save time. Test that the hook handles
+        // batch save failure correctly.
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            [mockQuestions[0]], // Single question so answering triggers showFinalMessage
+            {},
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
           expect(result.current.currentQuestionIndex).toBe(0);
+        });
+
+        // Mock failed PATCH for batch save
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: async () => 'Server error',
         });
 
         await act(async () => {
@@ -969,81 +536,14 @@ describe('useConversationalIntake', () => {
           expect(result.current.error).toBeTruthy();
         });
 
-        expect(result.current.isSaving).toBe(false);
+        // onComplete should NOT have been called
+        expect(mockOnComplete).not.toHaveBeenCalled();
       });
     });
 
     describe('Skip Flow', () => {
-      beforeEach(async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Mock welcome + first question
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: {
-              id: 'msg-1',
-              role: 'assistant',
-              content: `Hi, I'm ${mockChatbotName} AI...\n\n${mockQuestions[0].questionText}`,
-              createdAt: new Date().toISOString(),
-            },
-          }),
-        });
-      });
-
       it('skips optional questions', async () => {
-        // First, answer required q1 to get to optional q2
-        // saveResponse
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-        // user message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-user', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() },
-          }),
-        });
-        // thank you
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-thanks', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-        // next question (q2)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-q2', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Skip q2: user "(Skipped)" message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-skip', role: 'user', content: '(Skipped)', createdAt: new Date().toISOString() },
-          }),
-        });
-        // Skip q2: thank you
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-thanks2', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() },
-          }),
-        });
-        // Next question (q3)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-q3', role: 'assistant', content: mockQuestions[2].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -1070,7 +570,7 @@ describe('useConversationalIntake', () => {
           expect(result.current.currentQuestionIndex).toBe(1);
         });
 
-        // Now skip the optional question
+        // Now skip the optional question (q2)
         await act(async () => {
           await result.current.handleSkip();
         });
@@ -1086,6 +586,8 @@ describe('useConversationalIntake', () => {
       });
 
       it('prevents skipping required questions', async () => {
+        mockConversationCreation();
+
         const { result } = renderHook(() =>
           useConversationalIntake(
             mockChatbotId,
@@ -1112,44 +614,11 @@ describe('useConversationalIntake', () => {
       });
     });
 
-    describe('Final Message', () => {
-      it('shows final message and calls onComplete', async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: { id: mockConversationId },
-          }),
-        });
-
-        // Mock welcome message
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-1', role: 'assistant', content: 'Welcome', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock final message (in showFinalMessage)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-2', role: 'assistant', content: 'Final message', createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock PATCH (mark intake complete) — returns suggestion pills
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            conversation: {
-              id: mockConversationId,
-              intakeCompleted: true,
-              intakeCompletedAt: new Date().toISOString(),
-            },
-            suggestionPills: ['Tell me about yourself', 'What topics interest you?'],
-          }),
-        });
+    describe('Final Message and Batch Save', () => {
+      it('shows final message and calls onComplete after successful batch save', async () => {
+        mockConversationCreation();
+        // After answering all 3 questions, showFinalMessage → batchSaveIntake → PATCH
+        mockBatchPatch(['Tell me about yourself', 'What topics interest you?']);
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -1179,6 +648,170 @@ describe('useConversationalIntake', () => {
           expect(mockOnComplete).toHaveBeenCalledWith(mockConversationId);
         }, { timeout: 3000 });
       });
+
+      it('sends batch PATCH with messages and responses', async () => {
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            [mockQuestions[0]], // Single question
+            {},
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
+          expect(result.current.currentQuestionIndex).toBe(0);
+        });
+
+        // Answer the single question → triggers showFinalMessage → batchSaveIntake
+        mockBatchPatch();
+
+        await act(async () => {
+          await result.current.handleAnswer('John Doe');
+        });
+
+        // Verify the PATCH was called with correct payload
+        const patchCalls = (global.fetch as jest.Mock).mock.calls.filter(
+          (call) => {
+            const url = call[0];
+            const opts = call[1];
+            return url.includes('/api/conversations/') && opts?.method === 'PATCH';
+          }
+        );
+        expect(patchCalls.length).toBe(1);
+
+        const body = JSON.parse(patchCalls[0][1].body);
+        expect(body.intakeCompleted).toBe(true);
+        expect(body.messages.length).toBeGreaterThan(0);
+        expect(body.responses.length).toBe(1);
+        expect(body.responses[0].intakeQuestionId).toBe('q1');
+        expect(body.responses[0].value).toBe('John Doe');
+      });
+
+      it('sets error and does NOT call onComplete on PATCH failure', async () => {
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            [mockQuestions[0]], // Single question
+            {},
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
+          expect(result.current.currentQuestionIndex).toBe(0);
+        });
+
+        // Mock failed PATCH
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: async () => 'Internal Server Error',
+        });
+
+        await act(async () => {
+          await result.current.handleAnswer('John Doe');
+        });
+
+        await waitFor(() => {
+          expect(result.current.error).toBeTruthy();
+        }, { timeout: 3000 });
+
+        expect(result.current.error).toContain('Failed to save');
+        expect(mockOnComplete).not.toHaveBeenCalled();
+        // Should be in batch save state (currentQuestionIndex === -2)
+        expect(result.current.currentQuestionIndex).toBe(-2);
+      });
+
+      it('retryBatchSave re-attempts after failure', async () => {
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            [mockQuestions[0]], // Single question
+            {},
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
+          expect(result.current.currentQuestionIndex).toBe(0);
+        });
+
+        // First PATCH fails
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: async () => 'Server error',
+        });
+
+        await act(async () => {
+          await result.current.handleAnswer('John Doe');
+        });
+
+        await waitFor(() => {
+          expect(result.current.error).toBeTruthy();
+        });
+
+        // Retry — this time PATCH succeeds
+        mockBatchPatch();
+
+        await act(async () => {
+          await result.current.retryBatchSave();
+        });
+
+        await waitFor(() => {
+          expect(result.current.error).toBeNull();
+        });
+
+        // onComplete should be called after retry success
+        await waitFor(() => {
+          expect(mockOnComplete).toHaveBeenCalledWith(mockConversationId);
+        }, { timeout: 3000 });
+      });
+
+      it('retryBatchSave is no-op when no pending batch', async () => {
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            mockQuestions,
+            {},
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
+          expect(result.current.isInitialized).toBe(true);
+        });
+
+        const fetchCountBefore = (global.fetch as jest.Mock).mock.calls.length;
+
+        await act(async () => {
+          await result.current.retryBatchSave();
+        });
+
+        // No additional fetch calls
+        expect((global.fetch as jest.Mock).mock.calls.length).toBe(fetchCountBefore);
+      });
     });
 
     describe('Edge Cases', () => {
@@ -1203,34 +836,7 @@ describe('useConversationalIntake', () => {
       });
 
       it('isSaving flag prevents sequential double submission', async () => {
-        // Mock conversation creation
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ conversation: { id: mockConversationId } }),
-        });
-
-        // Mock welcome + first question
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            message: { id: 'msg-1', role: 'assistant', content: mockQuestions[0].questionText, createdAt: new Date().toISOString() },
-          }),
-        });
-
-        // Mock responses for first answer (save + user msg + thank you + next question)
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-2', role: 'user', content: 'John Doe', createdAt: new Date().toISOString() } }),
-        });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-3', role: 'assistant', content: 'Thank you.', createdAt: new Date().toISOString() } }),
-        });
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ message: { id: 'msg-4', role: 'assistant', content: mockQuestions[1].questionText, createdAt: new Date().toISOString() } }),
-        });
+        mockConversationCreation();
 
         const { result } = renderHook(() =>
           useConversationalIntake(
@@ -1257,11 +863,75 @@ describe('useConversationalIntake', () => {
           expect(result.current.isSaving).toBe(false);
         });
 
-        // Verify exactly one save call was made
+        // Verify no /api/intake/responses calls were made (saveResponse is local-only now)
         const saveCalls = (global.fetch as jest.Mock).mock.calls.filter(
           (call) => call[0] === '/api/intake/responses'
         );
-        expect(saveCalls.length).toBe(1);
+        expect(saveCalls.length).toBe(0);
+      });
+
+      it('saveResponse deduplicates by questionId', async () => {
+        mockConversationCreation();
+
+        const { result } = renderHook(() =>
+          useConversationalIntake(
+            mockChatbotId,
+            mockChatbotName,
+            mockChatbotPurpose,
+            mockQuestions,
+            { q2: 'Blue' }, // q2 has existing response
+            mockOnMessageAdded,
+            mockOnComplete
+          )
+        );
+
+        await waitFor(() => {
+          expect(result.current.currentQuestionIndex).toBe(0);
+        });
+
+        // Answer q1
+        await act(async () => {
+          await result.current.handleAnswer('John Doe');
+        });
+
+        // q2 should be in verification mode
+        await waitFor(() => {
+          expect(result.current.verificationMode).toBe(true);
+        });
+
+        // Click Modify and submit new answer for q2
+        await act(async () => {
+          result.current.handleVerifyModify();
+        });
+
+        // Mock the PATCH that will be triggered after answering q3 (the last question)
+        // Answer q2 with new value → moves to q3
+        await act(async () => {
+          await result.current.handleAnswer('Green');
+        });
+
+        await waitFor(() => {
+          expect(result.current.currentQuestionIndex).toBe(2);
+        });
+
+        // Answer q3 → triggers showFinalMessage → batchSaveIntake
+        mockBatchPatch();
+
+        await act(async () => {
+          await result.current.handleAnswer(true);
+        });
+
+        // Verify the PATCH payload has the updated q2 value
+        const patchCalls = (global.fetch as jest.Mock).mock.calls.filter(
+          (call) => call[1]?.method === 'PATCH'
+        );
+        expect(patchCalls.length).toBe(1);
+
+        const body = JSON.parse(patchCalls[0][1].body);
+        // Should have responses for q1, q2, q3
+        expect(body.responses.length).toBe(3);
+        const q2Response = body.responses.find((r: any) => r.intakeQuestionId === 'q2');
+        expect(q2Response.value).toBe('Green'); // Updated value, not 'Blue'
       });
     });
   });
