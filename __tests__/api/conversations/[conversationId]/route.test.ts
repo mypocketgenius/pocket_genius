@@ -2,6 +2,30 @@
 // Step 6: Integration tests for conversation PATCH endpoint
 // Tests marking intake as complete for a conversation
 
+// Mock environment variables first (before importing routes that use env)
+jest.mock('@/lib/env', () => ({
+  env: {
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    OPENAI_API_KEY: 'test-openai-key',
+    PINECONE_API_KEY: 'test-pinecone-key',
+    PINECONE_INDEX: 'test-index',
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'test-clerk-pub-key',
+    CLERK_SECRET_KEY: 'test-clerk-secret',
+    BLOB_READ_WRITE_TOKEN: 'test-blob-token',
+    NEXT_PUBLIC_URL: 'http://localhost:3000',
+    NODE_ENV: 'test',
+  },
+}));
+
+// Mock pill generation to avoid OpenAI dependency
+jest.mock('@/lib/pills/generate-suggestion-pills', () => ({
+  generateSuggestionPills: jest.fn().mockResolvedValue({
+    pills: ['Suggestion 1', 'Suggestion 2'],
+    generationTimeMs: 100,
+    error: null,
+  }),
+}));
+
 import { PATCH } from '@/app/api/conversations/[conversationId]/route';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@clerk/nextjs/server';
@@ -15,6 +39,12 @@ jest.mock('@/lib/prisma', () => ({
     conversation: {
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    chatbot: {
+      findUnique: jest.fn(),
+    },
+    intake_Response: {
+      findMany: jest.fn(),
     },
   },
 }));
@@ -42,12 +72,24 @@ describe('Conversation API', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
         userId: mockUserId,
+        chatbotId: 'bot-123',
       });
       (prisma.conversation.update as jest.Mock).mockResolvedValue({
         id: mockConversationId,
         intakeCompleted: true,
         intakeCompletedAt: mockDate,
       });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: 'bot-123',
+        title: 'Test Bot',
+        description: 'A test chatbot',
+        type: null,
+        configJson: null,
+        fallbackSuggestionPills: [],
+        creator: { name: 'Test Creator' },
+        sources: [],
+      });
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
         method: 'PATCH',
@@ -82,6 +124,7 @@ describe('Conversation API', () => {
       (auth as jest.Mock).mockResolvedValue({ userId: null });
       (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
         userId: null, // Anonymous conversation
+        chatbotId: 'bot-123',
       });
       (prisma.conversation.update as jest.Mock).mockResolvedValue({
         id: mockConversationId,
@@ -127,6 +170,7 @@ describe('Conversation API', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
         userId: 'other-user-id', // Different user owns this conversation
+        chatbotId: 'bot-123',
       });
 
       const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
@@ -148,6 +192,7 @@ describe('Conversation API', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
         userId: mockUserId,
+        chatbotId: 'bot-123',
       });
 
       const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
@@ -169,6 +214,7 @@ describe('Conversation API', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
       (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
         userId: mockUserId,
+        chatbotId: 'bot-123',
       });
       (prisma.conversation.update as jest.Mock).mockResolvedValue({
         id: mockConversationId,
@@ -218,6 +264,89 @@ describe('Conversation API', () => {
 
       expect(response.status).toBe(500);
       expect(data.error).toBe('Internal server error');
+    });
+
+    it('should generate suggestion pills when intake completed by authenticated user', async () => {
+      const { generateSuggestionPills } = require('@/lib/pills/generate-suggestion-pills');
+
+      (auth as jest.Mock).mockResolvedValue({ userId: mockClerkUserId });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: mockUserId });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        userId: mockUserId,
+        chatbotId: 'bot-123',
+      });
+      (prisma.conversation.update as jest.Mock).mockResolvedValue({
+        id: mockConversationId,
+        intakeCompleted: true,
+        intakeCompletedAt: new Date(),
+      });
+      (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
+        id: 'bot-123',
+        title: 'Test Bot',
+        description: 'A test chatbot',
+        type: null,
+        configJson: null,
+        fallbackSuggestionPills: [],
+        creator: { name: 'Test Creator' },
+        sources: [{ source: { title: 'Source 1' } }],
+      });
+      (prisma.intake_Response.findMany as jest.Mock).mockResolvedValue([
+        {
+          intakeQuestionId: 'q1',
+          value: 'Test answer',
+          intakeQuestion: { id: 'q1', questionText: 'What is your name?' },
+        },
+      ]);
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intakeCompleted: true }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.suggestionPills).toEqual(['Suggestion 1', 'Suggestion 2']);
+      expect(generateSuggestionPills).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatbot: expect.objectContaining({ id: 'bot-123' }),
+          intake: expect.objectContaining({
+            responses: { q1: 'Test answer' },
+          }),
+        })
+      );
+    });
+
+    it('should not generate pills for anonymous users', async () => {
+      const { generateSuggestionPills } = require('@/lib/pills/generate-suggestion-pills');
+
+      (auth as jest.Mock).mockResolvedValue({ userId: null });
+      (prisma.conversation.findUnique as jest.Mock).mockResolvedValue({
+        userId: null,
+        chatbotId: 'bot-123',
+      });
+      (prisma.conversation.update as jest.Mock).mockResolvedValue({
+        id: mockConversationId,
+        intakeCompleted: true,
+        intakeCompletedAt: new Date(),
+      });
+
+      const request = new Request(`http://localhost/api/conversations/${mockConversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intakeCompleted: true }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ conversationId: mockConversationId }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.suggestionPills).toBeUndefined();
+      expect(generateSuggestionPills).not.toHaveBeenCalled();
     });
   });
 });

@@ -1515,6 +1515,7 @@ export default function Chat({ chatbotId, chatbotTitle }: ChatProps) {
                       chatbotId={chatbotId}
                       messageContext={message.context}
                       textColor={currentBubbleStyle.text}
+                      hasCompletedIntake={!!(intakeGate.welcomeData?.intakeCompleted && intakeGate.welcomeData?.hasQuestions)}
                     />
                   )}
                 </div>

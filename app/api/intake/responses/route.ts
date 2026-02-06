@@ -63,7 +63,6 @@ export async function POST(request: Request) {
     // 3. Parse request body
     const body = await request.json();
     const {
-      userId: providedUserId,
       intakeQuestionId,
       chatbotId,
       value,
@@ -78,15 +77,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Verify userId matches authenticated user (security check)
-    if (providedUserId && providedUserId !== user.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized: userId does not match authenticated user' },
-        { status: 403 }
-      );
-    }
-
-    // Use authenticated user's ID
+    // Use authenticated user's ID (no need for client-provided userId)
     const dbUserId = user.id;
 
     // 6. Validate chatbotId is provided (required for association check)

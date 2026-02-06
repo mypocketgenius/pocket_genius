@@ -20,7 +20,7 @@ jest.mock('@/lib/env', () => ({
 import { POST } from '@/app/api/chat/route';
 import { prisma } from '@/lib/prisma';
 import { queryRAG } from '@/lib/rag/query';
-import { checkRateLimit, getRemainingMessages } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { auth } from '@clerk/nextjs/server';
 import OpenAI from 'openai';
 import { logPillUsage } from '@/lib/pills/log-usage';
@@ -69,7 +69,6 @@ jest.mock('@/lib/rag/query', () => ({
 
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(),
-  getRemainingMessages: jest.fn(),
   RATE_LIMIT: 10,
 }));
 
@@ -138,8 +137,7 @@ describe('POST /api/chat', () => {
     
     // Default mocks
     (auth as jest.Mock).mockResolvedValue({ userId: null });
-    (checkRateLimit as jest.Mock).mockResolvedValue(true);
-    (getRemainingMessages as jest.Mock).mockResolvedValue(10);
+    (checkRateLimit as jest.Mock).mockResolvedValue({ allowed: true, remaining: 10, limit: 10 });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.chatbot.findUnique as jest.Mock).mockResolvedValue({
       id: 'bot-123',
@@ -255,8 +253,7 @@ describe('POST /api/chat', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: 'db-user-123',
       });
-      (checkRateLimit as jest.Mock).mockResolvedValue(true);
-      (getRemainingMessages as jest.Mock).mockResolvedValue(5);
+      (checkRateLimit as jest.Mock).mockResolvedValue({ allowed: true, remaining: 5, limit: 10 });
 
       const request = new Request('http://localhost/api/chat', {
         method: 'POST',
@@ -497,8 +494,7 @@ describe('POST /api/chat', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: 'db-user-123',
       });
-      (checkRateLimit as jest.Mock).mockResolvedValue(false);
-      (getRemainingMessages as jest.Mock).mockResolvedValue(0);
+      (checkRateLimit as jest.Mock).mockResolvedValue({ allowed: false, remaining: 0, limit: 10 });
 
       const request = new Request('http://localhost/api/chat', {
         method: 'POST',

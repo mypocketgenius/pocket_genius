@@ -9,7 +9,7 @@ import { streamText } from 'ai';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { queryRAG, type RetrievedChunk } from '@/lib/rag/query';
-import { checkRateLimit, getRemainingMessages, RATE_LIMIT } from '@/lib/rate-limit';
+import { checkRateLimit, RATE_LIMIT } from '@/lib/rate-limit';
 import { logPillUsage } from '@/lib/pills/log-usage';
 import { generateFollowUpPills } from '@/lib/follow-up-pills/generate-pills';
 import { DEFAULT_CHAT_MODEL, CHAT_TEMPERATURE } from '@/lib/ai/gateway';
@@ -131,9 +131,8 @@ export async function POST(req: Request) {
     // The User_Context table is synced from intake responses but no longer appended as raw JSON.
     // If non-intake user context is needed in the future, add a {user_context} template variable.
 
-    // 5. Check rate limit (dbUserId always present now)
-    const allowed = await checkRateLimit(dbUserId);
-    const remainingMessages = await getRemainingMessages(dbUserId);
+    // 5. Check rate limit (single query instead of two)
+    const { allowed, remaining: remainingMessages } = await checkRateLimit(dbUserId);
     
     if (!allowed) {
       // Calculate reset time (1 minute from now)

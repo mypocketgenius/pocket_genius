@@ -339,24 +339,16 @@ export function useConversationalIntake(
     }
   }, [conversationId, processQuestion]);
 
-  // Save response to API
+  // Save response to API (server resolves userId from auth — no need to fetch /api/user/current)
   const saveResponse = useCallback(async (questionId: string, value: any) => {
     if (!clerkUserId) {
       throw new Error('User not authenticated');
     }
 
-    const userResponse = await fetch('/api/user/current');
-    if (!userResponse.ok) {
-      throw new Error('Failed to get user ID');
-    }
-    const userData = await userResponse.json();
-    const dbUserId = userData.userId;
-
     const response = await fetch('/api/intake/responses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: dbUserId,
         intakeQuestionId: questionId,
         chatbotId,
         value,
