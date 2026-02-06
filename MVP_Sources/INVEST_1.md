@@ -1,27 +1,72 @@
-As a <user> I want <function> so that<value>.
+# Evaluating User Story Quality with the INVEST Framework
 
-Above is a very simple user story template.  How can something so simple be so hard to get right?  User stories make up the heart of agile development.  They are the primary input to the team.  The team takes the user stories and creates product increments based on completing those stories.  Unfortunately, getting user stories “right” is difficult to do right away.  The Product Owner (or other product facing role) needs to learn how to create user stories which meet the needs of the team.  This is a skill which can be learned over time, but I’m about to save you a bit of learning curve.
+## Standard Format
 
-In order to create good user stories, start by remembering to INVEST in good user stories.  INVEST is an acronym which encompasses the following concepts which make up a good user story:
+```
+As a <role>, I want <capability>, so that <benefit>.
+```
 
-Independent
-Negotiable
-Valuable
-Estimable
-Small
-Testable
-Let’s cover each of them with a simple explanation.
+## Role in Agile Development
 
-Independent:  Stories should be as independent as possible.  When thinking of independence it is often easier to think of “order independent.”  In other words, stories can be worked on in any order.  Why is this important?  It allows for true prioritization of each and every story.  When dependencies come into play it may not be possible to implement a valuable story without implementing other much less valuable stories.
+Agile teams consume user stories as their fundamental unit of work and deliver product increments against them. Ownership of story authorship falls to the Product Owner or equivalent product-facing role. The quality bar for what constitutes a well-constructed story is codified by six criteria, remembered through the mnemonic **INVEST**.
 
-Negotiable:  A story is not a contract.  A story IS an invitation to a conversation.  The story captures the essence of what is desired.  The actual result needs to be the result of collaborative negotation between the customer (or customer proxy like the Product Owner), developer and tester (at a minimum).  The goal is to meet customer needs, not develop something to the letter of the user story if doing so is insufficient!  Remember, you can always ask the magic question to help drive the conversation.
+## Criteria Overview
 
-Valuable:  If a story does not have discernable value it should not be done.  Period.  Hopefully user stories are being prioritized in the backlog according to business value, so this should be obvious.  Some people say each story should be valuable to the customer or user.  I don’t like that way of thinking because business value encompasses more than just customer or user facing value.  It includes internal value which is useful for things which are normally called “non-functional requirements” or something similar.  I prefer to say the story has value to the “user” in the user story.  In this way it is clear who is to be satisfied.  Finally, remember the “so that <value>” clause of the user story.  It is there for a reason – it is the exact value we are trying to deliver by completing the story!
+| Criterion | Core Question |
+|-----------|---------------|
+| **I**ndependent | Can this story be prioritized and built without sequencing constraints? |
+| **N**egotiable | Does the story leave room for collaborative refinement? |
+| **V**aluable | Is there a clear, identifiable benefit tied to completion? |
+| **E**stimable | Can the team reasonably gauge the effort required? |
+| **S**mall | Is the scope narrow enough to finish within a single iteration? |
+| **T**estable | Can acceptance criteria be defined right now? |
 
-Estimable:  A story has to be able to be estimated or sized so it can be properly prioritized.  A value with high value but extremely lengthy development time may not be the highest priority item because of the length of time to develop it.  What happens if a story can’t be estimated?  You can split the story and perhaps gain more clarity.  Sometimes splitting a story doesn’t help though.  If this situation occurs it may be necessary to do some research about the story first.  Please, please, please timebox the research!  If you do not, it will take all available time thereby depriving the product of something else which could have been done instead.
+---
 
-Small:  Obviously stories are small chunks of work, but how small should they be?  The answer depends on the team and the methodology being used.  I teach agile and suggest two week iterations which allow for user stories to average 3-4 days of work – TOTAL!  This includes all work to get the story to a “done” state.  Also remember not to goldplate user stories.  You should do the simplest thing that works – then stop!
+### Independent
 
-Testable:  Every story needs to be testable in order to be “done.”  In fact, I like to think of testable meaning acceptance criteria can be written immediately.  Thinking this way encourages more collaboration up front, builds quality in by moving QA up in the process, and allows for easy transformation to an acceptance test-driven development (ATDD) process.  As with negotiable above, asking the magic question can help ensure the user story is testable as well.
+A well-formed story has no ordering constraints relative to other stories — any story in the backlog should be eligible for selection regardless of what else has or has not been completed. This property protects prioritization: without it, high-value work can become hostage to low-value prerequisites.
 
-If Product Owners and their teams work together to INVEST in good user stories the learning curve of working together will be much shorter.  INVEST encourages good habits which eliminate some of the bigger problems of user stories like dependencies, being too big, hard to test, etc.  Take the time to INVEST in good stories and see the dramatic change in how effective planning will become, as well as how productive the team will become.
+### Negotiable
+
+A story describes intent, not a binding specification. It exists to initiate dialogue — at minimum among the customer (or their proxy, such as the Product Owner), the developer, and the tester. Through that dialogue, the team converges on an outcome that genuinely addresses the underlying need. Rigid adherence to story wording at the expense of the actual goal is a failure mode. Targeted clarifying questions are the primary tool for surfacing hidden assumptions and refining scope.
+
+### Valuable
+
+Every story must deliver an identifiable benefit or it has no place in the backlog. Backlog ordering should reflect this — higher-benefit stories rise to the top.
+
+"Benefit" is not limited to what end users or customers directly perceive. It encompasses internal concerns traditionally labeled "non-functional requirements" — performance, security, maintainability, and similar qualities. The relevant measure is whether the specific role named in the story's `<role>` field is meaningfully served.
+
+The `so that <benefit>` clause in the template exists precisely to force explicit articulation of what completing the story delivers.
+
+### Estimable
+
+The team must be able to gauge effort so that benefit can be weighed against cost during prioritization. A high-benefit story requiring disproportionate effort may justifiably rank below cheaper alternatives.
+
+When a story resists estimation:
+1. **Decompose it** — splitting often exposes the ambiguity that blocks sizing.
+2. **If decomposition is insufficient, run a spike** — a focused, research-only activity to resolve the unknowns.
+3. **Spikes must be timeboxed.** Without a fixed boundary, investigative work expands to fill all available capacity, displacing productive delivery.
+
+### Small
+
+Appropriate story size varies by team and process cadence. A practical benchmark for two-week iterations: stories should average **3–4 total days of effort**, encompassing every activity required to reach a "done" state (development, testing, review, etc.).
+
+The governing principle is to implement the minimum that satisfies the need — no embellishment beyond that. Gold-plating is waste.
+
+### Testable
+
+A story that cannot be verified cannot be declared done. The operational test for this criterion: **acceptance criteria should be writable at the moment the story is authored.** If they cannot be, the story is underspecified.
+
+Defining acceptance criteria early produces three compounding benefits:
+- It forces collaborative alignment before implementation begins.
+- It shifts quality assurance upstream, catching problems earlier.
+- It creates a natural on-ramp to acceptance test-driven development (ATDD).
+
+As with Negotiable, clarifying questions serve as the mechanism for surfacing what "done" looks like.
+
+---
+
+## Aggregate Effect
+
+Consistent application of these six criteria directly addresses the most common user story defects — hidden dependencies, excessive scope, and unverifiable outcomes. The result is more predictable planning and higher sustained throughput.

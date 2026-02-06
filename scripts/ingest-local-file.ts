@@ -187,6 +187,12 @@ const SOURCE_CONFIGS: Record<string, IngestConfig> = {
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
     sourceUrl: 'https://www.scrum.org/resources/nexus-guide',
   },
+  invest_framework: {
+    filePath: 'MVP_Sources/INVEST_1.md',
+    sourceId: 'invest_framework',
+    sourceTitle: 'INVEST Framework for User Story Quality',
+    creatorId: 'scrum_genius',
+  },
 };
 
 const sourceKey = process.argv[2] || 'scrum_guide';
