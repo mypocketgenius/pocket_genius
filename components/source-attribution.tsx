@@ -1,7 +1,6 @@
 'use client';
 
 import { Prisma } from '@prisma/client';
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -17,6 +16,7 @@ interface SourceAttributionProps {
   chatbotId: string;
   messageContext?: Prisma.JsonValue;
   textColor?: string;
+  hasCompletedIntake?: boolean;
 }
 
 interface ChunkData {
@@ -49,24 +49,8 @@ export function SourceAttribution({
   chatbotId,
   messageContext,
   textColor = '#4b5563',
+  hasCompletedIntake = false,
 }: SourceAttributionProps) {
-  const [hasCompletedIntake, setHasCompletedIntake] = useState<boolean>(false);
-
-  useEffect(() => {
-    const checkIntakeCompletion = async () => {
-      try {
-        const response = await fetch(`/api/intake/completion?chatbotId=${chatbotId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setHasCompletedIntake(data.completed && data.hasQuestions);
-        }
-      } catch (error) {
-        console.error('Error checking intake completion:', error);
-      }
-    };
-    checkIntakeCompletion();
-  }, [chatbotId]);
-
   // Group chunks by source
   const getGroupedSources = (): GroupedSource[] => {
     if (!messageContext || typeof messageContext !== 'object') {

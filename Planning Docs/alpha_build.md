@@ -6679,6 +6679,15 @@ If critical issues arise in production:
   - Added authors, year, license, licenseUrl, sourceUrl fields to Source model
   - Made source names clickable with dialog showing details and excerpts
   - Updated chat route to include attribution data in chunksForContext
+- [x] Side Quest: Chat Route System Prompt & Intake Substitution ✅ **COMPLETE** (Feb 6, 2026)
+  - Replaced hardcoded system prompt in `app/api/chat/route.ts` with `chatbot.systemPrompt` + template substitution
+  - Added `{intake.SLUG}` substitution: intake question slugs are resolved to user's answers at chat time
+  - Added `{rag_context}` substitution: RAG chunks injected into system prompt via placeholder instead of hardcoded string
+  - Fallback generic prompt for chatbots with null `systemPrompt` (still receives RAG context via `{rag_context}`)
+  - Unmatched `{intake.*}` placeholders (skipped optional questions) replaced with "(not provided)"
+  - Deduplicated intake response DB query: single fetch reused for both prompt substitution and pill generation
+  - Used `replaceAll()` instead of `replace()` for safe handling of repeated placeholders
+  - Plan doc: `Planning Docs/02-06_chat-route-system-prompt.md`
 - [ ] Phase 3.10: User Intake Forms
 
 ### Analytics & Intelligence

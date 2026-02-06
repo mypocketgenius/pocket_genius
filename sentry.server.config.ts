@@ -13,8 +13,7 @@ Sentry.init({
   // Setting to 1.0 means profiling is enabled for 100% of transactions
   profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   
-  // Enable debug mode in development
-  debug: process.env.NODE_ENV === 'development',
+  debug: false,
   
   // Environment tag
   environment: process.env.NODE_ENV || 'development',

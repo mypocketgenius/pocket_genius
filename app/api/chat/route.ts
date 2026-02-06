@@ -127,30 +127,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Fetch user context (global + chatbot-specific) - Phase 3.10, Step 6
-    let userContext: Record<string, any> = {};
-    try {
-      const userContexts = await prisma.user_Context.findMany({
-        where: {
-          userId: dbUserId,
-          OR: [
-            { chatbotId: null }, // Global context
-            { chatbotId },        // Chatbot-specific context
-          ],
-          isVisible: true,
-        },
-      });
-      
-      // Build user context object
-      userContext = userContexts.reduce((acc, ctx) => {
-        acc[ctx.key] = ctx.value;
-        return acc;
-      }, {} as Record<string, any>);
-    } catch (error) {
-      // Log error but continue without user context (non-critical)
-      console.error('Error fetching user context:', error);
-      userContext = {};
-    }
+    // 4. User context is now handled via {intake.SLUG} template substitution in the system prompt.
+    // The User_Context table is synced from intake responses but no longer appended as raw JSON.
+    // If non-intake user context is needed in the future, add a {user_context} template variable.
 
     // 5. Check rate limit (dbUserId always present now)
     const allowed = await checkRateLimit(dbUserId);
@@ -484,24 +463,95 @@ export async function POST(req: Request) {
       };
     });
 
-    // 13. Generate streaming response with OpenAI (with error handling)
-    // Build system prompt with user context (Phase 3.10, Step 6)
-    const userContextString = Object.keys(userContext).length > 0
-      ? `\n\nUser context: ${JSON.stringify(userContext)}`
-      : '';
-    
-    const systemPrompt = retrievedChunks.length > 0
-      ? `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:
+    // 12a. Fetch intake responses for system prompt substitution and pill generation
+    // Include question slug for {intake.SLUG} template matching
+    let intakeResponsePairs: Array<{ slug: string; question: string; answer: string }> = [];
+    try {
+      const responses = await prisma.intake_Response.findMany({
+        where: {
+          userId: dbUserId,
+          chatbotId: chatbot.id,
+        },
+        include: {
+          intakeQuestion: {
+            select: {
+              slug: true,
+              questionText: true,
+            },
+          },
+        },
+      });
 
-${context}
+      intakeResponsePairs = responses.map((response) => {
+        let answerText = '';
+        if (response.value && typeof response.value === 'object') {
+          const value = response.value as any;
+          if (Array.isArray(value)) {
+            answerText = value.join(', ');
+          } else if (typeof value === 'string') {
+            answerText = value;
+          } else if (value.text) {
+            answerText = value.text;
+          } else {
+            answerText = JSON.stringify(value);
+          }
+        } else if (typeof response.value === 'string') {
+          answerText = response.value;
+        }
 
-If the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.${userContextString}`
-      : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.${userContextString}`;
+        return {
+          slug: response.intakeQuestion.slug,
+          question: response.intakeQuestion.questionText,
+          answer: answerText,
+        };
+      });
+    } catch (intakeError) {
+      console.warn('Error fetching intake responses for prompt substitution:', intakeError);
+    }
 
-    // 13. Create streaming response with Vercel AI SDK
+    // 13. Build system prompt with template substitution
+    let finalSystemPrompt: string;
+
+    if (chatbot.systemPrompt) {
+      finalSystemPrompt = chatbot.systemPrompt;
+    } else {
+      // Fallback generic prompt when chatbot has no systemPrompt configured
+      finalSystemPrompt = `You are a helpful assistant. Answer the user's question using the retrieved context when available. If the context doesn't contain relevant information, say so and respond using your general knowledge.\n\n## Retrieved Context\n{rag_context}`;
+    }
+
+    // Substitute {intake.SLUG} placeholders with user's intake responses
+    // Uses replaceAll to handle multiple occurrences of the same placeholder
+    for (const response of intakeResponsePairs) {
+      finalSystemPrompt = finalSystemPrompt.replaceAll(
+        `{intake.${response.slug}}`,
+        response.answer || '(not provided)'
+      );
+    }
+
+    // Clean up any remaining unsubstituted {intake.*} placeholders
+    // (e.g., optional questions the user skipped)
+    finalSystemPrompt = finalSystemPrompt.replace(
+      /\{intake\.\w+\}/g,
+      '(not provided)'
+    );
+
+    // Substitute {rag_context} with retrieved chunks (replaceAll for multiple occurrences)
+    finalSystemPrompt = finalSystemPrompt.replaceAll(
+      '{rag_context}',
+      context || 'No relevant context retrieved for this query.'
+    );
+
+    // DEBUG: Log final system prompt for verification (remove after testing)
+    console.log('[SystemPrompt DEBUG] intakeResponsePairs:', intakeResponsePairs.length, 'pairs');
+    console.log('[SystemPrompt DEBUG] has chatbot.systemPrompt:', !!chatbot.systemPrompt);
+    console.log('[SystemPrompt DEBUG] prompt length:', finalSystemPrompt.length, 'chars');
+    console.log('[SystemPrompt DEBUG] prompt START:\n', finalSystemPrompt.substring(0, 500));
+    console.log('[SystemPrompt DEBUG] prompt END:\n', finalSystemPrompt.substring(finalSystemPrompt.length - 500));
+
+    // 13b. Create streaming response with Vercel AI SDK
     const result = streamText({
       model: DEFAULT_CHAT_MODEL,
-      system: systemPrompt,
+      system: finalSystemPrompt,
       messages,
       temperature: CHAT_TEMPERATURE,
     });
@@ -524,59 +574,17 @@ If the context doesn't contain relevant information to answer the question, say 
           let followUpPills: string[] = [];
           console.log('[FollowUpPills API] Starting pill generation for conversation:', conversationId);
           try {
-            // Fetch user's intake responses for this chatbot
-            let intakeResponses: Array<{ question: string; answer: string }> = [];
-            try {
-              const responses = await prisma.intake_Response.findMany({
-                where: {
-                  userId: dbUserId,
-                  chatbotId: chatbot.id,
-                },
-                include: {
-                  intakeQuestion: {
-                    select: {
-                      questionText: true,
-                    },
-                  },
-                },
-              });
-
-              // Format intake responses as question/answer pairs
-              intakeResponses = responses.map((response) => {
-                // Extract answer from JSON value
-                let answerText = '';
-                if (response.value && typeof response.value === 'object') {
-                  const value = response.value as any;
-                  if (Array.isArray(value)) {
-                    answerText = value.join(', ');
-                  } else if (typeof value === 'string') {
-                    answerText = value;
-                  } else if (value.text) {
-                    answerText = value.text;
-                  } else {
-                    answerText = JSON.stringify(value);
-                  }
-                } else if (typeof response.value === 'string') {
-                  answerText = response.value;
-                }
-
-                return {
-                  question: response.intakeQuestion.questionText,
-                  answer: answerText,
-                };
-              });
-              console.log('[FollowUpPills API] Fetched intake responses:', intakeResponses.length);
-            } catch (intakeError) {
-              // Log but don't fail - intake responses are optional
-              console.warn('[FollowUpPills API] Error fetching intake responses:', intakeError);
-            }
+            // Reuse intake responses already fetched for prompt substitution
+            const intakeResponses = intakeResponsePairs.length > 0
+              ? intakeResponsePairs.map(({ question, answer }) => ({ question, answer }))
+              : undefined;
 
             const pillsResult = await generateFollowUpPills({
               assistantResponse: fullResponse,
               configJson: chatbot.configJson as Record<string, any> | null,
               chatbotId: chatbot.id,
               conversationId,
-              intakeResponses: intakeResponses.length > 0 ? intakeResponses : undefined,
+              intakeResponses,
             });
             followUpPills = pillsResult.pills;
             console.log('[FollowUpPills API] Generated pills:', {

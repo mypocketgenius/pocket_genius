@@ -198,42 +198,66 @@ export function IntakeFlow({
           )}
 
           {intakeHook.currentQuestion.responseType === 'SELECT' && (
-            <Select
-              value={intakeHook.currentInput || ''}
-              onValueChange={(value) => {
-                intakeHook.setCurrentInput(value);
-                intakeHook.handleAnswer(value);
-              }}
-            >
-              <SelectTrigger
-                style={{
-                  backgroundColor: themeColors.inputField,
-                  borderColor: themeColors.border,
-                  color: textColor,
+            <div className="space-y-2">
+              <Select
+                value={intakeHook.currentInput || ''}
+                onValueChange={(value) => {
+                  intakeHook.setCurrentInput(value);
                 }}
               >
-                <SelectValue placeholder="Select an option..." />
-              </SelectTrigger>
-              <SelectContent
-                style={{
-                  backgroundColor: themeColors.input,
-                  borderColor: themeColors.border,
-                  color: textColor,
-                }}
-              >
-                {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
-                  intakeHook.currentQuestion.options.map((option, index) => (
-                    <SelectItem key={index} value={option}>
-                      {option}
+                <SelectTrigger
+                  style={{
+                    backgroundColor: themeColors.inputField,
+                    borderColor: themeColors.border,
+                    color: textColor,
+                  }}
+                >
+                  <SelectValue placeholder="Select an option..." />
+                </SelectTrigger>
+                <SelectContent
+                  style={{
+                    backgroundColor: themeColors.input,
+                    borderColor: themeColors.border,
+                    color: textColor,
+                  }}
+                >
+                  {intakeHook.currentQuestion.options && intakeHook.currentQuestion.options.length > 0 ? (
+                    intakeHook.currentQuestion.options.map((option, index) => (
+                      <SelectItem key={index} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-options" disabled>
+                      No options available
                     </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-options" disabled>
-                    No options available
-                  </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 items-center">
+                <Button
+                  onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
+                  disabled={!intakeHook.currentInput || intakeHook.isSaving}
+                  style={{
+                    backgroundColor: themeColors.inputField,
+                    color: textColor,
+                    borderColor: themeColors.border,
+                  }}
+                >
+                  {intakeHook.isSaving ? 'Saving...' : 'Continue'}
+                </Button>
+                {!intakeHook.currentQuestion.isRequired && (
+                  <button
+                    onClick={intakeHook.handleSkip}
+                    disabled={intakeHook.isSaving}
+                    className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
+                    style={{ color: textColor }}
+                  >
+                    Skip
+                  </button>
                 )}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
           )}
 
           {intakeHook.currentQuestion.responseType === 'MULTI_SELECT' && (
@@ -283,22 +307,46 @@ export function IntakeFlow({
           )}
 
           {intakeHook.currentQuestion.responseType === 'BOOLEAN' && (
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id={intakeHook.currentQuestion.id}
-                checked={intakeHook.currentInput === true}
-                onCheckedChange={(checked) => {
-                  intakeHook.setCurrentInput(checked === true);
-                  intakeHook.handleAnswer(checked === true);
-                }}
-              />
-              <label
-                htmlFor={intakeHook.currentQuestion.id}
-                className="text-sm"
-                style={{ color: textColor }}
-              >
-                {intakeHook.currentQuestion.helperText || 'Yes'}
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id={intakeHook.currentQuestion.id}
+                  checked={intakeHook.currentInput === true}
+                  onCheckedChange={(checked) => {
+                    intakeHook.setCurrentInput(checked === true);
+                  }}
+                />
+                <label
+                  htmlFor={intakeHook.currentQuestion.id}
+                  className="text-sm"
+                  style={{ color: textColor }}
+                >
+                  {intakeHook.currentQuestion.helperText || 'Yes'}
+                </label>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Button
+                  onClick={() => intakeHook.handleAnswer(intakeHook.currentInput)}
+                  disabled={intakeHook.isSaving}
+                  style={{
+                    backgroundColor: themeColors.inputField,
+                    color: textColor,
+                    borderColor: themeColors.border,
+                  }}
+                >
+                  {intakeHook.isSaving ? 'Saving...' : 'Continue'}
+                </Button>
+                {!intakeHook.currentQuestion.isRequired && (
+                  <button
+                    onClick={intakeHook.handleSkip}
+                    disabled={intakeHook.isSaving}
+                    className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
+                    style={{ color: textColor }}
+                  >
+                    Skip
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -310,9 +358,7 @@ export function IntakeFlow({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (intakeHook.currentQuestion?.responseType === 'TEXT' || intakeHook.currentQuestion?.responseType === 'NUMBER') {
-                    intakeHook.handleAnswer(intakeHook.currentInput);
-                  }
+                  intakeHook.handleAnswer(intakeHook.currentInput);
                 }}
                 className="ml-2"
                 disabled={intakeHook.isSaving}

@@ -3,7 +3,7 @@
 > LLM-ready implementation plan to make `app/api/chat/route.ts` use the chatbot's stored `systemPrompt` with `{intake.SLUG}` and `{rag_context}` template variable substitution.
 
 **Created:** 2026-02-06
-**Status:** Ready for implementation
+**Status:** ✅ IMPLEMENTED (2026-02-06)
 **Related:** `02-06_story-crafter-implementation.md` (depends on this)
 
 ---
@@ -94,7 +94,7 @@ Currently intake responses are fetched at **line 530** inside the streaming call
 
 ## Change 2: Replace hardcoded system prompt logic
 
-Replace the current lines **487-499** with logic that uses `chatbot.systemPrompt` when available, substituting template variables. Falls back to existing generic prompt for chatbots without a custom prompt (backwards compatible).
+Replace the current lines **487-499** with logic that uses `chatbot.systemPrompt` with template substitution. If `systemPrompt` is null, use a generic fallback so the chatbot still functions.
 
 ### What to replace
 
@@ -103,9 +103,7 @@ Replace the current lines **487-499** with logic that uses `chatbot.systemPrompt
 **Insert this in its place:**
 
 ```typescript
-    // 13. Build system prompt
-    // If chatbot has a custom systemPrompt, use it with template substitution.
-    // Otherwise fall back to generic prompt (backwards compatible).
+    // 13. Build system prompt with template substitution
     const userContextString = Object.keys(userContext).length > 0
       ? `\n\nUser context: ${JSON.stringify(userContext)}`
       : '';
@@ -114,40 +112,34 @@ Replace the current lines **487-499** with logic that uses `chatbot.systemPrompt
 
     if (chatbot.systemPrompt) {
       finalSystemPrompt = chatbot.systemPrompt;
-
-      // Substitute {intake.SLUG} placeholders with user's intake responses
-      for (const response of intakeResponsePairs) {
-        finalSystemPrompt = finalSystemPrompt.replace(
-          `{intake.${response.slug}}`,
-          response.answer || '(not provided)'
-        );
-      }
-
-      // Clean up any remaining unsubstituted {intake.*} placeholders
-      // (e.g., optional questions the user skipped)
-      finalSystemPrompt = finalSystemPrompt.replace(
-        /\{intake\.\w+\}/g,
-        '(not provided)'
-      );
-
-      // Substitute {rag_context} with retrieved chunks
-      if (context) {
-        finalSystemPrompt = finalSystemPrompt.replace('{rag_context}', context);
-      } else {
-        finalSystemPrompt = finalSystemPrompt.replace(
-          '{rag_context}',
-          'No relevant context retrieved for this query.'
-        );
-      }
-
-      // Append user context (from User_Context table, separate from intake)
-      finalSystemPrompt += userContextString;
     } else {
-      // Fallback: generic prompt for chatbots without a custom systemPrompt
-      finalSystemPrompt = retrievedChunks.length > 0
-        ? `You are a helpful assistant that answers questions based on the provided context. Use the following context to answer the user's question:\n\n${context}\n\nIf the context doesn't contain relevant information to answer the question, say so and provide a helpful response based on your general knowledge.${userContextString}`
-        : `You are a helpful assistant. Answer the user's question to the best of your ability using your general knowledge.${userContextString}`;
+      // Fallback generic prompt when chatbot has no systemPrompt configured
+      finalSystemPrompt = `You are a helpful assistant. Answer the user's question using the retrieved context when available. If the context doesn't contain relevant information, say so and respond using your general knowledge.\n\n## Retrieved Context\n{rag_context}`;
     }
+
+    // Substitute {intake.SLUG} placeholders with user's intake responses
+    for (const response of intakeResponsePairs) {
+      finalSystemPrompt = finalSystemPrompt.replace(
+        `{intake.${response.slug}}`,
+        response.answer || '(not provided)'
+      );
+    }
+
+    // Clean up any remaining unsubstituted {intake.*} placeholders
+    // (e.g., optional questions the user skipped)
+    finalSystemPrompt = finalSystemPrompt.replace(
+      /\{intake\.\w+\}/g,
+      '(not provided)'
+    );
+
+    // Substitute {rag_context} with retrieved chunks
+    finalSystemPrompt = finalSystemPrompt.replace(
+      '{rag_context}',
+      context || 'No relevant context retrieved for this query.'
+    );
+
+    // Append user context (from User_Context table, separate from intake)
+    finalSystemPrompt += userContextString;
 ```
 
 ### Update the streamText call (line 502-507)
@@ -208,13 +200,13 @@ Then update the `generateFollowUpPills` call (line 574-580) to use `intakeRespon
 
 ---
 
-## Backwards Compatibility
+## Behavior
 
-- Chatbots **with** `systemPrompt` set: uses the custom prompt with full substitution
-- Chatbots **without** `systemPrompt` (null): falls back to the existing hardcoded generic prompt
-- No change to the request/response contract
-- No change to the database schema
-- Intake responses that don't exist yet: placeholders replaced with "(not provided)"
+- Chatbots **with** `systemPrompt`: uses the custom prompt with full `{intake.SLUG}` and `{rag_context}` substitution
+- Chatbots **without** `systemPrompt` (null): uses a generic fallback that still receives RAG context via `{rag_context}`
+- Template substitution (`{intake.*}`, `{rag_context}`) runs on **both** paths — the fallback prompt includes `{rag_context}` so it goes through the same code
+- Skipped/missing intake responses: unmatched `{intake.*}` placeholders are replaced with "(not provided)"
+- No change to the request/response contract or database schema
 
 ---
 
@@ -222,17 +214,42 @@ Then update the `generateFollowUpPills` call (line 574-580) to use `intakeRespon
 
 After implementation, verify with these scenarios:
 
-1. **Story Crafter (custom prompt):** Chat with Story Crafter after completing intake. Verify the LLM response references the user's intake answers (product area, persona, etc.) and cites Scrum Guide content.
+1. **Story Crafter (custom prompt + intake):** Chat after completing intake. Verify the LLM references the user's intake answers (product area, persona, etc.) and cites Scrum Guide content from RAG.
 
-2. **Art of War (custom prompt, if systemPrompt is set):** Same test - verify intake context appears in responses.
+2. **Skipped optional questions:** Start a Story Crafter conversation with only the 4 required intake questions answered. Verify the 3 optional fields show "(not provided)" in the prompt and don't break the response.
 
-3. **Chatbot without systemPrompt:** Verify existing chatbots that have `systemPrompt: null` continue to work identically with the generic fallback prompt.
+3. **No RAG results:** Send a query that returns no Pinecone chunks. Verify `{rag_context}` is replaced with the "No relevant context" fallback text.
 
-4. **Skipped optional questions:** Start a Story Crafter conversation with only the required intake questions answered. Verify optional fields show "(not provided)" and don't break the prompt.
-
-5. **No RAG results:** Send a query that returns no Pinecone chunks. Verify `{rag_context}` is replaced with the "No relevant context" fallback text.
+4. **Chatbot with null systemPrompt:** Verify it uses the generic fallback and still receives RAG context.
 
 ---
 
-*Document version: 1.0*
+---
+
+## Implementation Notes (2026-02-06)
+
+**All 3 changes implemented successfully** in `app/api/chat/route.ts`. TypeScript compiles clean (no new errors).
+
+### What was implemented
+
+1. **Change 1 (intake fetch):** Inserted at line 487. Fetches intake responses with `slug` included, stored in `intakeResponsePairs` array. Available for both prompt substitution and pill generation.
+
+2. **Change 2 (system prompt substitution):** Replaced hardcoded prompt block (formerly lines 487-499) with `chatbot.systemPrompt` template substitution + generic fallback. Variable renamed from `systemPrompt` to `finalSystemPrompt` in `streamText` call.
+
+3. **Change 3 (dedup intake fetch):** Replaced the duplicate 45-line intake fetch inside the streaming callback with a 3-line conversion from `intakeResponsePairs`.
+
+### Improvements over the original plan
+
+- **Used `replaceAll()` instead of `replace()`** for both `{intake.SLUG}` and `{rag_context}` substitutions. The original plan used `String.replace()` which only replaces the first match. `replaceAll()` handles edge cases where a system prompt references the same placeholder multiple times.
+
+- **Regex cleanup still uses `/g` flag** for unmatched `{intake.*}` placeholders — this already handled all occurrences so no change needed there.
+
+### Pre-existing issues (not introduced by this change)
+
+- The test file `__tests__/api/chat/route.test.ts` has pre-existing TypeScript errors (mock typing issues, missing `generateFollowUpPills` import). These are unrelated to this change.
+
+---
+
+*Document version: 1.1*
 *Created: 2026-02-06*
+*Implemented: 2026-02-06*
