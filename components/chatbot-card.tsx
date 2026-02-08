@@ -47,6 +47,7 @@ interface ChatbotCardProps {
       slug: string;
     }>;
     favoriteCount?: number; // Available but not displayed on card (shown in modal)
+    isPublic?: boolean; // Only present when authenticated; false = draft
   };
   onCardClick?: (chatbot: ChatbotCardProps['chatbot']) => void;
   isFavorite?: boolean;
@@ -238,6 +239,15 @@ export function ChatbotCard({
               }`}
             />
           </Button>
+        )}
+
+        {/* Draft badge - top left corner of image */}
+        {chatbot.isPublic === false && (
+          <Badge
+            className="absolute top-2 left-2 z-10 bg-amber-500 hover:bg-amber-500 text-white text-xs"
+          >
+            Draft
+          </Badge>
         )}
 
         {/* Image or initial letter fallback */}

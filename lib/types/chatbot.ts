@@ -39,5 +39,6 @@ export interface Chatbot {
   }>;
   favoriteCount: number;
   isFavorite?: boolean; // Only present when user is authenticated
+  isPublic?: boolean; // Only present when user is authenticated; false = draft chatbot
 }
 

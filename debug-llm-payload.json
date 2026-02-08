@@ -1,0 +1,51 @@
+{
+  "model": "gpt-4o-mini",
+  "input": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that generates follow-up questions that users can ask to continue a conversation. Generate questions phrased as if the USER is asking the AI (e.g., \"Tell me more about...\", \"Explain...\", \"What are examples of...\"). These questions should help users explore the topic further by asking the AI for more information, examples, or explanations. Do NOT generate questions that ask the user about themselves or their knowledge."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "User's Intake Responses:\nQ: What's your product or service? Describe it in one sentence.\nA: I build websites and apps for local businesses\n\nQ: Who is your ideal customer and what outcome do they want?\nA: small, local businesses. The outcome they want is an improved web presence, leads, customer experience\n\nQ: What's your customer's biggest objection or hesitation?\nA: costs too much, not worth the time, effort to maintain\n\nQ: What makes you different from alternatives?\nA: I use AI to reduce labour time. so i can make a site in a fraction of the time and cost. this allows many businesses who have not yet got a site to get one\n\nQ: Paste your current headline and subheadline (if you have one).\nA: Your website's first impression matters\n\n---\n\nAssistant's Response:\nGreat! Let's craft a compelling landing page for your service. \n\n### Step 1: Understand Your Offering\n\n**Product/Service:** Building websites and apps for local businesses  \n**Ideal Customer & Desired Outcome:** Small, local businesses wanting improved web presence, leads, and customer experience  \n**Biggest Customer Objection:** Costs too much, not worth the time, effort to maintain  \n**What Makes You Different:** Use of AI to reduce labor time, allowing lower costs and quicker delivery\n\n### Step 2: Choose the Right Title Pattern\n\nSince your service has a clear differentiator (AI usage for cost and time reduction), we'll use **Pattern C: Own your niche**.\n\n### Step 3: Apply the Title/Subtitle Formula\n\n**Title:** Focus on the outcome your customers want: improved web presence and leads.  \n**Subtitle:** Explain how you deliver this through your unique approach.\n\n### Option A:\n\n> **Headline:** Affordable websites for local businesses in record time\n> **Subtitle:** Using AI, we cut costs and deliver your site faster, so you can start attracting customers without breaking the bank.\n> **CTA:** Explore AI-Powered Solutions\n\n**Rationale:** This applies the Everydae lesson (lead with value) and highlights your unique approach (AI). It addresses cost concerns directly.\n\n### Option B:\n\n> **Headline:** Launch your business online — faster and cheaper than ever\n> **Subtitle:** With AI technology, get a tailored website at a fraction of the cost, ready to impress your customers.\n> **CTA:** Get Started Today\n\n**Rationale:** This follows the JobBoardSheet lesson by handling objections with specifics (faster, fraction of the cost) and emphasizes the outcome.\n\n### Below-Fold Recommendations:\n\n**Features/Objections section:**\n- Feature 1: AI-driven design cuts delivery time by 50%\n- Feature 2: Cost-effective solutions tailored to small business needs\n\n**Social Proof recommendation:**\n- Showcase testimonials from local business owners with before/after screenshots of their web presence.\n\n**FAQ:**\n- Q1: How do you keep costs low? → A: By leveraging AI, we streamline the process and pass savings to you.\n- Q2: How quickly can I launch my site? → A: Most sites are live in just two weeks.\n\n**2nd CTA:**\n- Button: \"See What AI Can Do For You\" + a customer testimonial quote\n\nFeel free to let me know your thoughts or if you have any specific requests!"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Based on the assistant's response above and the user's intake responses (if provided), generate 7 follow-up questions that the USER can ask TO THE AI to continue the conversation. These questions should be phrased as if the user is asking the AI (e.g., \"Tell me more about...\", \"What are examples of...\", \"How can I...\"). Consider the user's intake responses when generating relevant follow-up questions. Do NOT generate questions that ask the user about themselves (e.g., avoid \"what do you think...\" or \"how well do you know...\"). Return ONLY a JSON object with this exact structure: {\"pills\": [\"question 1\", \"question 2\", \"question 3\"]}. Each question should be 5-15 words, natural and conversational, directly related to the assistant's response and user context, and actionable. Order questions by quality and relevance (best questions first). Note: The first 3 questions are shown initially; remaining questions appear after \"Show More\" is clicked."
+        }
+      ]
+    }
+  ],
+  "temperature": 0.7,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "strict": true,
+      "name": "response",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "pills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "pills"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  }
+}

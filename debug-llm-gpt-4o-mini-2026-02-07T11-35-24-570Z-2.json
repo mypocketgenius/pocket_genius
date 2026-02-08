@@ -1,0 +1,51 @@
+{
+  "model": "gpt-4o-mini",
+  "input": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that generates follow-up questions that users can ask to continue a conversation. Generate questions phrased as if the USER is asking the AI (e.g., \"Tell me more about...\", \"Explain...\", \"What are examples of...\"). These questions should help users explore the topic further by asking the AI for more information, examples, or explanations. Do NOT generate questions that ask the user about themselves or their knowledge."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "User's Intake Responses:\nQ: What's your product or service? Describe it in one sentence.\nA: I build websites and apps for local businesses\n\nQ: Who is your ideal customer and what outcome do they want?\nA: small, local businesses. The outcome they want is an improved web presence, leads, customer experience\n\nQ: What's your customer's biggest objection or hesitation?\nA: costs too much, not worth the time, effort to maintain\n\nQ: What makes you different from alternatives?\nA: I use AI to reduce labour time. so i can make a site in a fraction of the time and cost. this allows many businesses who have not yet got a site to get one\n\nQ: Paste your current headline and subheadline (if you have one).\nA: Your website's first impression matters\n\n---\n\nAssistant's Response:\nGreat! Let's build your landing page from scratch.\n\n### Step 1: Title Pattern Selection\n\nGiven your product:\n\n- **Product/Service:** I build websites and apps for local businesses\n- **Unique Selling Point:** Use AI to reduce labor time, create sites quickly and cost-effectively\n- **Ideal Customer & Desired Outcome:** Small, local businesses want a better web presence, leads, and customer experience\n- **Biggest Customer Objection:** Costs too much, not worth the time or effort to maintain\n\n**Title Pattern Selected:** Pattern C (Own your niche) because your use of AI differentiates you from typical web design services.\n\n### Step 2: Craft the Headline and Subtitle\n\n**Option A:**\n\n> **Headline:** Get a professional website without breaking the bank\n> **Subtitle:** AI-powered design delivers fast, cost-effective sites for local businesses\n> **CTA:** Discover how we can help you\n\nRationale: This applies the Counterweight lesson by replacing vague promises with specifics about AI and cost-effectiveness.\n\n---\n\n### Step 3: Below-Fold Recommendations\n\n**Features/Objections section:**\n\n- **Feature 1:** AI-driven design process speeds up delivery\n- **Feature 2:** Affordable pricing without compromising quality\n\n**Social Proof recommendation:**\n\nShowcase testimonials from local businesses with a photo and quote about their improved web presence.\n\n**FAQ:**\n\n- **Q1:** How do you keep costs low without sacrificing quality?\n  - **A:** AI technology streamlines the process, reducing labor and cost.\n- **Q2:** How quickly can I expect my website to be live?\n  - **A:** Most sites are ready within two weeks.\n\n**2nd CTA:**\n\nReiterate value with a testimonial: \"Our site was live in under two weeks, and we saw immediate results!\" + CTA button: \"See our results\"\n\n---\n\nLet me know if you'd like to make any adjustments!"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Based on the assistant's response above and the user's intake responses (if provided), generate 7 follow-up questions that the USER can ask TO THE AI to continue the conversation. These questions should be phrased as if the user is asking the AI (e.g., \"Tell me more about...\", \"What are examples of...\", \"How can I...\"). Consider the user's intake responses when generating relevant follow-up questions. Do NOT generate questions that ask the user about themselves (e.g., avoid \"what do you think...\" or \"how well do you know...\"). Return ONLY a JSON object with this exact structure: {\"pills\": [\"question 1\", \"question 2\", \"question 3\"]}. Each question should be 5-15 words, natural and conversational, directly related to the assistant's response and user context, and actionable. Order questions by quality and relevance (best questions first). Note: The first 3 questions are shown initially; remaining questions appear after \"Show More\" is clicked."
+        }
+      ]
+    }
+  ],
+  "temperature": 0.7,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "strict": true,
+      "name": "response",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "pills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "pills"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  }
+}

@@ -19,7 +19,7 @@ const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 // Import chunking (doesn't use env validation)
-import { chunkText } from '../lib/chunking/text';
+import { smartChunk } from '../lib/chunking/markdown';
 
 const EMBEDDING_BATCH_SIZE = 100;
 
@@ -75,7 +75,7 @@ async function processFile(fileId: string) {
     console.log(`  Text length: ${text.length} characters`);
 
     // Chunk the text
-    const textChunks = chunkText(text, 1000);
+    const textChunks = smartChunk(text);
     console.log(`  Chunks created: ${textChunks.length}`);
 
     // Generate embeddings in batches
@@ -99,6 +99,7 @@ async function processFile(fileId: string) {
         sourceId: file.sourceId,
         sourceTitle: file.source.title,
         ...(chunk.page !== undefined && { page: chunk.page }),
+        ...(chunk.section !== undefined && { section: chunk.section }),
       },
     }));
 

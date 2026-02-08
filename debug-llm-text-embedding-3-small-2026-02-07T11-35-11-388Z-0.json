@@ -1,0 +1,7 @@
+{
+  "model": "text-embedding-3-small",
+  "input": [
+    "lets start fresh!!!"
+  ],
+  "encoding_format": "float"
+}

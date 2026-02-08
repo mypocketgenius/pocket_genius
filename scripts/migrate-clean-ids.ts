@@ -17,7 +17,7 @@ import { del, list } from '@vercel/blob';
 import { getPineconeIndex } from '../lib/pinecone/client';
 import { put } from '@vercel/blob';
 import { extractTextFromUrl } from '../lib/extraction/text';
-import { chunkText } from '../lib/chunking/text';
+import { smartChunk } from '../lib/chunking/markdown';
 import { generateEmbeddings } from '../lib/embeddings';
 import { upsertWithRetry, type PineconeVector } from '../lib/pinecone';
 import { env } from '../lib/env';
@@ -223,7 +223,7 @@ async function uploadAndIngestFile(
     const text = await extractTextFromUrl(blob.url);
     console.log(`   📝 Extracted ${text.length} characters`);
 
-    const textChunks = chunkText(text, 1000);
+    const textChunks = smartChunk(text);
     console.log(`   📦 Created ${textChunks.length} chunks`);
 
     console.log(`   🧠 Generating embeddings...`);
@@ -244,7 +244,8 @@ async function uploadAndIngestFile(
         text: chunk.text,
         sourceId: sourceId,
         sourceTitle: sourceTitle,
-        page: chunk.page,
+        ...(chunk.page !== undefined && { page: chunk.page }),
+        ...(chunk.section !== undefined && { section: chunk.section }),
       },
     }));
 

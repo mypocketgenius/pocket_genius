@@ -144,6 +144,7 @@ export async function PATCH(request: Request) {
     // 3. Parse request body
     const body = await request.json();
     const { contextId, value } = body;
+    console.log('[PATCH /api/user-context] Request body:', { contextId, value, valueType: typeof value });
 
     if (!contextId) {
       return NextResponse.json(
@@ -156,6 +157,7 @@ export async function PATCH(request: Request) {
     const context = await prisma.user_Context.findUnique({
       where: { id: contextId },
     });
+    console.log('[PATCH /api/user-context] Found context:', context ? { id: context.id, key: context.key, userId: context.userId, isEditable: context.isEditable, currentValue: context.value } : 'NOT FOUND');
 
     if (!context) {
       return NextResponse.json(
@@ -166,6 +168,7 @@ export async function PATCH(request: Request) {
 
     // 5. Verify ownership and editability
     if (context.userId !== user.id) {
+      console.log('[PATCH /api/user-context] Ownership mismatch:', { contextUserId: context.userId, requestUserId: user.id });
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -173,6 +176,7 @@ export async function PATCH(request: Request) {
     }
 
     if (!context.isEditable) {
+      console.log('[PATCH /api/user-context] Context not editable:', contextId);
       return NextResponse.json(
         { error: 'Context is not editable' },
         { status: 403 }
@@ -188,6 +192,7 @@ export async function PATCH(request: Request) {
         updatedAt: new Date(),
       },
     });
+    console.log('[PATCH /api/user-context] Updated context:', { id: updatedContext.id, key: updatedContext.key, newValue: updatedContext.value });
 
     return NextResponse.json({
       success: true,

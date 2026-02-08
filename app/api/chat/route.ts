@@ -552,7 +552,7 @@ export async function POST(req: Request) {
       model: DEFAULT_CHAT_MODEL,
       system: finalSystemPrompt,
       messages,
-      temperature: CHAT_TEMPERATURE,
+      temperature: (chatbot.configJson as Record<string, any>)?.temperature ?? CHAT_TEMPERATURE,
     });
 
     // Create a readable stream for the response with custom post-processing

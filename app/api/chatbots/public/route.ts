@@ -113,9 +113,19 @@ export async function GET(req: Request) {
       );
     }
 
-    // Build base filter: isPublic = true AND isActive = true
+    // Build visibility filter: public chatbots, plus owner's non-public chatbots
+    const visibilityFilter = dbUserId
+      ? {
+          OR: [
+            { isPublic: true },
+            { creator: { users: { some: { userId: dbUserId } } } },
+          ],
+        }
+      : { isPublic: true };
+
+    // Build base filter: visibility + isActive = true
     const baseFilters: any[] = [
-      { isPublic: true },
+      visibilityFilter,
       { isActive: true },
     ];
 
@@ -272,9 +282,12 @@ export async function GET(req: Request) {
           slug: cc.category.slug,
         })),
         favoriteCount: chatbot._count.favoritedBy,
-        // Include isFavorite only if user is authenticated
-        ...(dbUserId && 'favoritedBy' in chatbot && Array.isArray(chatbot.favoritedBy) ? {
-          isFavorite: chatbot.favoritedBy.length > 0,
+        // Include isFavorite and isPublic only if user is authenticated
+        ...(dbUserId ? {
+          isPublic: chatbot.isPublic,
+          ...('favoritedBy' in chatbot && Array.isArray(chatbot.favoritedBy) ? {
+            isFavorite: chatbot.favoritedBy.length > 0,
+          } : {}),
         } : {}),
       };
     });

@@ -4,7 +4,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { extractTextFromUrl } from '@/lib/extraction/text';
-import { chunkText } from '@/lib/chunking/text';
+import { smartChunk } from '@/lib/chunking/markdown';
 import { generateEmbeddings } from '@/lib/embeddings';
 import { upsertWithRetry, type PineconeVector } from '@/lib/pinecone';
 import { NextResponse } from 'next/server';
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       // 9. Chunk the text (Task 5)
       let textChunks;
       try {
-        textChunks = chunkText(text, 1000); // 1000 character chunks
+        textChunks = smartChunk(text);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         throw new Error(`Failed to chunk text: ${errorMessage}`);
@@ -136,6 +136,7 @@ export async function POST(req: Request) {
           sourceId: file.sourceId,
           sourceTitle: file.source.title,
           ...(chunk.page !== undefined && { page: chunk.page }),
+          ...(chunk.section !== undefined && { section: chunk.section }),
         },
       }));
 

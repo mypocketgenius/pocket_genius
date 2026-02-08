@@ -51,6 +51,7 @@ interface ChatbotDetailModalProps {
       label: string;
       slug: string;
     }>;
+    isPublic?: boolean; // Only present when authenticated; false = draft
   };
   open: boolean;
   onClose: () => void;
@@ -403,6 +404,11 @@ export function ChatbotDetailModal({
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {chatbot.isPublic === false && (
+                  <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
+                    Draft
+                  </Badge>
+                )}
                 {chatbot.type && (
                   <Badge variant="secondary">
                     {formatChatbotType(chatbot.type)}

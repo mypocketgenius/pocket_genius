@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { put } from '@vercel/blob';
 import { prisma } from '../lib/prisma';
-import { chunkText } from '../lib/chunking/text';
+import { smartChunk } from '../lib/chunking/markdown';
 import { generateEmbeddings } from '../lib/embeddings';
 import { upsertWithRetry, type PineconeVector } from '../lib/pinecone';
 
@@ -71,7 +71,7 @@ async function ingestLocalFile(config: IngestConfig) {
 
   // 3. Chunk text
   console.log('3. Chunking text...');
-  const textChunks = chunkText(text, 1000);
+  const textChunks = smartChunk(text);
   console.log(`   Created ${textChunks.length} chunks`);
 
   // 4. Generate embeddings
@@ -97,6 +97,7 @@ async function ingestLocalFile(config: IngestConfig) {
       sourceId: sourceId,
       sourceTitle: sourceTitle,
       ...(chunk.page !== undefined && { page: chunk.page }),
+      ...(chunk.section !== undefined && { section: chunk.section }),
     },
   }));
 
@@ -192,6 +193,32 @@ const SOURCE_CONFIGS: Record<string, IngestConfig> = {
     sourceId: 'invest_framework',
     sourceTitle: 'INVEST Framework for User Story Quality',
     creatorId: 'scrum_genius',
+  },
+  marketing_landing_page: {
+    filePath: 'MVP_Sources/marketing_examples_landing_page_step_by_step.md',
+    sourceId: 'marketing_landing_page',
+    sourceTitle: 'Landing Page Guide: Step by Step',
+    creatorId: 'admin_test',
+    authors: 'Harry Dry (Marketing Examples)',
+    sourceUrl: 'https://marketingexamples.com/landing-page/guide',
+  },
+  marketing_landing_page_rewrites: {
+    filePath: 'MVP_Sources/Rewriting_landing_pages_with_a_pro_copywriter.md',
+    sourceId: 'marketing_landing_page_rewrites',
+    sourceTitle: 'Rewriting Landing Pages with a Pro Copywriter',
+    creatorId: 'admin_test',
+    authors: 'Harry Dry & Annie Maguire (Marketing Examples)',
+    sourceUrl: 'https://marketingexamples.com/landing-page/rewrites',
+  },
+  art_of_war: {
+    filePath: 'MVP_Sources/The_Art_of_War.md',
+    sourceId: 'art_of_war',
+    sourceTitle: 'The Art of War',
+    creatorId: 'sun_tzu',
+    authors: 'Sun Tzu (translated by Lionel Giles)',
+    year: 1910,
+    license: 'Public Domain',
+    sourceUrl: 'https://www.gutenberg.org/ebooks/132',
   },
 };
 

@@ -88,6 +88,7 @@ export function UserContextEditor({ contexts, questionMap, onDelete }: UserConte
     setErrors({ ...errors, [contextId]: '' });
 
     try {
+      console.log('[UserContextEditor] Saving context:', { contextId, newValue, type: typeof newValue });
       const response = await fetch('/api/user-context', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -97,16 +98,22 @@ export function UserContextEditor({ contexts, questionMap, onDelete }: UserConte
         }),
       });
 
+      const responseData = await response.json().catch(() => ({}));
+      console.log('[UserContextEditor] Response:', { status: response.status, ok: response.ok, data: responseData });
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to save context');
+        throw new Error(responseData.error || 'Failed to save context');
       }
 
+      // Update local state with new value so UI reflects the change immediately
+      setLocalContexts(prev =>
+        prev.map(ctx => ctx.id === contextId ? { ...ctx, value: newValue } : ctx)
+      );
       // Clear editing state and refresh page to show updated values
-      setEditing({ ...editing, [contextId]: false });
+      setEditing({ ...editing, [contextId]: undefined });
       router.refresh();
     } catch (error) {
-      console.error('Error saving context:', error);
+      console.error('[UserContextEditor] Error saving context:', error);
       setErrors({
         ...errors,
         [contextId]: error instanceof Error ? error.message : 'Failed to save',

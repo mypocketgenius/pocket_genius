@@ -9,6 +9,7 @@
 export interface TextChunk {
   text: string;
   page?: number;  // Optional - only set when actual page info is available
+  section?: string;  // Optional - heading text for markdown sections
 }
 
 /**
